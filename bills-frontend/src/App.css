@@ -1,0 +1,165 @@
+/* ---- GLOBAL ---- */
+body {
+  margin: 0;
+  background: #121212;
+  color: #e4e4e4;
+  font-family: system-ui, sans-serif;
+}
+
+.app-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* ---- HEADINGS ---- */
+h1, h2 {
+  color: #fafafa;
+  font-weight: 600;
+}
+
+/* ---- CARDS ---- */
+.card {
+  background: #1c1c1c;
+  padding: 1.2rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #2a2a2a;
+}
+
+/* ---- INPUTS ---- */
+input[type="text"],
+input[type="date"],
+input[type="number"],
+input[type="search"],
+input[type="checkbox"] {
+  padding: 6px;
+  border-radius: 5px;
+  border: 1px solid #333;
+  background: #181818;
+  color: white;
+  margin-top: 4px;
+}
+
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- BUTTONS ---- */
+button {
+  padding: 6px 12px;
+  border-radius: 5px;
+  border: none;
+  background: #2d2d2d;
+  color: #eaeaea;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+button:hover {
+  background: #3a3a3a;
+}
+
+button.primary {
+  background: #4a6cff;
+  color: white;
+}
+
+button.primary:hover {
+  background: #5779ff;
+}
+
+button.danger {
+  background: #d9534f;
+}
+
+button.danger:hover {
+  background: #e0605c;
+}
+
+/* ---- TABLE ---- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #1c1c1c;
+  border: 1px solid #2a2a2a;
+}
+
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #2e2e2e;
+  text-align: left;
+}
+
+th {
+  background: #222;
+  color: #bdbdbd;
+}
+
+tr:hover {
+  background: #202020;
+}
+
+tr.editing {
+  background: #26304a !important;
+}
+
+/* ---- SPACING ---- */
+label {
+  font-size: 0.9rem;
+  color: #cfcfcf;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #2c2c2c;
+  margin: 2rem 0;
+}
+
+.create-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 2rem;
+  font-size: 0.95rem;
+}
+
+.create-table th,
+.create-table td {
+  border: 1px solid #444;
+  padding: 10px;
+  text-align: left;
+  background-color: #1f1f1f;
+  color: #e0e0e0;
+}
+
+.create-table input[type="text"],
+.create-table input[type="date"],
+.create-table input[type="number"] {
+  width: 90%;
+  padding: 6px;
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: white;
+}
+
+.create-table input[type="checkbox"] {
+  transform: scale(1.2);
+}
+
+.create-table button {
+  width: 100%;
+  padding: 8px;
+  background: #646cff;
+  border: none;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.create-table button:hover {
+  background: #5156d8;
+}
+
