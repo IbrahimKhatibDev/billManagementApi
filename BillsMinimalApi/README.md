@@ -41,7 +41,7 @@ You can switch to full SQL Server or Docker SQL by updating this value.
 
 ### 1. Clone the repository
 ```
-git clone <https://github.com/DMIT-2015/dmit2015-1251-courseproject-IbrahimKhatibDev.git>
+git clone <https://github.com/IbrahimKhatibDev/billManagementApi.git>
 cd BillsMinimalApi
 ```
 
