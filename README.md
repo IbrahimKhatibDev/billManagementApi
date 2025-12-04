@@ -4,8 +4,8 @@ This project provides an API for managing bills efficiently. It includes feature
 
 ## Additional Documentation
 
-- [BillsMinimalApi_README](./BillsMinimalApi/README.md)
-- [Module 2 Readme](./path/to/module2/README.md)
+- [BillsMinimalApi README](./BillsMinimalApi/README.md)
+- [bills-frontend README](./bills-frontend/README.md)
 
 Please refer to the above links for detailed information about individual modules and their functionalities.
 
