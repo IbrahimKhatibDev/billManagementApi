@@ -1,6 +1,5 @@
 ﻿# BillsMinimalApi – Backend REST API (Minimal API + .NET 8 + SQL Server)
 
-This backend project implements the Bill REST API defined in DMIT2015 Assignment 6 using a modern .NET 8 Minimal API architecture.
 It fully supports CRUD operations, DTO mapping, EF Core with SQL Server, Swagger/OpenAPI documentation, and Bogus-based database seeding.
 
 The backend is lightweight, fast, and easy to use with any frontend framework (React, Blazor, Plain JavaScript, etc.).
