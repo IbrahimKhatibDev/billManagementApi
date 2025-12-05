@@ -5,7 +5,7 @@ This project provides an API for managing bills efficiently. It includes feature
 ## Additional Documentation
 
 - [BillsMinimalApi README](./BillsMinimalApi/README.md)
-- [bills-frontend README](./bills-frontend/README.md)
+- [BillsFrontEndBlazor README](./bills-frontend/BillsFrontEndBlazor/README.md)
 
 Please refer to the above links for detailed information about individual modules and their functionalities.
 
