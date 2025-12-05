@@ -1,0 +1,30 @@
+﻿@page "/bills"
+@inject BillService BillService
+@using BillsFrontEndBlazor.Models
+@using MudBlazor
+
+<MudPaper Class="pa-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Bills</MudText>
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="LoadBills">
+        Refresh
+    </MudButton>
+
+    <MudTable Items="Bills" Hover="true" Striped="true" Dense="true" Class="mt-4">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Payee</MudTh>
+            <MudTh>Due Date</MudTh>
+            <MudTh>Amount</MudTh>
+            <MudTh>Paid</MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd>@context.Id</MudTd>
+            <MudTd>@context.PayeeName</MudTd>
+            <MudTd>@context.DueDate.ToShortDateString()</MudTd>
+            <MudTd>@context.PaymentDue</MudTd>
+            <MudTd>@(context.Paid ? "Yes" : "No")</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
