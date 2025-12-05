@@ -1,4 +1,6 @@
 using BillsFrontEndBlazor.Models;
+using BillsFrontEndBlazor.Services;
+using Microsoft.AspNetCore.Components;
 
 namespace BillsFrontEndBlazor.Pages
 {
@@ -23,6 +25,8 @@ namespace BillsFrontEndBlazor.Pages
         private string AlertMessage = string.Empty;
         private bool IsError = false;
 
+        [Inject]
+        public BillEventService BillEventService { get; set; } = default!;
 
         private Bill _newBill = new()
         {
@@ -61,9 +65,9 @@ namespace BillsFrontEndBlazor.Pages
 
             if (success)
             {
-                ShowSuccess("Bill created successfully.");
                 ShowCreateModal = false;
                 await LoadBills();
+                BillEventService.NotifyBillsChanged();
             }
             else
             {
@@ -97,9 +101,9 @@ namespace BillsFrontEndBlazor.Pages
 
             if (success)
             {
-                ShowSuccess("Bill updated successfully.");
                 ShowEditModal = false;
                 await LoadBills();
+                BillEventService.NotifyBillsChanged();
             }
             else
             {
@@ -124,9 +128,9 @@ namespace BillsFrontEndBlazor.Pages
 
             if (success)
             {
-                ShowSuccess("Bill deleted successfully.");
                 ShowDeleteModal = false;
                 await LoadBills();
+                BillEventService.NotifyBillsChanged();
             }
             else
             {

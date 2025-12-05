@@ -9,6 +9,8 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<BillService>();
 
+builder.Services.AddSingleton<BillEventService>();
+
 // API service for bills
 builder.Services.AddHttpClient<BillService>(client =>
 {

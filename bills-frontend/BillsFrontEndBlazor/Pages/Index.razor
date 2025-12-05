@@ -1,9 +1,121 @@
 ﻿@page "/"
 
-<PageTitle>Index</PageTitle>
+<div class="container-fluid p-0">
 
-<h1>Hello, world!</h1>
+    <!-- HERO / BANNER -->
+    <div class="p-5 mb-4 text-white"
+         style="background: linear-gradient(135deg, #0d6efd, #6f42c1); border-radius: 0 0 .75rem .75rem;">
+        <div class="container py-3">
+            <h1 class="display-5 fw-bold">Welcome to Bills Manager</h1>
+            <p class="fs-5 opacity-75">
+                Manage bills, track payments, and keep your finances organized.
+            </p>
 
-Welcome to your new app.
+            <div class="mt-4">
+                <a class="btn btn-light btn-lg me-2" href="/bills">
+                    <i class="bi bi-table me-2"></i> Go to Bills
+                </a>
+                <button class="btn btn-outline-light btn-lg">
+                    <i class="bi bi-gear me-2"></i> Settings
+                </button>
+            </div>
+        </div>
+    </div>
 
-<SurveyPrompt Title="How is Blazor working for you?" />
+
+    <div class="container">
+
+        <!-- STATS ROW -->
+        <div class="row g-4 mb-5">
+
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary fw-bold">
+                            <i class="bi bi-receipt"></i> Total Bills
+                        </h5>
+                        <p class="display-6 fw-bold">@TotalBills</p>
+                        <p class="text-muted">Bills currently stored in the system</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title text-success fw-bold">
+                            <i class="bi bi-check-circle"></i> Paid Bills
+                        </h5>
+                        <p class="display-6 fw-bold">@PaidBills</p>
+                        <p class="text-muted">Bills marked as fully paid</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger fw-bold">
+                            <i class="bi bi-cash-coin"></i> Outstanding Amount
+                        </h5>
+                        <p class="display-6 fw-bold">$@OutstandingAmount</p>
+                        <p class="text-muted">Unpaid total bill amount</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- QUICK ACTIONS SECTION -->
+        <h3 class="fw-bold mb-3">Quick Actions</h3>
+
+        <div class="row g-4 mb-5">
+
+            <div class="col-md-4">
+                <a href="/bills" class="text-decoration-none">
+                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
+                        <i class="bi bi-table display-4 text-primary"></i>
+                        <h5 class="fw-bold mt-3">Manage Bills</h5>
+                        <p class="text-muted">View, edit, create, and delete bills</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-md-4">
+                <a href="#" class="text-decoration-none">
+                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
+                        <i class="bi bi-graph-up display-4 text-success"></i>
+                        <h5 class="fw-bold mt-3">View Reports</h5>
+                        <p class="text-muted">Analyze monthly or yearly billing data</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-md-4">
+                <a href="#" class="text-decoration-none">
+                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
+                        <i class="bi bi-gear display-4 text-secondary"></i>
+                        <h5 class="fw-bold mt-3">Settings</h5>
+                        <p class="text-muted">Customize application preferences</p>
+                    </div>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<style>
+    .action-tile {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+        border-radius: .75rem;
+    }
+
+        .action-tile:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 10px 25px rgba(0,0,0,.15);
+        }
+</style>
