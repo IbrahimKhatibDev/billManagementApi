@@ -87,11 +87,11 @@
                     <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
                 </div>
 
-                <div class="modal-body">
+                <EditForm Model="_editBill" OnValidSubmit="SaveEditedBill">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
 
-                    <EditForm Model="_editBill" OnValidSubmit="SaveEditedBill">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
+                    <div class="modal-body">
 
                         <div class="mb-3">
                             <label class="form-label">Payee Name</label>
@@ -116,20 +116,19 @@
                             <label class="form-check-label">Paid</label>
                         </div>
 
-                    </EditForm>
+                    </div>
 
-                </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                </div>
+                </EditForm>
 
             </div>
         </div>
     </div>
 }
-
 
 
 @if (ShowCreateModal)
@@ -143,11 +142,11 @@
                     <button type="button" class="btn-close" @onclick="CloseModal"></button>
                 </div>
 
-                <div class="modal-body">
+                <EditForm Model="_newBill" OnValidSubmit="SaveNewBill">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
 
-                    <EditForm Model="_newBill" OnValidSubmit="SaveNewBill">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
+                    <div class="modal-body">
 
                         <div class="mb-3">
                             <label>Payee Name</label>
@@ -172,16 +171,24 @@
                             <label class="form-check-label">Paid</label>
                         </div>
 
-                    </EditForm>
+                    </div>
 
-                </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
-                </div>
+                </EditForm>
 
             </div>
         </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(AlertMessage))
+{
+    <div class="alert alert-@(IsError ? "danger" : "success") alert-dismissible fade show" role="alert">
+        @AlertMessage
+        <button type="button" class="btn-close" @onclick="() => AlertMessage = string.Empty"></button>
     </div>
 }

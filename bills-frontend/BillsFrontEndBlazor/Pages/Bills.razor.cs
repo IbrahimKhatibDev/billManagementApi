@@ -19,6 +19,11 @@ namespace BillsFrontEndBlazor.Pages
         // search
         private string SearchText = string.Empty;
 
+        // Alerts
+        private string AlertMessage = string.Empty;
+        private bool IsError = false;
+
+
         private Bill _newBill = new()
         {
             DueDate = DateTime.Today,
@@ -52,9 +57,18 @@ namespace BillsFrontEndBlazor.Pages
 
         private async Task SaveNewBill()
         {
-            await BillService.CreateBillAsync(_newBill);
-            ShowCreateModal = false;
-            await LoadBills();
+            var success = await BillService.CreateBillAsync(_newBill);
+
+            if (success)
+            {
+                ShowSuccess("Bill created successfully.");
+                ShowCreateModal = false;
+                await LoadBills();
+            }
+            else
+            {
+                ShowError("Failed to create bill. Please try again.");
+            }
         }
 
         private void OpenEditModal(Bill bill)
@@ -79,9 +93,18 @@ namespace BillsFrontEndBlazor.Pages
 
         private async Task SaveEditedBill()
         {
-            await BillService.UpdateBillAsync(_editBill);
-            ShowEditModal = false;
-            await LoadBills();
+            var success = await BillService.UpdateBillAsync(_editBill);
+
+            if (success)
+            {
+                ShowSuccess("Bill updated successfully.");
+                ShowEditModal = false;
+                await LoadBills();
+            }
+            else
+            {
+                ShowError("Failed to update bill.");
+            }
         }
 
         private void OpenDeleteModal(Bill bill)
@@ -97,10 +120,18 @@ namespace BillsFrontEndBlazor.Pages
 
         private async Task ConfirmDelete()
         {
-            await BillService.DeleteBillAsync(_deleteBill.Id);
+            var success = await BillService.DeleteBillAsync(_deleteBill.Id);
 
-            ShowDeleteModal = false;
-            await LoadBills();
+            if (success)
+            {
+                ShowSuccess("Bill deleted successfully.");
+                ShowDeleteModal = false;
+                await LoadBills();
+            }
+            else
+            {
+                ShowError("Failed to delete bill.");
+            }
         }
 
         private IEnumerable<Bill> FilteredBills =>
@@ -113,5 +144,20 @@ namespace BillsFrontEndBlazor.Pages
                     // match PayeeName
                     (b.PayeeName?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false)
                 );
+
+        private void ShowSuccess(string message)
+        {
+            AlertMessage = message;
+            IsError = false;
+        }
+
+        private void ShowError(string message)
+        {
+            AlertMessage = message;
+            IsError = true;
+        }
+
     }
+
 }
+
