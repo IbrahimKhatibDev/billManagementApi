@@ -7,6 +7,9 @@ namespace BillsFrontEndBlazor.Pages
         private List<Bill> BillList = new();
         private bool ShowCreateModal = false;
 
+        private bool ShowEditModal = false;
+        private Bill _editBill = new Bill();
+
         private Bill _newBill = new()
         {
             DueDate = DateTime.Today,
@@ -43,6 +46,26 @@ namespace BillsFrontEndBlazor.Pages
             await BillService.CreateBillAsync(_newBill);
             ShowCreateModal = false;
             await LoadBills();
+        }
+
+        private void OpenEditModal(Bill bill)
+        {
+            _editBill = new Bill
+            {
+                Id = bill.Id,
+                PayeeName = bill.PayeeName,
+                PaymentDue = bill.PaymentDue,
+                DueDate = bill.DueDate,
+                Paid = bill.Paid,
+                Version = bill.Version
+            };
+
+            ShowEditModal = true;
+        }
+
+        private void CloseEditModal()
+        {
+            ShowEditModal = false;
         }
     }
 }

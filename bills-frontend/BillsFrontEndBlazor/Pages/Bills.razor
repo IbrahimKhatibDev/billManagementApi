@@ -26,49 +26,54 @@
                 <td>@bill.DueDate?.ToShortDateString()</td>
                 <td>@bill.PaymentDue</td>
                 <td>@(bill.Paid ? "Yes" : "No")</td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" @onclick="() => OpenEditModal(bill)">
+                        Edit
+                    </button>
+                </td>
             </tr>
         }
     </tbody>
 </table>
 
-@if (ShowCreateModal)
+@if (ShowEditModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
 
                 <div class="modal-header">
-                    <h5 class="modal-title">Create Bill</h5>
-                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                    <h5 class="modal-title">Edit Bill</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
                 </div>
 
                 <div class="modal-body">
 
                     <div class="mb-3">
                         <label class="form-label">Payee Name</label>
-                        <input class="form-control" @bind="_newBill.PayeeName" />
+                        <input class="form-control" @bind="_editBill.PayeeName" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Due Date</label>
-                        <input type="date" class="form-control" @bind="_newBill.DueDate" />
+                        <input type="date" class="form-control" @bind="_editBill.DueDate" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Amount</label>
-                        <input type="number" class="form-control" @bind="_newBill.PaymentDue" />
+                        <input type="number" class="form-control" @bind="_editBill.PaymentDue" />
                     </div>
 
                     <div class="form-check">
-                        <input type="checkbox" class="form-check-input" @bind="_newBill.Paid" />
+                        <input class="form-check-input" type="checkbox" @bind="_editBill.Paid" />
                         <label class="form-check-label">Paid</label>
                     </div>
 
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
-                    <button class="btn btn-primary" @onclick="SaveNewBill">Save</button>
+                    <button class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEditedBill">Save Changes</button>
                 </div>
 
             </div>
