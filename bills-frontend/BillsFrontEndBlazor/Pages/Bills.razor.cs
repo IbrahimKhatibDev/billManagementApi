@@ -4,11 +4,17 @@ namespace BillsFrontEndBlazor.Pages
 {
     public partial class Bills
     {
+        // add bill
         private List<Bill> BillList = new();
         private bool ShowCreateModal = false;
 
+        // edit bill
         private bool ShowEditModal = false;
         private Bill _editBill = new Bill();
+
+        // delete bill
+        private bool ShowDeleteModal = false;
+        private Bill _deleteBill = new Bill();
 
         private Bill _newBill = new()
         {
@@ -72,6 +78,25 @@ namespace BillsFrontEndBlazor.Pages
         {
             await BillService.UpdateBillAsync(_editBill);
             ShowEditModal = false;
+            await LoadBills();
+        }
+
+        private void OpenDeleteModal(Bill bill)
+        {
+            _deleteBill = bill;
+            ShowDeleteModal = true;
+        }
+
+        private void CloseDeleteModal()
+        {
+            ShowDeleteModal = false;
+        }
+
+        private async Task ConfirmDelete()
+        {
+            await BillService.DeleteBillAsync(_deleteBill.Id);
+
+            ShowDeleteModal = false;
             await LoadBills();
         }
     }
