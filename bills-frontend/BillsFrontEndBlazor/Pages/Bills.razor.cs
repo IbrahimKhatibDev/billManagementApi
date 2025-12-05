@@ -16,6 +16,9 @@ namespace BillsFrontEndBlazor.Pages
         private bool ShowDeleteModal = false;
         private Bill _deleteBill = new Bill();
 
+        // search
+        private string SearchText = string.Empty;
+
         private Bill _newBill = new()
         {
             DueDate = DateTime.Today,
@@ -99,5 +102,16 @@ namespace BillsFrontEndBlazor.Pages
             ShowDeleteModal = false;
             await LoadBills();
         }
+
+        private IEnumerable<Bill> FilteredBills =>
+            string.IsNullOrWhiteSpace(SearchText)
+                ? BillList
+                : BillList.Where(b =>
+                    // match ID if numeric
+                    b.Id.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+                    ||
+                    // match PayeeName
+                    (b.PayeeName?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false)
+                );
     }
 }
