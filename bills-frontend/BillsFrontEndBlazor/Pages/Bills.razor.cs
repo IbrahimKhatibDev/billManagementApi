@@ -67,5 +67,12 @@ namespace BillsFrontEndBlazor.Pages
         {
             ShowEditModal = false;
         }
+
+        private async Task SaveEditedBill()
+        {
+            await BillService.UpdateBillAsync(_editBill);
+            ShowEditModal = false;
+            await LoadBills();
+        }
     }
 }
