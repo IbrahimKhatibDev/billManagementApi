@@ -5,6 +5,7 @@
 ### Eclipse ###
 .metadata
 bin/
+obj/
 tmp/
 *.tmp
 *.bak

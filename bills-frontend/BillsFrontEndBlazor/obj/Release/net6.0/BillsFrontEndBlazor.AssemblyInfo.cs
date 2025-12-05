@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BillsFrontEndBlazor")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b414823be0f27d73ff1d332d4c8a56f621547d85")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ccd6cf964d774dd61b67c94aee10aadfd422ece8")]
 [assembly: System.Reflection.AssemblyProductAttribute("BillsFrontEndBlazor")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BillsFrontEndBlazor")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

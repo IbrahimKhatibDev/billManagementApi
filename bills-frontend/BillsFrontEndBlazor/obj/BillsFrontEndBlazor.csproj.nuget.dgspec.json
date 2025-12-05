@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\billManagementApi\\billAPI\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj": {}
+    "C:\\billManagementApi\\billAPI\\bills-frontend\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj": {}
   },
   "projects": {
-    "C:\\billManagementApi\\billAPI\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj": {
+    "C:\\billManagementApi\\billAPI\\bills-frontend\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\billManagementApi\\billAPI\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj",
+        "projectUniqueName": "C:\\billManagementApi\\billAPI\\bills-frontend\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj",
         "projectName": "BillsFrontEndBlazor",
-        "projectPath": "C:\\billManagementApi\\billAPI\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj",
+        "projectPath": "C:\\billManagementApi\\billAPI\\bills-frontend\\BillsFrontEndBlazor\\BillsFrontEndBlazor.csproj",
         "packagesPath": "C:\\Users\\ggbrh\\.nuget\\packages\\",
-        "outputPath": "C:\\billManagementApi\\billAPI\\BillsFrontEndBlazor\\obj\\",
+        "outputPath": "C:\\billManagementApi\\billAPI\\bills-frontend\\BillsFrontEndBlazor\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -22,7 +22,7 @@
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
-          "net6.0"
+          "net8.0"
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
@@ -30,8 +30,8 @@
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
-          "net6.0": {
-            "targetAlias": "net6.0",
+          "net8.0": {
+            "targetAlias": "net8.0",
             "projectReferences": {}
           }
         },
@@ -48,8 +48,14 @@
         "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
-        "net6.0": {
-          "targetAlias": "net6.0",
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "MudBlazor": {
+              "target": "Package",
+              "version": "[8.15.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -69,7 +75,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.307\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.307/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
