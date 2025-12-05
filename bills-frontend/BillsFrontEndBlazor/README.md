@@ -10,7 +10,7 @@ This project includes a **Blazor Server frontend** by default, offering a modern
 
 However, developers who prefer **React** can also build a React-based frontend for this backend.
 Follow the link to the react README.md
-- [BillsFrontEndBlazor README](bills-frontend/FrontEndReact/README.md)
+- [FrontEndReact README](bills-frontend/FrontEndReact/README.md)
 
 ## 🚀 Setup & Run
 Follow these steps to run both the frontend (Blazor Server) and backend (ASP.NET Core API) locally.
