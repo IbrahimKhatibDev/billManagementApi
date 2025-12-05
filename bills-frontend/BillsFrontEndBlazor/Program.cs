@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using BillsFrontEndBlazor.Data;
-using MudBlazor.Services;
 using BillsFrontEndBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,15 +7,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
-
-// Mudblazor
-builder.Services.AddMudServices();
+builder.Services.AddScoped<BillService>();
 
 // API service for bills
 builder.Services.AddHttpClient<BillService>(client =>
 {
-    client.BaseAddress = new Uri("https://localhost:7161/");
+    client.BaseAddress = new Uri("http://localhost:5131/");
 });
 
 var app = builder.Build();
