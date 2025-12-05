@@ -1,4 +1,4 @@
-# Bills Manager – Blazor Server + ASP.NET Core API  
+# Bills Manager – Blazor Server + ASP.NET Minimal API  
 A modern, fully featured billing management system built with **Blazor Server**, **ASP.NET Minimal API**, and **Bootstrap 5**.  
 This project provides a clean admin-style UI for managing bills, viewing analytics, and interacting with a live-updating dashboard.
 
