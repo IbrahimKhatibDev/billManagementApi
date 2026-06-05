@@ -111,18 +111,3 @@ public class BillEventService
     public void NotifyBillsChanged() => OnBillsChanged?.Invoke();
 }
 ```
-
-## 🚧 Frontend Feature Roadmap
-
-Planned improvements to enhance the UI, user experience, and dashboard functionality:
-
-- [ ] Add table sorting (ID, Payee, Amount, Due Date)
-- [ ] Add pagination for large bill lists
-- [ ] Add filters (Paid / Unpaid)
-- [ ] Add toast notifications for Create/Edit/Delete
-- [ ] Add animated dashboard counters
-- [ ] Add charts to the dashboard (Paid vs Unpaid, Monthly totals)
-- [ ] Improve mobile layout for modals and tables
-- [ ] Add sidebar navigation for a full admin feel
-- [ ] Add currency formatting to the Amount field
-- [ ] Add loading indicators during API calls
