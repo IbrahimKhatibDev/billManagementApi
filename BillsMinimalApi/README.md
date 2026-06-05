@@ -11,7 +11,6 @@ The backend is lightweight, fast, and easy to use with any frontend framework (R
 I chose ASP.NET Core Minimal API because:
 
 - It provides the simplest way to build REST endpoints.
-- Similar to Jakarta REST endpoints.
 - Works naturally with EF Core for SQL Server.
 - Default project template includes Swagger.
 - It's a language I've used before and am familiar with.
