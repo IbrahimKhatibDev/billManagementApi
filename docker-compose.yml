@@ -1,0 +1,58 @@
+name: billmanagement
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: billdb
+      POSTGRES_USER: bills
+      POSTGRES_PASSWORD: bills_dev_password
+    # Published so `dotnet run` on the host can reuse this database with the
+    # default appsettings.json. If you already run Postgres locally, change this
+    # to "5433:5432" and update the connection string to match.
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The postgres image runs a temporary internal server during first-time
+      # init, so pg_isready can briefly report ready before the real one is up.
+      # start_period plus EnableRetryOnFailure in the API closes that gap.
+      test: ["CMD-SHELL", "pg_isready -U bills -d billdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: ./BillsMinimalApi
+    environment:
+      # Development is deliberate: Program.cs gates UseSwagger on it, and
+      # /swagger is the documented way to poke at this API.
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=billdb;Username=bills;Password=bills_dev_password"
+    ports:
+      - "5131:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  blazor:
+    build:
+      context: ./bills-frontend/BillsFrontEndBlazor
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      # Reached over the compose network, not from the browser: this is Blazor
+      # Server, so every BillService call originates inside this container.
+      # The trailing slash is required — BillService issues relative URIs.
+      BillsApi__BaseUrl: "http://api:8080/"
+    ports:
+      - "5254:8080"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -13,35 +13,21 @@ public class AppDbContext : DbContext
 
     public DbSet<Bill> Bills => Set<Bill>();
 
-    // Npgsql maps DateTime to "timestamp with time zone" and throws on any value
-    // whose Kind is not Utc. Values reach us with Kind=Unspecified (JSON dates
-    // such as "2026-03-15", and the Blazor <input type="date"> binding) or
-    // Kind=Local (Bogus). Normalising once here keeps every call site honest.
+    // Last line of defence for the Npgsql "timestamp with time zone" rule — see
+    // UtcDateTime for what the rule is and why Unspecified is re-stamped rather
+    // than converted. The mappers normalise on the way in, so by the time an
+    // entity reaches here it is usually already UTC; this catches anything that
+    // reaches the DbContext by another route (the seeder, or a future call site).
     //
-    // Unspecified is treated as *already* UTC rather than converted from local
-    // time: a date-only payload has no timezone, so ToUniversalTime() would shift
-    // it by the host offset and give different results on a developer Mac than in
-    // the (UTC) container. Reading back always re-stamps Kind=Utc so round-trips
-    // through the API are stable.
-    // Written with conditionals rather than a switch expression on purpose:
-    // ValueConverter takes an Expression<Func<,>>, and expression trees cannot
-    // contain switch expressions (CS8514).
+    // Reading back always re-stamps Kind=Utc: Npgsql hands us Kind=Local for
+    // timestamptz columns, which would otherwise serialise with the host's
+    // offset instead of Z.
     private static readonly ValueConverter<DateTime, DateTime> UtcConverter = new(
-        v => v.Kind == DateTimeKind.Utc
-            ? v
-            : v.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(v, DateTimeKind.Utc)
-                : v.ToUniversalTime(),
+        v => UtcDateTime.Normalize(v),
         v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
     private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcConverter = new(
-        v => v.HasValue
-            ? (DateTime?)(v.Value.Kind == DateTimeKind.Utc
-                ? v.Value
-                : v.Value.Kind == DateTimeKind.Unspecified
-                    ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)
-                    : v.Value.ToUniversalTime())
-            : null,
+        v => UtcDateTime.Normalize(v),
         v => v.HasValue ? (DateTime?)DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

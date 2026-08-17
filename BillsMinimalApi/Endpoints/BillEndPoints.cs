@@ -49,10 +49,7 @@ namespace BillsMinimalApi.Endpoints
                 if (existing is null)
                     return Results.NotFound();
 
-                existing.PayeeName = dto.PayeeName;
-                existing.DueDate = dto.DueDate;
-                existing.PaymentDue = dto.PaymentDue;
-                existing.Paid = dto.Paid;
+                BillMapper.ApplyEditableFields(dto, existing);
 
                 // Optimistic concurrency. EF builds the UPDATE's WHERE clause
                 // from the *original* value of the concurrency token, and
