@@ -137,6 +137,36 @@ a, .btn-link {
    Bills table
    --------------------------------------------------------------------------- */
 
+/* Bootstrap styles :hover and .active on an outline button identically — both
+   are a solid #6c757d fill — so hovering any filter made it look selected, and
+   with the group's borders collapsing into one block you could not tell which
+   filter was actually applied while the cursor was anywhere near it. Hovering
+   the selected one, meanwhile, did nothing at all.
+
+   These are toggles, so the solid fill has to mean one thing: this filter is
+   on. Hover is demoted to a tint. Scoped to .filter-group rather than fixed
+   globally because the other outline buttons on the page — Clear, the mobile
+   sort direction — have no selected state to be confused with, and solid-on-
+   hover is right for them. */
+.filter-group .btn:hover:not(.active) {
+    background-color: rgba(108, 117, 125, .12);
+    color: #495057;
+}
+
+/* The selected filter still has to answer the cursor or it reads as dead;
+   #5c636a is Bootstrap's own darkened secondary, so this stays in palette. */
+.filter-group .btn.active:hover {
+    background-color: #5c636a;
+    border-color: #565e64;
+}
+
+/* Bootstrap 5.1 predates :focus-visible and rings on plain :focus, so clicking
+   a filter left a grey glow stuck on it after the mouse had gone — which read
+   as the hover being broken. Keyboard focus keeps its ring. */
+.filter-group .btn:focus:not(:focus-visible) {
+    box-shadow: none;
+}
+
 /* Sorting is hand-rolled here rather than delegated to a table component, so
    the header has to advertise itself as clickable. */
 th.sortable {

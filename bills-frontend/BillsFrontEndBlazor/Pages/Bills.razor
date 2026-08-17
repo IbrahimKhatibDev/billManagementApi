@@ -31,7 +31,7 @@
             <i class="bi bi-plus-lg me-1"></i> New Bill
         </button>
 
-        <div class="btn-group" role="group" aria-label="Filter bills by status">
+        <div class="btn-group filter-group" role="group" aria-label="Filter bills by status">
             @foreach (var option in Enum.GetValues<BillFilter>())
             {
                 <button type="button"
