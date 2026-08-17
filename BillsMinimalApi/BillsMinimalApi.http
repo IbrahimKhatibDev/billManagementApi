@@ -1,6 +1,42 @@
 @BillsMinimalApi_HostAddress = http://localhost:5131
 
-GET {{BillsMinimalApi_HostAddress}}/weatherforecast/
+### Get all bills
+GET {{BillsMinimalApi_HostAddress}}/restapi/BillDtos
 Accept: application/json
+
+### Get a single bill by id
+GET {{BillsMinimalApi_HostAddress}}/restapi/BillDtos/1
+Accept: application/json
+
+### Create a bill
+# A bare date with no offset is deliberate here: it deserializes with
+# DateTimeKind.Unspecified and exercises the UTC value converter in AppDbContext.
+POST {{BillsMinimalApi_HostAddress}}/restapi/BillDtos
+Content-Type: application/json
+
+{
+  "payeeName": "Pacific Gas & Electric",
+  "dueDate": "2026-03-15",
+  "paymentDue": 142.50,
+  "paid": false
+}
+
+### Update a bill
+# "version" must be the value the server last returned. If someone else has
+# updated the row in the meantime, this returns 409 Conflict.
+PUT {{BillsMinimalApi_HostAddress}}/restapi/BillDtos/1
+Content-Type: application/json
+
+{
+  "id": 1,
+  "payeeName": "Pacific Gas & Electric",
+  "dueDate": "2026-03-15T00:00:00Z",
+  "paymentDue": 155.00,
+  "paid": true,
+  "version": 1
+}
+
+### Delete a bill
+DELETE {{BillsMinimalApi_HostAddress}}/restapi/BillDtos/1
 
 ###
