@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using BillsFrontEndBlazor.Models;
 using BillsFrontEndBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -63,6 +65,52 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.MapBlazorHub();
+
+// The Reports page's export link. An endpoint rather than a download built in
+// the browser: this app has no JS interop anywhere — IJSRuntime is unusable
+// during ServerPrerendered's first render — so an <a href> pointing at a
+// response with a Content-Disposition is the only way to hand over a file.
+//
+// The range is re-parsed and re-applied here from the same ReportRanges helper
+// the page uses, so an export can never cover a different set of bills than the
+// page it was downloaded from.
+app.MapGet("/reports/bills.csv", async (
+    string? range,
+    BillService bills,
+    CancellationToken ct) =>
+{
+    var reportRange = ReportRanges.Parse(range);
+    var today = DateTime.Today;
+
+    List<Bill> all;
+
+    try
+    {
+        all = await bills.GetBillsAsync(ct);
+    }
+    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+    {
+        // A browser downloading a file has nowhere to show a toast, so this has
+        // to be an honest status code rather than an empty CSV that looks like
+        // "you have no bills".
+        return Results.Problem(
+            "Could not reach the bills API.",
+            statusCode: StatusCodes.Status502BadGateway);
+    }
+
+    var rows = ReportRanges.Filter(all, reportRange, today)
+        .OrderBy(b => b.DueDate ?? DateTime.MaxValue)
+        .ThenBy(b => b.Id);
+
+    var csv = BillCsvWriter.Write(rows, today);
+
+    // With a BOM: Excel on Windows otherwise decodes the file as the system
+    // code page, which mangles any payee name that is not pure ASCII.
+    var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true).GetBytes(csv);
+
+    return Results.File(bytes, "text/csv", $"bills-{reportRange.Slug()}.csv");
+});
+
 app.MapFallbackToPage("/_Host");
 
 app.Run();

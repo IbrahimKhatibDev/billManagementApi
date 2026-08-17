@@ -399,6 +399,160 @@ th.sortable {
 }
 
 /* ---------------------------------------------------------------------------
+   Reports
+   --------------------------------------------------------------------------- */
+
+/* Deliberately not the dashboard's .display-6 stat cards: there are eight of
+   these rather than three, and at that count a headline figure has to be small
+   enough that the row of them still reads as one block. */
+.stat-label {
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: .75rem;
+    font-weight: 600;
+    color: #6c757d;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-note {
+    font-size: .8125rem;
+    color: #6c757d;
+}
+
+/* Same reasoning as the bills table: proportional digits make a column of
+   money look ragged even when it is right-aligned. */
+.report-table .amount {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Reserve the numeric columns so the label column — the one you actually read
+   — gets the rest, instead of the headings deciding the layout. */
+@media (min-width: 768px) {
+    .report-table .col-count {
+        width: 5rem;
+    }
+
+    .report-table .col-money {
+        width: 9rem;
+    }
+
+    .report-table .col-bar {
+        width: 34%;
+    }
+
+    .report-table .col-rate {
+        width: 12rem;
+    }
+}
+
+.report-bar {
+    height: .5rem;
+    min-width: 3rem;
+    border-radius: .25rem;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.report-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+    transition: width .4s ease;
+}
+
+/* A ramp rather than five arbitrary colours: the bars are ordered by how late
+   the money is, so the colour has to carry that order too. Every value is from
+   Bootstrap's own palette. */
+.aging-bar-0 {
+    background: #adb5bd;
+}
+
+.aging-bar-1 {
+    background: #ffc107;
+}
+
+.aging-bar-2 {
+    background: #fd7e14;
+}
+
+.aging-bar-3 {
+    background: #dc3545;
+}
+
+.aging-bar-4 {
+    background: #842029;
+}
+
+.rate-bar {
+    background: #198754;
+}
+
+.band-bar {
+    background: #0d6efd;
+}
+
+/* Fixed width so the percentages line up under each other rather than tracking
+   the end of each bar. */
+.rate-value {
+    flex: 0 0 2.75rem;
+    text-align: right;
+    font-size: .8125rem;
+    font-variant-numeric: tabular-nums;
+    color: #6c757d;
+}
+
+.priority-list li {
+    padding: .5rem 0;
+}
+
+    .priority-list li + li {
+        border-top: 1px solid #f1f3f5;
+    }
+
+.priority-list .priority-note {
+    display: block;
+    font-size: .8125rem;
+}
+
+/* Below 768px the wider report tables are still wider than the viewport, so
+   .table-responsive scrolls them. Pinning the first column is what keeps that
+   readable — without it you scroll to the Outstanding column and lose track of
+   whose row you are on. The tables here are all numbers, so unlike the bills
+   table there are no controls to be stranded off-screen. */
+@media (max-width: 767.98px) {
+    .report-table th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+
+        /* Both shadows, not just the separator. Bootstrap 5.1 paints striping
+           and row hover as `inset 0 0 0 9999px var(--bs-table-accent-bg)` on
+           every cell, so a lone `1px 0 0` here overrides it and the pinned cell
+           stays white while the rest of its row is grey — a row cut in two. On
+           unstriped rows the variable is transparent and the inset is a no-op. */
+        box-shadow: inset 0 0 0 9999px var(--bs-table-accent-bg), 1px 0 0 #dee2e6;
+    }
+
+    .report-table tbody th:first-child {
+        /* The stripe rides on top of this via the inset shadow above; it is
+           only here so the column is opaque as rows scroll underneath it. */
+        background: #fff;
+    }
+
+    .report-table thead th:first-child {
+        /* Matches .table-light, which the sticky cell would otherwise show
+           through as transparent while the row beneath it scrolls past. */
+        background: #f8f9fa;
+    }
+}
+
+/* ---------------------------------------------------------------------------
    Toasts
    --------------------------------------------------------------------------- */
 
