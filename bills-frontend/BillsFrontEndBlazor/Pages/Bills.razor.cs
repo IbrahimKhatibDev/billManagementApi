@@ -4,11 +4,19 @@ using Microsoft.AspNetCore.Components;
 
 namespace BillsFrontEndBlazor.Pages
 {
-    public enum PaidFilter
+    /// <summary>
+    /// Overdue is deliberately a peer of Unpaid rather than a separate axis,
+    /// even though it is a strict subset of it: the filter is one row of
+    /// buttons answering one question — "which bills am I looking at?" — and
+    /// two independent controls would let you ask for Paid + Overdue, which is
+    /// always empty.
+    /// </summary>
+    public enum BillFilter
     {
         All,
         Paid,
         Unpaid,
+        Overdue,
     }
 
     public enum BillSortColumn
@@ -44,7 +52,12 @@ namespace BillsFrontEndBlazor.Pages
         private bool _loadFailed;
 
         private string _searchText = string.Empty;
-        private PaidFilter _paidFilter = PaidFilter.All;
+        private BillFilter _filter = BillFilter.All;
+
+        /// <summary>Bills mid-flight in <see cref="TogglePaidAsync"/>. Keyed by
+        /// id rather than a single bool so one slow row cannot freeze the whole
+        /// table.</summary>
+        private readonly HashSet<long> _togglingIds = new();
 
         private BillSortColumn _sortColumn = BillSortColumn.Id;
         private bool _sortDescending;
@@ -90,14 +103,16 @@ namespace BillsFrontEndBlazor.Pages
             }
         }
 
-        private void SetPaidFilter(PaidFilter filter)
+        private bool HasSearch => !string.IsNullOrEmpty(_searchText);
+
+        private void SetFilter(BillFilter filter)
         {
-            if (_paidFilter == filter)
+            if (_filter == filter)
             {
                 return;
             }
 
-            _paidFilter = filter;
+            _filter = filter;
             _page = 1;
         }
 
@@ -198,6 +213,22 @@ namespace BillsFrontEndBlazor.Pages
             }
         }
 
+        /// <summary>
+        /// Used by the mobile sort control, where the header row that normally
+        /// carries <see cref="SortBy"/> is hidden. Picking a column from a
+        /// dropdown must not flip the direction the way clicking a header does
+        /// — there is a separate button for that.
+        /// </summary>
+        private void SetSortColumn(ChangeEventArgs e)
+        {
+            if (Enum.TryParse<BillSortColumn>(e.Value?.ToString(), out var column))
+            {
+                _sortColumn = column;
+            }
+        }
+
+        private void ToggleSortDirection() => _sortDescending = !_sortDescending;
+
         /// <summary>Marks the header the table is currently ordered by, so the
         /// caret on that one column renders solid instead of ghosted.</summary>
         private string? Sorted(BillSortColumn column) =>
@@ -271,10 +302,11 @@ namespace BillsFrontEndBlazor.Pages
 
         private bool MatchesFilters(Bill bill)
         {
-            var matchesStatus = _paidFilter switch
+            var matchesStatus = _filter switch
             {
-                PaidFilter.Paid => bill.Paid,
-                PaidFilter.Unpaid => !bill.Paid,
+                BillFilter.Paid => bill.Paid,
+                BillFilter.Unpaid => !bill.Paid,
+                BillFilter.Overdue => IsOverdue(bill),
                 _ => true,
             };
 
@@ -295,6 +327,64 @@ namespace BillsFrontEndBlazor.Pages
         }
 
         private void ClearSearch() => SearchText = string.Empty;
+
+        /// <summary>
+        /// Past its due date and still unpaid. Compared against
+        /// <see cref="DateTime.Today"/>, not <c>UtcNow</c>: the API stores due
+        /// dates as midnight UTC, so anything time-of-day aware would call a
+        /// bill due today overdue for part of the day in a western timezone.
+        /// </summary>
+        private static bool IsOverdue(Bill bill) =>
+            !bill.Paid && bill.DueDate is { } due && due.Date < DateTime.Today;
+
+        private int OverdueCount => _bills.Count(IsOverdue);
+
+        /// <summary>Three states from two booleans: an unpaid bill that is not
+        /// due yet is not a problem, so it stays grey and the red is saved for
+        /// the ones that are actually late.</summary>
+        private static string StatusClass(Bill bill) => bill switch
+        {
+            { Paid: true } => "bg-success",
+            _ when IsOverdue(bill) => "bg-danger",
+            _ => "bg-secondary",
+        };
+
+        private static string StatusText(Bill bill) => bill switch
+        {
+            { Paid: true } => "Paid",
+            _ when IsOverdue(bill) => "Overdue",
+            _ => "Unpaid",
+        };
+
+        /// <summary>The date itself. Spelled out rather than "6/2/2026", which
+        /// reads as either 6 February or June 2 depending on where you are
+        /// from.</summary>
+        private static string DueDateText(Bill bill) =>
+            bill.DueDate?.ToString("MMM d, yyyy") ?? "—";
+
+        /// <summary>
+        /// How far off the due date is, in plain words. Only rendered for
+        /// unpaid bills — once something is paid, how late it was is history.
+        /// </summary>
+        private static string? DueRelativeText(Bill bill)
+        {
+            if (bill.Paid || bill.DueDate is not { } due)
+            {
+                return null;
+            }
+
+            var days = (due.Date - DateTime.Today).Days;
+
+            return days switch
+            {
+                0 => "due today",
+                1 => "due tomorrow",
+                < 0 and > -2 => "1 day late",
+                < 0 => $"{-days} days late",
+                <= 7 => $"in {days} days",
+                _ => null,
+            };
+        }
 
         private void OpenCreateModal()
         {
@@ -331,6 +421,60 @@ namespace BillsFrontEndBlazor.Pages
         {
             _deleteTarget = null;
             _isSaving = false;
+        }
+
+        private bool IsToggling(Bill bill) => _togglingIds.Contains(bill.Id);
+
+        /// <summary>
+        /// Marks a bill paid or unpaid straight from the table. Ticking a
+        /// checkbox is the most common thing anyone does on this page, and
+        /// routing it through the edit modal meant opening a form, changing one
+        /// checkbox, and submitting five fields back.
+        /// </summary>
+        private async Task TogglePaidAsync(Bill bill)
+        {
+            // Add returns false if the id is already in the set, which is what
+            // stops a double-click sending two writes.
+            if (!_togglingIds.Add(bill.Id))
+            {
+                return;
+            }
+
+            // Optimistic: flip now and put it back if the write fails. This
+            // table is read far more often than it is written, and waiting a
+            // round trip to tick a box makes the whole page feel remote.
+            bill.Paid = !bill.Paid;
+
+            try
+            {
+                var result = await BillService.UpdateBillAsync(bill);
+
+                if (!result.Success)
+                {
+                    bill.Paid = !bill.Paid;
+                    Toasts.ShowError(result.ToMessage("update"));
+
+                    // Our copy is stale (409) or the row is gone (404); either
+                    // way what is on screen is wrong, so resync.
+                    if (result.IsConflict || result.IsNotFound)
+                    {
+                        AfterWrite();
+                    }
+
+                    return;
+                }
+
+                Toasts.ShowSuccess(bill.Paid ? "Marked as paid" : "Marked as unpaid");
+
+                // Not merely to refresh the dashboard: the API increments
+                // Version on every write, so the copy in this list is now stale
+                // and a second toggle would 409 against it.
+                AfterWrite();
+            }
+            finally
+            {
+                _togglingIds.Remove(bill.Id);
+            }
         }
 
         private async Task SaveFormAsync()

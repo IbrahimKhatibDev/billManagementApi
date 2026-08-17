@@ -162,6 +162,212 @@ th.sortable {
         color: #0d6efd;
     }
 
+/* The magnifier sits inside the input rather than in an input-group addon, so
+   the search box stays one rounded rectangle instead of two welded boxes. */
+.search-icon {
+    position: absolute;
+    top: 50%;
+    left: .9rem;
+    transform: translateY(-50%);
+    color: #6c757d;
+    pointer-events: none;
+}
+
+/* Column widths. The ID and Actions columns were sizing themselves off their
+   headers and taking room from Payee, which is the column anyone actually
+   reads. Gated to the table layout — in the card layout below the cells are
+   rows of a stack and a fixed width would squeeze the values into two and
+   three lines. */
+@media (min-width: 768px) {
+    .bills-table .col-id {
+        width: 5rem;
+    }
+
+    .bills-table .col-due {
+        width: 11rem;
+    }
+
+    .bills-table .col-amount {
+        width: 8rem;
+    }
+
+    .bills-table .col-status {
+        width: 7rem;
+    }
+
+    .bills-table .col-actions {
+        width: 7.5rem;
+    }
+}
+
+/* Proportional digits give every figure a different width, so a column of
+   money reads as ragged even when it is right-aligned. */
+.bills-table .amount {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* The date and how far off it is are one value, so they are wrapped in one
+   element — in the card layout the cell is a flex row and two loose children
+   would be pushed to opposite ends of the card. */
+.bills-table .due-value {
+    display: inline-block;
+}
+
+.bills-table .due-relative {
+    display: block;
+    font-size: .8125rem;
+}
+
+/* Overdue rows are findable while scanning, rather than only once you read
+   the status column. Gated to the table layout — the card layout below draws
+   the same accent on the card's own border. */
+@media (min-width: 768px) {
+    /* Recolouring Bootstrap's own striping variable rather than setting a
+       background: .table-striped paints an inset shadow over the full cell,
+       so a background underneath it would never be visible. Leaving the
+       variable in place is also what keeps :hover, which sets it at a higher
+       specificity, still working on these rows. */
+    .bills-table .row-overdue > * {
+        --bs-table-accent-bg: rgba(220, 53, 69, .07);
+    }
+
+    .bills-table .row-overdue > td:first-child {
+        /* .5rem is the cell padding Bootstrap sets; taking the border out of
+           it keeps the ID column aligned with the rows above and below. */
+        border-left: 3px solid #dc3545;
+        padding-left: calc(.5rem - 3px);
+    }
+}
+
+/* .badge is a <span> style; on a <button> it has to give back the border and
+   padding Bootstrap's button reset assumes. */
+.status-toggle {
+    border: 0;
+    cursor: pointer;
+    min-width: 4.75rem;
+    transition: filter .15s ease, opacity .15s ease;
+}
+
+    .status-toggle:hover:not(:disabled) {
+        filter: brightness(1.12);
+    }
+
+    /* Mid-write. Kept at full opacity so the row does not appear to be
+       disabled for good — only the pointer changes. */
+    .status-toggle:disabled {
+        cursor: progress;
+        opacity: 1;
+    }
+
+/* A reload with rows already on screen dims the table instead of replacing it
+   with a spinner. Blanking it made every inline paid toggle — which reloads to
+   pick up the new Version — flash the whole list away and back. */
+.is-refreshing {
+    opacity: .55;
+    transition: opacity .15s ease;
+    pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Bills table — phone layout
+
+   Below this width the six columns are wider than the viewport, and inside
+   .table-responsive that meant Status and Actions sat off-screen with nothing
+   to say they were there. Each row becomes a card instead, with every cell
+   labelled from its data-label attribute — one markup source for both layouts,
+   so the two cannot drift apart.
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+    .bills-table thead {
+        display: none;
+    }
+
+    .bills-table,
+    .bills-table tbody,
+    .bills-table tr,
+    .bills-table td {
+        display: block;
+        width: auto;
+    }
+
+    /* .table-striped shades alternate rows, which reads as stripes on a table
+       and as arbitrary on a stack of cards. */
+    .bills-table > tbody > tr > td {
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .bills-table tr {
+        margin: 0 .75rem .75rem;
+        padding: .25rem 0;
+        border: 1px solid #dee2e6;
+        border-radius: .5rem;
+        background: #fff;
+    }
+
+    .bills-table tr:first-child {
+        margin-top: .75rem;
+    }
+
+    .bills-table .row-overdue {
+        border-left: 3px solid #dc3545;
+    }
+
+    .bills-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        border: 0;
+        padding: .4rem .9rem;
+        text-align: left;
+    }
+
+    /* The label the hidden <th> would have provided. */
+    .bills-table td[data-label]:not([data-label=""])::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        color: #6c757d;
+        font-size: .8125rem;
+        font-weight: 500;
+    }
+
+    /* Right-alignment is a table convention for lining up decimals; in a card
+       the value already sits against the right edge. */
+    .bills-table .col-amount {
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+
+    .bills-table .due-value {
+        text-align: right;
+    }
+
+    .bills-table .due-relative {
+        display: inline;
+        margin-left: .35rem;
+    }
+
+    /* Full-width buttons with visible labels: an icon-only 31px target is
+       under the 44px everyone recommends for a finger. */
+    .bills-table .col-actions {
+        padding-top: .25rem;
+        padding-bottom: .6rem;
+    }
+
+    .bills-table .row-actions {
+        flex: 1 1 auto;
+    }
+
+        .bills-table .row-actions .btn {
+            flex: 1 1 0;
+            padding-top: .4rem;
+            padding-bottom: .4rem;
+        }
+}
+
 /* ---------------------------------------------------------------------------
    Toasts
    --------------------------------------------------------------------------- */
