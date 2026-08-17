@@ -1,4 +1,4 @@
-﻿using BillsMinimalApi.Data;
+using BillsMinimalApi.Data;
 using BillsMinimalApi.Dtos;
 using BillsMinimalApi.Mappers;
 using BillsMinimalApi.Models;
@@ -30,7 +30,9 @@ namespace BillsMinimalApi.Endpoints
             // POST
             group.MapPost("/", async (BillDto dto, AppDbContext db) =>
             {
-                var entity = BillMapper.ToEntity(dto);
+                // ToNewEntity, not ToEntity: a client-supplied Id must never
+                // reach the identity column. See BillMapper for why.
+                var entity = BillMapper.ToNewEntity(dto);
                 db.Bills.Add(entity);
                 await db.SaveChangesAsync();
 
@@ -51,7 +53,15 @@ namespace BillsMinimalApi.Endpoints
                 existing.DueDate = dto.DueDate;
                 existing.PaymentDue = dto.PaymentDue;
                 existing.Paid = dto.Paid;
-                existing.Version = dto.Version;
+
+                // Optimistic concurrency. EF builds the UPDATE's WHERE clause
+                // from the *original* value of the concurrency token, and
+                // FindAsync just loaded it microseconds ago — so assigning
+                // existing.Version alone can never conflict. Overwriting
+                // OriginalValue with what the client believed the version to be
+                // is what makes the check real.
+                db.Entry(existing).Property(b => b.Version).OriginalValue = dto.Version;
+                existing.Version = dto.Version + 1;
 
                 try
                 {
@@ -59,7 +69,7 @@ namespace BillsMinimalApi.Endpoints
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    return Results.BadRequest("The data has changed since your last read.");
+                    return Results.Conflict("The data has changed since your last read.");
                 }
 
                 return Results.Ok(BillMapper.ToDto(existing));

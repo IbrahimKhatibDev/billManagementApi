@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/bills-frontend/BillsFrontEndBlazor/bin/Debug/net8.0/BillsFrontEndBlazor.dll",
+            "program": "${workspaceFolder}/bills-frontend/BillsFrontEndBlazor/bin/Debug/net10.0/BillsFrontEndBlazor.dll",
             "args": [],
             "cwd": "${workspaceFolder}/bills-frontend/BillsFrontEndBlazor",
             "stopAtEntry": false,

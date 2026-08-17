@@ -19,16 +19,28 @@ builder.Services.AddCors(options =>
 });
 
 
-// Add DbContext
+// Add DbContext.
+// EnableRetryOnFailure matters here beyond the usual transient-fault case: under
+// docker compose the API can win the race against Postgres finishing its
+// first-run initialisation even with a healthcheck, and migrations run through
+// the execution strategy too.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsql => npgsql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null)));
 
 var app = builder.Build();
 
-// Seed database with fake data
+// Apply migrations, then seed. Never EnsureCreated() — it builds the schema
+// without recording __EFMigrationsHistory, after which Migrate() fails forever
+// with "relation Bills already exists".
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
     await DbSeeder.SeedAsync(db);
 }
 
@@ -39,7 +51,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// No UseHttpsRedirection: this app is served over plain HTTP (port 8080 in the
+// container, 5131 locally) and the middleware would only log a warning per
+// request and hand out redirects to a port nothing is listening on.
 
 // Enable CORS middleware
 app.UseCors("AllowAll");
@@ -49,3 +63,6 @@ app.MapBillEndpoints();
 
 app.Run();
 
+// Exposed so WebApplicationFactory<Program> in the test project can find the
+// entry point of this top-level-statements program.
+public partial class Program { }
