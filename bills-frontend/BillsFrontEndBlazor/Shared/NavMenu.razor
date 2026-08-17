@@ -1,35 +1,50 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">
-            <i class="bi bi-receipt-cutoff me-1"></i> Bills Manager
+@* The rail class lives on this element rather than on .page so that everything
+   NavMenu.razor.css needs to know is inside NavMenu's own scope — otherwise the
+   label/icon rules would have to reach up through the layout with ::deep. *@
+<div class="nav-shell @(Railed ? "railed" : null)">
+
+    <div class="nav-brand">
+        <a class="nav-brand-link" href="" @onclick="HandleNavigate">
+            <i class="bi bi-receipt-cutoff"></i>
+            <span class="nav-label">Bills Manager</span>
         </a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
+
+        <button type="button" class="nav-rail-toggle" @onclick="OnToggleRail"
+                title="@RailToggleLabel" aria-label="@RailToggleLabel">
+            <i class="bi @(Railed ? "bi-chevron-double-right" : "bi-chevron-double-left")"></i>
         </button>
     </div>
-</div>
 
-<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Dashboard
-            </NavLink>
+    <nav class="nav-links">
+        @* title= is what keeps the collapsed rail usable: with the labels hidden
+           the icon alone has to identify the destination, so hovering names it. *@
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All"
+                 title="Dashboard" @onclick="HandleNavigate">
+            <i class="bi bi-speedometer2"></i>
+            <span class="nav-label">Dashboard</span>
+        </NavLink>
 
-            <NavLink class="nav-link" href="/bills">
-                <span class="oi oi-list-rich" aria-hidden="true"></span> Bills
-            </NavLink>
-        </div>
+        <NavLink class="nav-link" href="bills" title="Bills" @onclick="HandleNavigate">
+            <i class="bi bi-receipt"></i>
+            <span class="nav-label">Bills</span>
+        </NavLink>
     </nav>
 </div>
 
 @code {
-    private bool collapseNavMenu = true;
+    /// <summary>Desktop only — collapses the sidebar to an icon rail.</summary>
+    [Parameter]
+    public bool Railed { get; set; }
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    [Parameter]
+    public EventCallback OnToggleRail { get; set; }
 
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
+    /// <summary>Raised on every link click so the mobile drawer can close itself.
+    /// On desktop the layout ignores it.</summary>
+    [Parameter]
+    public EventCallback OnNavigate { get; set; }
+
+    private string RailToggleLabel => Railed ? "Expand sidebar" : "Collapse sidebar";
+
+    private Task HandleNavigate() => OnNavigate.InvokeAsync();
 }

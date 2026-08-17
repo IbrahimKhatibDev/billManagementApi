@@ -1,62 +1,137 @@
-.navbar-toggler {
-    background-color: rgba(255, 255, 255, 0.1);
+.nav-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: #9aa3b8;
 }
 
-.top-row {
-    height: 3.5rem;
-    background-color: rgba(0,0,0,0.4);
+.nav-brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    flex: 0 0 auto;
+    height: 3.75rem;
+    padding: 0 .625rem 0 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.navbar-brand {
-    font-size: 1.1rem;
+.nav-brand-link {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    min-width: 0;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
-.oi {
+.nav-brand-link i {
+    font-size: 1.25rem;
+    color: #6ea8fe;
+}
+
+.nav-rail-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
     width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: .375rem;
+    background: rgba(255, 255, 255, 0.07);
+    color: #9aa3b8;
+    line-height: 1;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.nav-rail-toggle:hover,
+.nav-rail-toggle:focus-visible {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    flex: 1 1 auto;
+    padding: .75rem;
+    overflow-y: auto;
+}
+
+/* ::deep because NavLink is a component: the <a> it renders belongs to
+   NavLink.razor, so it never carries this file's scope attribute. */
+.nav-links ::deep .nav-link {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    height: 2.75rem;
+    padding: 0 .75rem;
+    border-radius: .5rem;
+    color: #9aa3b8;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.nav-links ::deep .nav-link i {
+    flex: 0 0 1.25rem;
     font-size: 1.1rem;
-    vertical-align: text-top;
-    top: -2px;
+    text-align: center;
 }
 
-.nav-item {
-    font-size: 0.9rem;
-    padding-bottom: 0.5rem;
+.nav-links ::deep .nav-link:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
 }
 
-    .nav-item:first-of-type {
-        padding-top: 1rem;
+.nav-links ::deep .nav-link.active {
+    /* Same blue-to-purple ramp as the dashboard hero, so the active page reads
+       as part of the app's palette rather than a generic highlight. */
+    background: linear-gradient(135deg, #0d6efd, #6f42c1);
+    color: #fff;
+}
+
+/* Below the breakpoint the sidebar is a drawer and the rail rules below are
+   switched off, so this button would toggle a class nothing responds to. The
+   backdrop and the nav links are what dismiss the drawer. */
+@media (max-width: 640.98px) {
+    .nav-rail-toggle {
+        display: none;
     }
-
-    .nav-item:last-of-type {
-        padding-bottom: 1rem;
-    }
-
-    .nav-item ::deep a {
-        color: #d7d7d7;
-        border-radius: 4px;
-        height: 3rem;
-        display: flex;
-        align-items: center;
-        line-height: 3rem;
-    }
-
-.nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.25);
-    color: white;
 }
 
-.nav-item ::deep a:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
-}
-
+/* The rail is desktop-only. Gating it on the breakpoint means a _railed value
+   left over from a resize can never hide the labels in the mobile drawer, where
+   there is plenty of room for them. */
 @media (min-width: 641px) {
-    .navbar-toggler {
+    .nav-shell.railed .nav-brand {
+        justify-content: center;
+        padding: 0;
+    }
+
+    /* 4.5rem has no room for the wordmark and the toggle side by side, and the
+       toggle is the control you need to get back out of the rail. */
+    .nav-shell.railed .nav-brand-link {
         display: none;
     }
 
-    .collapse {
-        /* Never collapse the sidebar for wide screens */
-        display: block;
+    .nav-shell.railed ::deep .nav-label {
+        display: none;
+    }
+
+    .nav-shell.railed .nav-links {
+        padding: .75rem .625rem;
+    }
+
+    .nav-shell.railed ::deep .nav-link {
+        justify-content: center;
+        padding: 0;
     }
 }

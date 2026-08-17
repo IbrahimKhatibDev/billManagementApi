@@ -19,12 +19,22 @@
     [Parameter]
     public int DurationMs { get; set; } = 600;
 
+    /// <summary>Bump this to force a replay. Without it a refresh that returns
+    /// the same numbers animates nothing — <c>_display == Value</c> already — so
+    /// pressing Refresh looks like it did nothing at all.</summary>
+    [Parameter]
+    public int Generation { get; set; }
+
     private decimal _display;
+    private int _lastGeneration;
     private CancellationTokenSource? _cts;
 
     protected override void OnParametersSet()
     {
-        if (_display == Value)
+        var replay = Generation != _lastGeneration;
+        _lastGeneration = Generation;
+
+        if (!replay && _display == Value)
         {
             return;
         }
@@ -35,7 +45,13 @@
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
 
-        _ = AnimateAsync(_display, Value, _cts.Token);
+        // A replay counts up from zero again. Easing from the current value
+        // would be a no-op whenever the data came back unchanged, which is the
+        // common case for a manual refresh.
+        var from = replay ? 0m : _display;
+        _display = from;
+
+        _ = AnimateAsync(from, Value, _cts.Token);
     }
 
     private async Task AnimateAsync(decimal from, decimal to, CancellationToken ct)

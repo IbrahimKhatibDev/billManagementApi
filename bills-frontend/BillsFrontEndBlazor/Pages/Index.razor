@@ -42,7 +42,8 @@
                             <i class="bi bi-receipt me-1"></i> Total Bills
                         </h5>
                         <p class="display-6 fw-bold mb-1">
-                            <AnimatedCounter Value="@TotalBills" Format="N0" />
+                            <AnimatedCounter Value="@TotalBills" Format="N0"
+                                             Generation="@_animationGeneration" />
                         </p>
                         <p class="text-muted mb-0">All bills currently tracked.</p>
                     </div>
@@ -56,7 +57,8 @@
                             <i class="bi bi-check-circle me-1"></i> Paid
                         </h5>
                         <p class="display-6 fw-bold mb-1">
-                            <AnimatedCounter Value="@PaidBills" Format="N0" />
+                            <AnimatedCounter Value="@PaidBills" Format="N0"
+                                             Generation="@_animationGeneration" />
                         </p>
                         <p class="text-muted mb-0">@UnpaidBills still outstanding.</p>
                     </div>
@@ -73,7 +75,8 @@
                             <i class="bi bi-cash-coin me-1"></i> Outstanding
                         </h5>
                         <p class="display-6 fw-bold mb-1">
-                            <AnimatedCounter Value="@OutstandingAmount" Format="C" />
+                            <AnimatedCounter Value="@OutstandingAmount" Format="C"
+                                             Generation="@_animationGeneration" />
                         </p>
                         <p class="text-muted mb-0">Total still due across unpaid bills.</p>
                     </div>
@@ -98,29 +101,39 @@
                         }
                         else
                         {
-                            <div class="chart-frame">
-                                <svg viewBox="0 0 200 200" width="220" height="220"
+                            @* The legend lives *inside* .chart-frame so the donut
+                               and its key are centred as one block. With the
+                               legend outside, .chart-frame's flex-grow ate all
+                               the spare height and drove the two apart — a gap
+                               under the title, the donut adrift in the middle,
+                               the legend welded to the bottom of the card. *@
+                            <div class="chart-frame flex-column gap-3">
+                                <svg viewBox="0 0 200 200" width="240" height="240"
                                      role="img" aria-label="@($"{PaidPercent:0}% of bills paid")">
                                     <circle class="donut-track" cx="100" cy="100" r="70"
                                             fill="none" stroke-width="24" />
                                     @* rotate(-90) starts the arc at 12 o'clock;
                                        SVG's 0° is 3 o'clock. *@
-                                    <circle class="donut-value" cx="100" cy="100" r="70"
+                                    <circle class="donut-value @ChartResetClass"
+                                            cx="100" cy="100" r="70"
                                             fill="none" stroke-width="24"
                                             stroke-dasharray="@PaidArcDashArray"
                                             transform="rotate(-90 100 100)" />
+                                    @* Counted in C# rather than by an
+                                       AnimatedCounter: that renders a <span>,
+                                       which is not valid inside an svg. *@
                                     <text x="100" y="96" text-anchor="middle"
                                           font-size="38" font-weight="600" fill="#212529">
-                                        @PaidPercent.ToString("0")%
+                                        @_displayPercent.ToString("0")%
                                     </text>
                                     <text x="100" y="122" text-anchor="middle"
                                           font-size="15" fill="#6c757d">paid</text>
                                 </svg>
-                            </div>
 
-                            <div class="d-flex justify-content-center gap-4 pt-3">
-                                <span><span class="badge bg-success">&nbsp;</span> Paid @PaidBills</span>
-                                <span><span class="badge bg-secondary">&nbsp;</span> Unpaid @UnpaidBills</span>
+                                <div class="d-flex gap-4">
+                                    <span><span class="badge bg-success">&nbsp;</span> Paid @PaidBills</span>
+                                    <span><span class="badge bg-secondary">&nbsp;</span> Unpaid @UnpaidBills</span>
+                                </div>
                             </div>
                         }
                     </div>
@@ -161,7 +174,7 @@
                                     @foreach (var bar in _bars)
                                     {
                                         <g>
-                                            <rect class="bar-fill"
+                                            <rect class="bar-fill @ChartResetClass"
                                                   x="@Svg(bar.X)" y="@Svg(bar.Y)"
                                                   width="@Svg(bar.Width)" height="@Svg(bar.Height)"
                                                   rx="3">
@@ -203,14 +216,16 @@
             </div>
 
             <div class="col-md-4">
-                <button type="button" class="btn border-0 bg-transparent p-0 w-100 h-100 text-start"
-                        @onclick="LoadStatsAsync" disabled="@_isLoading">
+                @* Was a second Refresh button, duplicating the one in the hero.
+                   ?new=true deep-links into the bills page with the create form
+                   already open — Bills reads the query string on navigation. *@
+                <a class="text-decoration-none d-block h-100" href="bills?new=true">
                     <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-arrow-repeat display-4 text-secondary"></i>
-                        <h5 class="mt-3 fw-bold">Refresh Data</h5>
-                        <p class="text-muted mb-0">Pull the latest bills from the API.</p>
+                        <i class="bi bi-plus-circle display-4 text-info"></i>
+                        <h5 class="mt-3 fw-bold">Add a Bill</h5>
+                        <p class="text-muted mb-0">Record a new bill and its due date.</p>
                     </div>
-                </button>
+                </a>
             </div>
         </div>
 

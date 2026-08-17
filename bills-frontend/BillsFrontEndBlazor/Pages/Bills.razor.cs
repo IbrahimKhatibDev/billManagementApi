@@ -33,6 +33,12 @@ namespace BillsFrontEndBlazor.Pages
         [Inject]
         public ToastService Toasts { get; set; } = default!;
 
+        /// <summary>Set by the dashboard's "Add a Bill" tile, which links to
+        /// <c>bills?new=true</c>.</summary>
+        [Parameter]
+        [SupplyParameterFromQuery(Name = "new")]
+        public bool OpenCreateForm { get; set; }
+
         private List<Bill> _bills = new();
         private bool _isLoading = true;
         private bool _loadFailed;
@@ -212,6 +218,15 @@ namespace BillsFrontEndBlazor.Pages
             // The page only published this event before, so a bill created on
             // the dashboard left this table stale until a manual reload.
             BillEventService.OnBillsChanged += OnBillsChanged;
+
+            // Here rather than in OnParametersSet: this runs exactly once per
+            // component instance, so the form cannot pop open again on some
+            // later re-render while the user is part-way through dismissing it.
+            if (OpenCreateForm)
+            {
+                OpenCreateModal();
+            }
+
             await LoadBillsAsync();
         }
 

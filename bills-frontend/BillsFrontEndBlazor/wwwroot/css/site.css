@@ -1,5 +1,3 @@
-@import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
-
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
@@ -114,6 +112,15 @@ a, .btn-link {
 .bar-fill {
     fill: #0d6efd;
     transition: y .4s ease, height .4s ease;
+}
+
+/* Carried for the single frame that redraws the charts at zero, so the reset
+   itself is instant. Without it the collapse transitions too, the real values
+   interrupt it ~60ms in, and the arc and the bars twitch by a few percent
+   instead of growing from nothing. Declared after the two rules above so it
+   wins on source order — same specificity, no !important needed. */
+.chart-reset {
+    transition: none;
 }
 
 .chart-grid {

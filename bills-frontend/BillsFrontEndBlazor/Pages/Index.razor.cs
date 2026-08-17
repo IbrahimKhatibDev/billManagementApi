@@ -9,6 +9,18 @@ namespace BillsFrontEndBlazor.Pages
     {
         private const int ChartMonths = 6;
 
+        // Long enough for the browser to paint the collapsed charts before the
+        // real values arrive. Both updates are separate SignalR render batches,
+        // but with no gap at all the browser can still coalesce them into one
+        // style recalculation, and a CSS transition that never sees two frames
+        // never runs.
+        private const int ChartReplayDelayMs = 60;
+
+        // Matches the donut's stroke-dasharray transition in site.css, so the
+        // number in the middle finishes counting exactly as the arc lands.
+        private const int PercentFrames = 20;
+        private const int PercentDurationMs = 600;
+
         // Donut geometry. The SVG is authored in these user units and scaled by
         // the browser, so the numbers below are resolution-independent.
         private const double DonutRadius = 70;
@@ -68,6 +80,24 @@ namespace BillsFrontEndBlazor.Pages
         private List<MonthBar> _bars = new();
         private List<GridLine> _gridLines = new();
 
+        /// <summary>Incremented on every load so the counters replay even when
+        /// the refreshed numbers are identical to the ones already on screen.
+        /// See <c>AnimatedCounter.Generation</c>.</summary>
+        private int _animationGeneration;
+
+        private bool _chartsReset;
+
+        /// <summary>Suppresses the chart transitions for the one frame that
+        /// redraws them at zero — otherwise the collapse animates too, the real
+        /// values interrupt it, and nothing visibly grows.</summary>
+        private string? ChartResetClass => _chartsReset ? "chart-reset" : null;
+
+        /// <summary>The number inside the donut, counting up alongside its arc.
+        /// </summary>
+        private double _displayPercent;
+
+        private CancellationTokenSource? _percentCts;
+
         protected override async Task OnInitializedAsync()
         {
             BillEventService.OnBillsChanged += RefreshDashboard;
@@ -77,6 +107,12 @@ namespace BillsFrontEndBlazor.Pages
         public void Dispose()
         {
             BillEventService.OnBillsChanged -= RefreshDashboard;
+
+            // Navigating away mid-count would otherwise leave a timer calling
+            // StateHasChanged on a disposed component.
+            _percentCts?.Cancel();
+            _percentCts?.Dispose();
+            _percentCts = null;
         }
 
         private void RefreshDashboard()
@@ -106,25 +142,92 @@ namespace BillsFrontEndBlazor.Pages
             }
             finally
             {
-                BuildChartData();
                 _isLoading = false;
-                StateHasChanged();
+            }
+
+            await ReplayAnimationsAsync();
+        }
+
+        /// <summary>
+        /// Draws the whole dashboard from empty every time it loads, so pressing
+        /// Refresh visibly does something even when nothing changed. The
+        /// counters are told to replay via <see cref="_animationGeneration"/>;
+        /// the donut arc and the bars animate from CSS transitions, which only
+        /// fire if the browser paints the collapsed state first.
+        /// </summary>
+        private async Task ReplayAnimationsAsync()
+        {
+            // A second refresh can land while the first is still counting.
+            _percentCts?.Cancel();
+            _percentCts?.Dispose();
+            _percentCts = new CancellationTokenSource();
+
+            _chartsReset = true;
+            _displayPercent = 0;
+            BuildChartData(collapsed: true);
+            StateHasChanged();
+
+            await Task.Delay(ChartReplayDelayMs);
+
+            _chartsReset = false;
+            BuildChartData();
+            _animationGeneration++;
+            StateHasChanged();
+
+            _ = AnimatePercentAsync(PaidPercent, _percentCts.Token);
+        }
+
+        private async Task AnimatePercentAsync(double to, CancellationToken ct)
+        {
+            var interval = TimeSpan.FromMilliseconds(PercentDurationMs / PercentFrames);
+
+            try
+            {
+                using var timer = new PeriodicTimer(interval);
+
+                for (var frame = 1; frame <= PercentFrames; frame++)
+                {
+                    await timer.WaitForNextTickAsync(ct);
+
+                    // Ease-out cubic, the same curve AnimatedCounter uses, so
+                    // every number on the dashboard settles together.
+                    var progress = (double)frame / PercentFrames;
+                    var eased = 1 - Math.Pow(1 - progress, 3);
+
+                    _displayPercent = frame == PercentFrames ? to : to * eased;
+
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Superseded by a newer refresh, or the page went away.
+            }
+            catch (ObjectDisposedException)
+            {
+                // The circuit was torn down between frames.
             }
         }
 
-        private void BuildChartData()
+        /// <param name="collapsed">Render the donut arc and the bars at zero,
+        /// leaving the axis and labels at their real values so only the data
+        /// grows in.</param>
+        private void BuildChartData(bool collapsed = false)
         {
-            var paidFraction = TotalBills == 0 ? 0 : (double)PaidBills / TotalBills;
+            var paidFraction = collapsed || TotalBills == 0
+                ? 0
+                : (double)PaidBills / TotalBills;
+
             var arc = DonutCircumference * paidFraction;
 
             PaidArcDashArray = string.Create(
                 CultureInfo.InvariantCulture,
                 $"{arc:0.##} {DonutCircumference - arc:0.##}");
 
-            BuildMonthlyBars();
+            BuildMonthlyBars(collapsed);
         }
 
-        private void BuildMonthlyBars()
+        private void BuildMonthlyBars(bool collapsed)
         {
             // Last ChartMonths months ending with the current one. Built from a
             // fixed month list rather than by grouping, so months with no bills
@@ -156,7 +259,7 @@ namespace BillsFrontEndBlazor.Pages
             _bars = months
                 .Select((month, i) =>
                 {
-                    var height = axisMax == 0
+                    var height = axisMax == 0 || collapsed
                         ? 0
                         : (double)(totals[i] / axisMax) * plotHeight;
 

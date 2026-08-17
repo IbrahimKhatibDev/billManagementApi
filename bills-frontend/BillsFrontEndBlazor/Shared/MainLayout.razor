@@ -2,17 +2,35 @@
 
 <PageTitle>Bills Manager</PageTitle>
 
-<div class="page">
+@* Two independent pieces of nav state, because the sidebar does two different
+   things at the two breakpoints and their sensible defaults disagree. On
+   desktop it is always on screen and collapses to an icon rail (_railed). On
+   mobile it is an overlay that starts closed (_drawerOpen). One shared boolean
+   would have to start both expanded and closed at once. *@
+<div class="page @(_railed ? "railed" : null) @(_drawerOpen ? "drawer-open" : null)">
+
     <div class="sidebar">
-        <NavMenu />
+        <NavMenu Railed="_railed" OnToggleRail="ToggleRail" OnNavigate="CloseDrawer" />
     </div>
 
+    @* Mobile only. Tapping outside a drawer is how everyone expects to close
+       one, and it also stops the content behind it being clicked blind. *@
+    <div class="drawer-backdrop" @onclick="CloseDrawer"></div>
+
     <main>
-        <div class="top-row px-4">
-            <a href="https://github.com/IbrahimKhatibDev/billManagementApi" target="_blank" rel="noopener">
-                <i class="bi bi-github me-1"></i> Source
-            </a>
-        </div>
+        @* Mobile only as well: on desktop the sidebar is always visible and
+           carries its own collapse control, so a top bar would have nothing to
+           hold. *@
+        <header class="mobile-bar">
+            <button type="button" class="mobile-bar-toggle" @onclick="ToggleDrawer"
+                    title="Navigation menu" aria-label="Navigation menu"
+                    aria-expanded="@_drawerOpen">
+                <i class="bi bi-list"></i>
+            </button>
+            <span class="mobile-bar-brand">
+                <i class="bi bi-receipt-cutoff me-1"></i> Bills Manager
+            </span>
+        </header>
 
         <article class="content px-4">
             @Body
@@ -23,3 +41,14 @@
 @* One host for every toast the app raises. It lives outside @Body so a toast
    survives navigation between Dashboard and Bills. *@
 <ToastHost />
+
+@code {
+    private bool _railed;
+    private bool _drawerOpen;
+
+    private void ToggleRail() => _railed = !_railed;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void CloseDrawer() => _drawerOpen = false;
+}

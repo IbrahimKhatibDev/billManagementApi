@@ -1,70 +1,119 @@
+/* The shell owns the viewport instead of growing with its content: the page
+   itself never scrolls, only .content does. That is what keeps the sidebar and
+   the mobile bar fixed in place — with a document-height shell the whole thing
+   scrolls as one unit and the navigation slides off the top of the screen. */
 .page {
-    position: relative;
     display: flex;
-    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* dvh so mobile browser chrome collapsing doesn't clip us */
+    overflow: hidden;
 }
 
 main {
-    flex: 1;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Without min-width a wide child (the bills table) stretches the flex item
+       past the viewport instead of scrolling inside it. */
+    min-width: 0;
+}
+
+.content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    flex: 0 0 16rem;
+    width: 16rem;
+    background: #151a26;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    transition: flex-basis .2s ease, width .2s ease;
+    overflow: hidden;
 }
 
-.top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
+.page.railed .sidebar {
+    flex-basis: 4.5rem;
+    width: 4.5rem;
 }
 
-    .top-row ::deep a, .top-row .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-    }
-
-    .top-row a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+/* Both of these only ever appear under the mobile breakpoint. They are declared
+   hidden here so nothing leaks onto desktop if a media query is edited later. */
+.drawer-backdrop,
+.mobile-bar {
+    display: none;
+}
 
 @media (max-width: 640.98px) {
-    .top-row:not(.auth) {
-        display: none;
-    }
-
-    .top-row.auth {
-        justify-content: space-between;
-    }
-
-    .top-row a, .top-row .btn-link {
-        margin-left: 0;
-    }
-}
-
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
-
+    /* Below the breakpoint the sidebar stops being part of the layout and
+       becomes an overlay, so the content pane gets the full width. */
     .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
+        position: fixed;
         top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1040;
+        flex-basis: 16rem;
+        width: 16rem;
+        transform: translateX(-100%);
+        transition: transform .2s ease;
     }
 
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
+    /* The rail is a desktop affordance; on a drawer it would just be a narrower
+       drawer. Undo it here so a stale _railed value can't shrink the overlay. */
+    .page.railed .sidebar {
+        flex-basis: 16rem;
+        width: 16rem;
     }
 
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
+    .page.drawer-open .sidebar {
+        transform: none;
+    }
+
+    .page.drawer-open .drawer-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        /* Under the drawer, over everything else — but below Bootstrap's .modal
+           at 1055 so the bill dialogs still sit on top. */
+        z-index: 1035;
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .mobile-bar {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        flex: 0 0 auto;
+        height: 3.25rem;
+        padding: 0 .5rem;
+        background: #151a26;
+        color: #fff;
+    }
+
+    .mobile-bar-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        padding: 0;
+        border: 0;
+        border-radius: .5rem;
+        background: transparent;
+        color: #fff;
+        font-size: 1.35rem;
+        line-height: 1;
+    }
+
+    .mobile-bar-toggle:hover,
+    .mobile-bar-toggle:focus-visible {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .mobile-bar-brand {
+        font-weight: 600;
     }
 }
