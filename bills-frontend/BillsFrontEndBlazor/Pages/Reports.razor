@@ -96,13 +96,23 @@
     {
         <div class="@(_isLoading ? "is-refreshing" : null)">
 
-            <!-- ============================ HEADLINE FIGURES -->
+            @* ============================ HEADLINE FIGURES
+
+               Every figure counts up rather than snapping, the same way the
+               dashboard cards do, and replays whenever the range changes —
+               _animationGeneration is what forces the replay even when the new
+               window happens to total the same as the old one. The .stat-note
+               lines stay static on purpose: eight cards all counting at once is
+               already the limit of what reads as deliberate. *@
             <div class="row g-3 mb-5">
                 <div class="col-6 col-lg-3">
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Total billed</div>
-                            <div class="stat-value">@TotalBilled.ToString("C")</div>
+                            <div class="stat-value">
+                                <AnimatedCounter Value="@TotalBilled" Format="C"
+                                                 Generation="@_animationGeneration" />
+                            </div>
                             <div class="stat-note">across @BillCount @(BillCount == 1 ? "bill" : "bills")</div>
                         </div>
                     </div>
@@ -112,7 +122,10 @@
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Paid</div>
-                            <div class="stat-value text-success">@PaidAmount.ToString("C")</div>
+                            <div class="stat-value text-success">
+                                <AnimatedCounter Value="@PaidAmount" Format="C"
+                                                 Generation="@_animationGeneration" />
+                            </div>
                             @* Share of money, not of bills — see PaidPercent. *@
                             <div class="stat-note">@PaidPercent.ToString("0")% of the total</div>
                         </div>
@@ -123,7 +136,10 @@
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Outstanding</div>
-                            <div class="stat-value">@OutstandingAmount.ToString("C")</div>
+                            <div class="stat-value">
+                                <AnimatedCounter Value="@OutstandingAmount" Format="C"
+                                                 Generation="@_animationGeneration" />
+                            </div>
                             <div class="stat-note">@UnpaidCount unpaid</div>
                         </div>
                     </div>
@@ -134,7 +150,8 @@
                         <div class="card-body">
                             <div class="stat-label">Overdue</div>
                             <div class="stat-value @(OverdueAmount > 0 ? "text-danger" : null)">
-                                @OverdueAmount.ToString("C")
+                                <AnimatedCounter Value="@OverdueAmount" Format="C"
+                                                 Generation="@_animationGeneration" />
                             </div>
                             <div class="stat-note">@OverdueCount past their due date</div>
                         </div>
@@ -145,7 +162,20 @@
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Largest bill</div>
-                            <div class="stat-value">@(LargestBill?.PaymentDue.ToString("C") ?? "—")</div>
+                            <div class="stat-value">
+                                @* An empty range has no largest bill, and a
+                                   counter easing up to nothing would read as
+                                   "$0.00" rather than "there isn't one". *@
+                                @if (LargestBill is { } largest)
+                                {
+                                    <AnimatedCounter Value="@largest.PaymentDue" Format="C"
+                                                     Generation="@_animationGeneration" />
+                                }
+                                else
+                                {
+                                    <text>—</text>
+                                }
+                            </div>
                             <div class="stat-note text-truncate">@(LargestBill?.PayeeName ?? "—")</div>
                         </div>
                     </div>
@@ -155,7 +185,10 @@
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Average bill</div>
-                            <div class="stat-value">@AverageBill.ToString("C")</div>
+                            <div class="stat-value">
+                                <AnimatedCounter Value="@AverageBill" Format="C"
+                                                 Generation="@_animationGeneration" />
+                            </div>
                             <div class="stat-note">mean of every bill</div>
                         </div>
                     </div>
@@ -165,7 +198,10 @@
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Median bill</div>
-                            <div class="stat-value">@MedianBill.ToString("C")</div>
+                            <div class="stat-value">
+                                <AnimatedCounter Value="@MedianBill" Format="C"
+                                                 Generation="@_animationGeneration" />
+                            </div>
                             @* Next to the average on purpose: a median well under
                                the mean says a few big bills are carrying the
                                total. *@
@@ -178,7 +214,10 @@
                     <div class="card shadow-sm border-0 h-100 stat-card">
                         <div class="card-body">
                             <div class="stat-label">Due in 30 days</div>
-                            <div class="stat-value">@DueSoonAmount.ToString("C")</div>
+                            <div class="stat-value">
+                                <AnimatedCounter Value="@DueSoonAmount" Format="C"
+                                                 Generation="@_animationGeneration" />
+                            </div>
                             <div class="stat-note">@DueSoonCount not yet paid</div>
                         </div>
                     </div>

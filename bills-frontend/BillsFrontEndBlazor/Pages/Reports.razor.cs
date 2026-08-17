@@ -61,6 +61,12 @@ namespace BillsFrontEndBlazor.Pages
         /// still renders a self-consistent report.</summary>
         private DateTime _today = DateTime.Today;
 
+        /// <summary>Bumped on every rescope so the headline counters replay from
+        /// zero. Without it, switching to a range whose totals happen to match
+        /// the previous one — or refreshing unchanged data — animates nothing.
+        /// See <c>AnimatedCounter.Generation</c>.</summary>
+        private int _animationGeneration;
+
         private sealed record AgingBucket(
             string Label,
             int Count,
@@ -155,6 +161,11 @@ namespace BillsFrontEndBlazor.Pages
         private void Rescope()
         {
             _scoped = ReportRanges.Filter(_bills, _range, _today);
+
+            // Here rather than in SetRange and LoadBillsAsync separately: this is
+            // the one place the figures can change, so it is the one place that
+            // can never forget to replay them.
+            _animationGeneration++;
 
             BuildAging();
             BuildPayees();
