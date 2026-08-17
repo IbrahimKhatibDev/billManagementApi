@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- xunit 2.x ships no implicit usings of its own. -->
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <!--
+      ResetAsync uses ExecuteSqlRawAsync, which lives in .Relational, so this is
+      a real direct dependency. It also has to be pinned rather than inherited:
+      the API gets Relational 10.0.11 via .Design, but .Design is PrivateAssets
+      ="all" and does not flow across the ProjectReference. Without this line
+      NuGet falls back to the floor of Npgsql's range (10.0.4) and the build
+      warns MSB3277 about binding against a 10.0.11-compiled BillsMinimalApi.dll.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BillsMinimalApi\BillsMinimalApi.csproj" />
+  </ItemGroup>
+
+</Project>
