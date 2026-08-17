@@ -1,121 +1,145 @@
-﻿@page "/"
+@page "/"
 
-<div class="container-fluid p-0">
+<PageTitle>Dashboard</PageTitle>
 
-    <!-- HERO / BANNER -->
-    <div class="p-5 mb-4 text-white"
-         style="background: linear-gradient(135deg, #0d6efd, #6f42c1); border-radius: 0 0 .75rem .75rem;">
-        <div class="container py-3">
-            <h1 class="display-5 fw-bold">Welcome to Bills Manager</h1>
-            <p class="fs-5 opacity-75">
-                Manage bills, track payments, and keep your finances organized.
-            </p>
+<MudText Typo="Typo.h4" GutterBottom="true">Dashboard</MudText>
+<MudText Typo="Typo.body1" Class="mud-text-secondary mb-6">
+    Manage bills, track payments, and keep your finances organized.
+</MudText>
 
-            <div class="mt-4">
-                <a class="btn btn-light btn-lg me-2" href="/bills">
-                    <i class="bi bi-table me-2"></i> Go to Bills
-                </a>
-                <button class="btn btn-outline-light btn-lg">
-                    <i class="bi bi-gear me-2"></i> Settings
-                </button>
+@if (_loadFailed)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-6">
+        Could not reach the API.
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Inherit"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadStatsAsync">
+            Retry
+        </MudButton>
+    </MudAlert>
+}
+
+<MudGrid>
+    <MudItem xs="12" sm="4">
+        <MudPaper Class="pa-5" Elevation="1">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Size="Size.Large" />
+                <MudText Typo="Typo.subtitle1" Class="ml-3 mud-text-secondary">Total Bills</MudText>
             </div>
-        </div>
-    </div>
+            <MudText Typo="Typo.h3" Class="mt-3">
+                <AnimatedCounter Value="@TotalBills" Format="N0" />
+            </MudText>
+        </MudPaper>
+    </MudItem>
 
+    <MudItem xs="12" sm="4">
+        <MudPaper Class="pa-5" Elevation="1">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                <MudText Typo="Typo.subtitle1" Class="ml-3 mud-text-secondary">Paid</MudText>
+            </div>
+            <MudText Typo="Typo.h3" Class="mt-3">
+                <AnimatedCounter Value="@PaidBills" Format="N0" />
+            </MudText>
+        </MudPaper>
+    </MudItem>
 
-    <div class="container">
+    <MudItem xs="12" sm="4">
+        <MudPaper Class="pa-5" Elevation="1">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Warning" Size="Size.Large" />
+                <MudText Typo="Typo.subtitle1" Class="ml-3 mud-text-secondary">Outstanding</MudText>
+            </div>
+            @* Renders "$1,234.56" only because Program.cs pins en-US — the
+               container's default culture is invariant, which formats "C" as ¤. *@
+            <MudText Typo="Typo.h3" Class="mt-3">
+                <AnimatedCounter Value="@OutstandingAmount" Format="C" />
+            </MudText>
+        </MudPaper>
+    </MudItem>
 
-        <!-- STATS ROW -->
-        <div class="row g-4 mb-5">
-
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <h5 class="card-title text-primary fw-bold">
-                            <i class="bi bi-receipt"></i> Total Bills
-                        </h5>
-                        <p class="display-6 fw-bold">@TotalBills</p>
-                        <p class="text-muted">Bills currently stored in the system</p>
-                    </div>
+    @* Inline SVG rendered from C# by MudBlazor: no JS interop (which is
+       unusable during ServerPrerendered's first render), no CDN, no npm. *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-5" Elevation="1">
+            <MudText Typo="Typo.h6" GutterBottom="true">Paid vs Unpaid</MudText>
+            @if (TotalBills == 0)
+            {
+                <MudText Class="mud-text-secondary py-8">No bills to chart yet.</MudText>
+            }
+            else
+            {
+                <div class="d-flex flex-column align-center">
+                    <MudChart T="double"
+                              ChartType="ChartType.Donut"
+                              Width="260px"
+                              Height="260px"
+                              ChartSeries="@_statusSeries"
+                              ChartLabels="@_statusLabels">
+                        @* Font sizes are in user units of the chart's own
+                           viewBox ("0 0 280 280"), not pixels — MudBlazor's
+                           older 40-unit donut viewBox is why samples elsewhere
+                           use single-digit sizes here. *@
+                        <CustomGraphics>
+                            <text x="50%" y="46%"
+                                  dominant-baseline="middle"
+                                  text-anchor="middle"
+                                  fill="currentColor"
+                                  font-size="36"
+                                  font-weight="500">
+                                @PaidPercent.ToString("0")%
+                            </text>
+                            <text x="50%" y="57%"
+                                  dominant-baseline="middle"
+                                  text-anchor="middle"
+                                  fill="currentColor"
+                                  fill-opacity="0.6"
+                                  font-size="15">
+                                paid
+                            </text>
+                        </CustomGraphics>
+                    </MudChart>
                 </div>
-            </div>
+            }
+        </MudPaper>
+    </MudItem>
 
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <h5 class="card-title text-success fw-bold">
-                            <i class="bi bi-check-circle"></i> Paid Bills
-                        </h5>
-                        <p class="display-6 fw-bold">@PaidBills</p>
-                        <p class="text-muted">Bills marked as fully paid</p>
-                    </div>
-                </div>
-            </div>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-5" Elevation="1">
+            <MudText Typo="Typo.h6" GutterBottom="true">Amount due by month</MudText>
+            @if (TotalBills == 0)
+            {
+                <MudText Class="mud-text-secondary py-8">No bills to chart yet.</MudText>
+            }
+            else
+            {
+                <MudChart T="double"
+                          ChartType="ChartType.Bar"
+                          Height="300px"
+                          ChartSeries="@_monthlySeries"
+                          ChartLabels="@_monthLabels" />
+            }
+        </MudPaper>
+    </MudItem>
 
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <h5 class="card-title text-danger fw-bold">
-                            <i class="bi bi-cash-coin"></i> Outstanding Amount
-                        </h5>
-                        <p class="display-6 fw-bold">$@OutstandingAmount</p>
-                        <p class="text-muted">Unpaid total bill amount</p>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-
-        <!-- QUICK ACTIONS SECTION -->
-        <h3 class="fw-bold mb-3">Quick Actions</h3>
-
-        <div class="row g-4 mb-5">
-
-            <div class="col-md-4">
-                <a href="/bills" class="text-decoration-none">
-                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-table display-4 text-primary"></i>
-                        <h5 class="fw-bold mt-3">Manage Bills</h5>
-                        <p class="text-muted">View, edit, create, and delete bills</p>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-md-4">
-                <a href="#" class="text-decoration-none">
-                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-graph-up display-4 text-success"></i>
-                        <h5 class="fw-bold mt-3">View Reports</h5>
-                        <p class="text-muted">Analyze monthly or yearly billing data</p>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-md-4">
-                <a href="#" class="text-decoration-none">
-                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-gear display-4 text-secondary"></i>
-                        <h5 class="fw-bold mt-3">Settings</h5>
-                        <p class="text-muted">Customize application preferences</p>
-                    </div>
-                </a>
-            </div>
-
-        </div>
-
-    </div>
-</div>
-
-<style>
-    .action-tile {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        cursor: pointer;
-        border-radius: .75rem;
-    }
-
-        .action-tile:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 10px 25px rgba(0,0,0,.15);
-        }
-</style>
+    <MudItem xs="12">
+        <MudPaper Class="pa-5 d-flex flex-wrap gap-4 align-center" Elevation="1">
+            <MudText Typo="Typo.subtitle1">Quick actions</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.ReceiptLong"
+                       Href="bills">
+                View all bills
+            </MudButton>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       Disabled="_isLoading"
+                       OnClick="LoadStatsAsync">
+                Refresh
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

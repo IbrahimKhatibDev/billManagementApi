@@ -1,0 +1,82 @@
+@implements IDisposable
+
+@* Counts up to Value instead of snapping to it. Done in C# rather than with a
+   CSS @@property counter because CSS counters cannot currency-format, and
+   because this has to work identically during ServerPrerendered's first render,
+   where JS interop is unavailable. *@
+<span>@_display.ToString(Format)</span>
+
+@code {
+    private const int Frames = 20;
+
+    [Parameter, EditorRequired]
+    public decimal Value { get; set; }
+
+    /// <summary>Standard numeric format string, e.g. "N0" or "C".</summary>
+    [Parameter]
+    public string Format { get; set; } = "N0";
+
+    [Parameter]
+    public int DurationMs { get; set; } = 600;
+
+    private decimal _display;
+    private CancellationTokenSource? _cts;
+
+    protected override void OnParametersSet()
+    {
+        if (_display == Value)
+        {
+            return;
+        }
+
+        // Cancel any run still in flight so a second update mid-animation
+        // doesn't leave two timers fighting over _display.
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        _ = AnimateAsync(_display, Value, _cts.Token);
+    }
+
+    private async Task AnimateAsync(decimal from, decimal to, CancellationToken ct)
+    {
+        var interval = TimeSpan.FromMilliseconds(Math.Max(1, DurationMs / Frames));
+
+        try
+        {
+            using var timer = new PeriodicTimer(interval);
+
+            for (var frame = 1; frame <= Frames; frame++)
+            {
+                await timer.WaitForNextTickAsync(ct);
+
+                // Ease-out cubic: fast at first, settling into the final value.
+                var progress = (double)frame / Frames;
+                var eased = 1 - Math.Pow(1 - progress, 3);
+
+                _display = frame == Frames
+                    ? to
+                    : from + ((to - from) * (decimal)eased);
+
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer value, or the component went away.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit was torn down between frames.
+        }
+    }
+
+    public void Dispose()
+    {
+        // Without this, navigating away mid-animation leaks a timer that keeps
+        // calling StateHasChanged on a disposed component.
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+    }
+}

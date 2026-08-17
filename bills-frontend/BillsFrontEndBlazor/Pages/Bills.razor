@@ -1,243 +1,151 @@
-﻿@page "/bills"
-@inject BillService BillService
-@inject NavigationManager Nav
+@page "/bills"
 
-<div class="container py-4">
+<PageTitle>Bills</PageTitle>
 
-    <!-- PAGE HEADER -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="fw-bold">
-            <i class="bi bi-receipt-cutoff me-2"></i> Bills Management
-        </h2>
-    </div>
+@* The pager, sorting, filtering, loading overlay, empty state and the
+   responsive stacked-card layout are all MudTable features — none of it is
+   hand-rolled. It does not, however, rewind the pager when Filter's output
+   shrinks; it only clamps, so filtering from page 3 lands you on the *last*
+   page of the new result set. SearchText/PaidFilter below call NavigateTo to
+   fix that. *@
+<MudTable T="Bill"
+          @ref="_table"
+          Items="_bills"
+          Filter="new Func<Bill, bool>(MatchesFilters)"
+          Loading="_isLoading"
+          LoadingProgressColor="Color.Primary"
+          Breakpoint="Breakpoint.Sm"
+          Hover="true"
+          Striped="true"
+          Elevation="1"
+          RowsPerPage="10">
 
-    <!-- ALERT MESSAGES -->
-    @if (!string.IsNullOrEmpty(AlertMessage))
-    {
-        <div class="alert alert-@(IsError ? "danger" : "success") alert-dismissible fade show" role="alert">
-            @AlertMessage
-            <button type="button" class="btn-close" @onclick="() => AlertMessage = string.Empty"></button>
-        </div>
-    }
+    <ToolBarContent>
+        <MudText Typo="Typo.h5">Bills</MudText>
 
-    <!-- ACTION BAR -->
-    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <MudSpacer />
 
-        <button class="btn btn-primary" @onclick="LoadBills">
-            <i class="bi bi-arrow-repeat me-1"></i> Refresh
-        </button>
+        <MudTextField @bind-Value="SearchText"
+                      Immediate="true"
+                      DebounceInterval="200"
+                      Placeholder="Search id or payee"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      IconSize="Size.Medium"
+                      Clearable="true"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Class="mt-0 mr-4"
+                      Style="max-width: 260px;" />
 
-        <button class="btn btn-success" @onclick="OpenModal">
-            <i class="bi bi-plus-lg me-1"></i> New Bill
-        </button>
+        <MudToggleGroup T="PaidFilter"
+                        @bind-Value="PaidFilterValue"
+                        Color="Color.Primary"
+                        Size="Size.Small"
+                        CheckMark="false"
+                        Class="mr-4">
+            <MudToggleItem T="PaidFilter" Value="@PaidFilter.All" Text="All" />
+            <MudToggleItem T="PaidFilter" Value="@PaidFilter.Paid" Text="Paid" />
+            <MudToggleItem T="PaidFilter" Value="@PaidFilter.Unpaid" Text="Unpaid" />
+        </MudToggleGroup>
 
-        <div class="ms-auto d-flex gap-2">
-            <input class="form-control" style="max-width: 250px;"
-                   placeholder="Search by ID or Payee..."
-                   @bind="SearchText"
-                   @bind:event="oninput" />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="OpenCreateDialogAsync">
+            New Bill
+        </MudButton>
+    </ToolBarContent>
 
-            <button class="btn btn-outline-secondary" @onclick="() => SearchText = string.Empty">
-                Clear
-            </button>
-        </div>
+    <HeaderContent>
+        <MudTh>
+            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.Id)" InitialDirection="SortDirection.Ascending">
+                ID
+            </MudTableSortLabel>
+        </MudTh>
+        <MudTh>
+            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.PayeeName)">Payee</MudTableSortLabel>
+        </MudTh>
+        <MudTh>
+            @* DueDate is nullable; coalescing to MaxValue keeps undated bills
+               sorted last instead of first. *@
+            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.DueDate ?? DateTime.MaxValue)">
+                Due Date
+            </MudTableSortLabel>
+        </MudTh>
+        <MudTh>
+            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.PaymentDue)">Amount</MudTableSortLabel>
+        </MudTh>
+        <MudTh>
+            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.Paid)">Status</MudTableSortLabel>
+        </MudTh>
+        <MudTh Style="text-align: right;">Actions</MudTh>
+    </HeaderContent>
 
-    </div>
+    @* DataLabel is what makes the stacked mobile cards readable — below the
+       Sm breakpoint MudTable drops the header row and prints these instead. *@
+    <RowTemplate>
+        <MudTd DataLabel="ID">@context.Id</MudTd>
+        <MudTd DataLabel="Payee">@context.PayeeName</MudTd>
+        <MudTd DataLabel="Due Date">
+            @(context.DueDate?.ToString("d") ?? "—")
+        </MudTd>
+        <MudTd DataLabel="Amount">@context.PaymentDue.ToString("C")</MudTd>
+        <MudTd DataLabel="Status">
+            <MudChip T="string"
+                     Size="Size.Small"
+                     Variant="Variant.Filled"
+                     Color="@(context.Paid ? Color.Success : Color.Warning)">
+                @(context.Paid ? "Paid" : "Unpaid")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Actions" Style="text-align: right;">
+            <MudTooltip Text="Edit">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               aria-label="@($"Edit bill {context.Id}")"
+                               OnClick="@(() => OpenEditDialogAsync(context))" />
+            </MudTooltip>
+            <MudTooltip Text="Delete">
+                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                               Color="Color.Error"
+                               Size="Size.Small"
+                               aria-label="@($"Delete bill {context.Id}")"
+                               OnClick="@(() => ConfirmDeleteAsync(context))" />
+            </MudTooltip>
+        </MudTd>
+    </RowTemplate>
 
-    <!-- TABLE CARD -->
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <table class="table table-hover table-striped align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Payee</th>
-                        <th>Due Date</th>
-                        <th>Amount</th>
-                        <th>Paid</th>
-                        <th style="width: 160px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var bill in FilteredBills)
-                    {
-                        <tr>
-                            <td>@bill.Id</td>
-                            <td>@bill.PayeeName</td>
-                            <td>@bill.DueDate?.ToShortDateString()</td>
-                            <td>$@bill.PaymentDue</td>
-                            <td>
-                                @if (bill.Paid)
-                                {
-                                    <span class="badge bg-success">Yes</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-danger">No</span>
-                                }
-                            </td>
-                        <td>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-secondary"
-                                        @onclick="() => OpenEditModal(bill)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-
-                                    <button class="btn btn-sm btn-danger"
-                                            @onclick="() => OpenDeleteModal(bill)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-
-<!-- DELETE MODAL -->
-@if (ShowDeleteModal)
-{
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i> Delete Bill</h5>
-                    <button type="button" class="btn-close" @onclick="CloseDeleteModal"></button>
-                </div>
-
-                <div class="modal-body">
-                    <p>Are you sure you want to delete this bill?</p>
-
-                    <ul>
-                        <li><strong>Payee:</strong> @_deleteBill.PayeeName</li>
-                        <li><strong>Amount:</strong> @_deleteBill.PaymentDue</li>
-                        <li><strong>Due Date:</strong> @_deleteBill.DueDate?.ToShortDateString()</li>
-                    </ul>
-
-                    <p class="text-danger fw-bold">This action cannot be undone.</p>
-                </div>
-
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseDeleteModal">Cancel</button>
-                    <button class="btn btn-danger" @onclick="ConfirmDelete">Delete</button>
-                </div>
-
+    <NoRecordsContent>
+        @if (_loadFailed)
+        {
+            <div class="d-flex flex-column align-center py-8">
+                <MudIcon Icon="@Icons.Material.Filled.CloudOff" Size="Size.Large" Color="Color.Error" />
+                <MudText Class="my-3">Could not reach the API.</MudText>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadBillsAsync">
+                    Retry
+                </MudButton>
             </div>
-        </div>
-    </div>
-}
+        }
+        else if (_bills.Count == 0)
+        {
+            <MudText Class="py-6">No bills yet. Use “New Bill” to add one.</MudText>
+        }
+        else
+        {
+            <MudText Class="py-6">No bills match the current search or filter.</MudText>
+        }
+    </NoRecordsContent>
 
+    <LoadingContent>
+        <MudText Class="py-6">Loading bills…</MudText>
+    </LoadingContent>
 
-<!-- EDIT MODAL -->
-@if (ShowEditModal)
-{
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-pencil-square me-2"></i> Edit Bill
-                    </h5>
-                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
-                </div>
-
-                <EditForm Model="_editBill" OnValidSubmit="SaveEditedBill">
-                    <DataAnnotationsValidator />
-
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Payee Name</label>
-                            <input class="form-control" @bind="_editBill.PayeeName" />
-                            <ValidationMessage For="@(() => _editBill.PayeeName)" class="text-danger small" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Due Date</label>
-                            <input type="date" class="form-control" @bind="_editBill.DueDate" />
-                            <ValidationMessage For="@(() => _editBill.DueDate)" class="text-danger small" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Amount</label>
-                            <input type="number" step="0.01" class="form-control" @bind="_editBill.PaymentDue" />
-                            <ValidationMessage For="@(() => _editBill.PaymentDue)" class="text-danger small" />
-                        </div>
-
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" @bind="_editBill.Paid" />
-                            <label class="form-check-label">Paid</label>
-                        </div>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                    </div>
-                </EditForm>
-
-            </div>
-        </div>
-    </div>
-}
-
-
-<!-- CREATE MODAL -->
-@if (ShowCreateModal)
-{
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-plus-lg me-2"></i> Create Bill
-                    </h5>
-                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
-                </div>
-
-                <EditForm Model="_newBill" OnValidSubmit="SaveNewBill">
-                    <DataAnnotationsValidator />
-
-                    <div class="modal-body">
-
-                        <div class="mb-3">
-                            <label class="form-label">Payee Name</label>
-                            <input class="form-control" @bind="_newBill.PayeeName" />
-                            <ValidationMessage For="@(() => _newBill.PayeeName)" class="text-danger small" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Due Date</label>
-                            <input type="date" class="form-control" @bind="_newBill.DueDate" />
-                            <ValidationMessage For="@(() => _newBill.DueDate)" class="text-danger small" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Amount</label>
-                            <input type="number" step="0.01" class="form-control" @bind="_newBill.PaymentDue" />
-                            <ValidationMessage For="@(() => _newBill.PaymentDue)" class="text-danger small" />
-                        </div>
-
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" @bind="_newBill.Paid" />
-                            <label class="form-check-label">Paid</label>
-                        </div>
-
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
-                        <button type="submit" class="btn btn-success">Save</button>
-                    </div>
-                </EditForm>
-
-            </div>
-        </div>
-    </div>
-}
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
+    </PagerContent>
+</MudTable>

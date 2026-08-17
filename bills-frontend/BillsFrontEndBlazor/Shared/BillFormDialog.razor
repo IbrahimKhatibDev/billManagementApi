@@ -1,0 +1,107 @@
+@* One dialog for both create and edit. The two forms were byte-identical
+   duplicates before, which is how they drifted: the create form had validation
+   the edit form did not. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" Model="Bill">
+            <MudTextField T="string"
+                          Label="Payee name"
+                          @bind-Value="Bill.PayeeName"
+                          For="@(() => Bill.PayeeName)"
+                          Immediate="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Person"
+                          Class="mb-3" />
+
+            <MudNumericField T="decimal"
+                             Label="Amount due"
+                             @bind-Value="Bill.PaymentDue"
+                             For="@(() => Bill.PaymentDue)"
+                             Format="F2"
+                             Min="0"
+                             Adornment="Adornment.Start"
+                             AdornmentText="$"
+                             Class="mb-3" />
+
+            <MudDatePicker Label="Due date"
+                           @bind-Date="Bill.DueDate"
+                           For="@(() => Bill.DueDate)"
+                           PickerVariant="PickerVariant.Dialog"
+                           Class="mb-3" />
+
+            <MudSwitch T="bool"
+                       @bind-Value="Bill.Paid"
+                       Label="Paid"
+                       Color="Color.Success" />
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_isSaving">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="_isSaving">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Saving</span>
+            }
+            else
+            {
+                <span>@ConfirmText</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>
+    /// Always a copy made by the caller, never the instance in the table: a
+    /// cancelled edit must not leave the edited values on screen.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public Bill Bill { get; set; } = default!;
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Save";
+
+    /// <summary>
+    /// Performs the write and reports whether it succeeded. Owned by the caller
+    /// so this dialog does not need to know create from update — and so the
+    /// dialog stays open, with its values intact, when the save fails.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public Func<Bill, Task<bool>> OnSave { get; set; } = default!;
+
+    private MudForm _form = default!;
+    private bool _isSaving;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            if (await OnSave(Bill))
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

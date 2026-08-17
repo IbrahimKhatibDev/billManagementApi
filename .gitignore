@@ -260,3 +260,6 @@ nbdist/
 # Support for Project snippet scope
 
 # End of https://www.toptal.com/developers/gitignore/api/java,maven,intellij,eclipse,netbeans,visualstudiocode
+
+# Playwright MCP session output (screenshots, snapshots, console logs)
+.playwright-mcp/

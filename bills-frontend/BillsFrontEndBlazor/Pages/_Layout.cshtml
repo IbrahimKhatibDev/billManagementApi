@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web
 @namespace BillsFrontEndBlazor.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
@@ -8,12 +8,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="~/" />
-    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
-    <link href="css/site.css" rel="stylesheet" />
-    <link href="BillsFrontEndBlazor.styles.css" rel="stylesheet" />
-    <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet" />
 
+    @* MudBlazor replaces Bootstrap entirely. Both ship a CSS reset, so loading
+       them together makes them fight over the same elements. Everything below is
+       served from this app — there are no CDN or third-party requests. *@
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="css/site.css" rel="stylesheet" />
+    @* No BillsFrontEndBlazor.styles.css link: the scoped-CSS bundle is only
+       emitted when the project has .razor.css files, and MudDrawer/MudNavMenu
+       replaced the two that existed. Linking it anyway is a guaranteed 404. *@
+
+    <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
 </head>
 <body>
     @RenderBody()
@@ -30,5 +35,7 @@
     </div>
 
     <script src="_framework/blazor.server.js"></script>
+    @* Must come after blazor.server.js. *@
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 </html>
