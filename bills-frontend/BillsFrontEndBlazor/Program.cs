@@ -1,7 +1,5 @@
 using System.Globalization;
 using BillsFrontEndBlazor.Services;
-using MudBlazor;
-using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,13 +14,12 @@ CultureInfo.DefaultThreadCurrentUICulture = culture;
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
-builder.Services.AddMudServices(config =>
-{
-    config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomRight;
-    config.SnackbarConfiguration.ShowCloseIcon = true;
-    config.SnackbarConfiguration.VisibleStateDuration = 4000;
-    config.SnackbarConfiguration.PreventDuplicates = false;
-});
+// Both of these are per-circuit state, so both are scoped.
+//
+// ToastService holds the live toast list and raises OnToastsChanged, which
+// ToastHost in MainLayout renders as Bootstrap .toast markup. Scoped means one
+// user's toasts never appear in another's browser.
+builder.Services.AddScoped<ToastService>();
 
 // Scoped, not singleton. In Blazor Server a singleton is shared across every
 // connected circuit, so one user's edit would fire OnBillsChanged on everyone

@@ -2,13 +2,23 @@ using System.Globalization;
 using BillsFrontEndBlazor.Models;
 using BillsFrontEndBlazor.Services;
 using Microsoft.AspNetCore.Components;
-using MudBlazor;
 
 namespace BillsFrontEndBlazor.Pages
 {
     public partial class Index : IDisposable
     {
         private const int ChartMonths = 6;
+
+        // Donut geometry. The SVG is authored in these user units and scaled by
+        // the browser, so the numbers below are resolution-independent.
+        private const double DonutRadius = 70;
+        private const double DonutCircumference = 2 * Math.PI * DonutRadius;
+
+        // Bar-chart plot area, in the same viewBox units as the markup.
+        private const double BarLeft = 56;
+        private const double BarRight = 464;
+        private const double BarTop = 24;
+        private const double BarBaseline = 258;
 
         [Inject]
         public BillService BillService { get; set; } = default!;
@@ -17,7 +27,7 @@ namespace BillsFrontEndBlazor.Pages
         public BillEventService BillEventService { get; set; } = default!;
 
         [Inject]
-        public ISnackbar Snackbar { get; set; } = default!;
+        public ToastService Toasts { get; set; } = default!;
 
         // LoadStats already fetched the whole list and threw it away after
         // computing three numbers; keeping it is what makes the charts free.
@@ -38,14 +48,25 @@ namespace BillsFrontEndBlazor.Pages
             ? 0
             : Math.Round(PaidBills * 100d / TotalBills);
 
-        // MudBlazor 9 feeds every chart type through ChartSeries<T> + ChartLabels;
-        // the InputData/InputLabels/XAxisLabels parameters of earlier versions
-        // are gone.
-        private List<ChartSeries<double>> _statusSeries = new();
-        private readonly string[] _statusLabels = { "Paid", "Unpaid" };
+        /// <summary>
+        /// The donut's paid arc, as an SVG <c>stroke-dasharray</c>: "drawn gap".
+        /// The track circle underneath supplies the unpaid remainder.
+        /// </summary>
+        private string PaidArcDashArray { get; set; } = "0 0";
 
-        private List<ChartSeries<double>> _monthlySeries = new();
-        private string[] _monthLabels = Array.Empty<string>();
+        private sealed record MonthBar(
+            string Label,
+            decimal Total,
+            double X,
+            double Y,
+            double Width,
+            double Height,
+            double CenterX);
+
+        private sealed record GridLine(double Y, string Label);
+
+        private List<MonthBar> _bars = new();
+        private List<GridLine> _gridLines = new();
 
         protected override async Task OnInitializedAsync()
         {
@@ -81,7 +102,7 @@ namespace BillsFrontEndBlazor.Pages
             {
                 _bills = new List<Bill>();
                 _loadFailed = true;
-                Snackbar.Add("Could not load the dashboard. Is the API running?", Severity.Error);
+                Toasts.ShowError("Could not load the dashboard. Is the API running?");
             }
             finally
             {
@@ -93,14 +114,21 @@ namespace BillsFrontEndBlazor.Pages
 
         private void BuildChartData()
         {
-            _statusSeries = new List<ChartSeries<double>>
-            {
-                new() { Name = "Bills", Data = new double[] { PaidBills, UnpaidBills } },
-            };
+            var paidFraction = TotalBills == 0 ? 0 : (double)PaidBills / TotalBills;
+            var arc = DonutCircumference * paidFraction;
 
+            PaidArcDashArray = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{arc:0.##} {DonutCircumference - arc:0.##}");
+
+            BuildMonthlyBars();
+        }
+
+        private void BuildMonthlyBars()
+        {
             // Last ChartMonths months ending with the current one. Built from a
             // fixed month list rather than by grouping, so months with no bills
-            // still appear as an empty bar instead of being skipped.
+            // still appear as an empty slot instead of being skipped.
             var firstMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
                 .AddMonths(-(ChartMonths - 1));
 
@@ -108,22 +136,80 @@ namespace BillsFrontEndBlazor.Pages
                 .Select(offset => firstMonth.AddMonths(offset))
                 .ToArray();
 
-            _monthLabels = months
-                .Select(m => m.ToString("MMM", CultureInfo.CurrentCulture))
-                .ToArray();
-
             var totals = months
-                .Select(month => (double)_bills
+                .Select(month => _bills
                     .Where(b => b.DueDate is { } due
                                 && due.Year == month.Year
                                 && due.Month == month.Month)
                     .Sum(b => b.PaymentDue))
                 .ToArray();
 
-            _monthlySeries = new List<ChartSeries<double>>
-            {
-                new() { Name = "Amount due", Data = totals },
-            };
+            // Round the axis up to a whole "nice" number so the gridline labels
+            // read as money rather than as the tallest bar's exact value.
+            var max = totals.Length == 0 ? 0m : totals.Max();
+            var axisMax = NiceAxisMax(max);
+
+            var plotHeight = BarBaseline - BarTop;
+            var slot = (BarRight - BarLeft) / months.Length;
+            var barWidth = slot * 0.52;
+
+            _bars = months
+                .Select((month, i) =>
+                {
+                    var height = axisMax == 0
+                        ? 0
+                        : (double)(totals[i] / axisMax) * plotHeight;
+
+                    var x = BarLeft + (slot * i) + ((slot - barWidth) / 2);
+
+                    return new MonthBar(
+                        Label: month.ToString("MMM", CultureInfo.CurrentCulture),
+                        Total: totals[i],
+                        X: x,
+                        Y: BarBaseline - height,
+                        Width: barWidth,
+                        Height: height,
+                        CenterX: x + (barWidth / 2));
+                })
+                .ToList();
+
+            _gridLines = Enumerable.Range(0, 4)
+                .Select(step =>
+                {
+                    var fraction = step / 3d;
+                    return new GridLine(
+                        Y: BarBaseline - (plotHeight * fraction),
+                        Label: (axisMax * (decimal)fraction).ToString("C0", CultureInfo.CurrentCulture));
+                })
+                .ToList();
         }
+
+        /// <summary>
+        /// Rounds up to 1, 2 or 5 times a power of ten — the same ladder chart
+        /// libraries use, so the axis labels stay readable at any data scale.
+        /// </summary>
+        private static decimal NiceAxisMax(decimal max)
+        {
+            if (max <= 0)
+            {
+                return 0;
+            }
+
+            var magnitude = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)max)));
+            var normalised = max / magnitude;
+
+            var rounded = normalised switch
+            {
+                <= 1m => 1m,
+                <= 2m => 2m,
+                <= 5m => 5m,
+                _ => 10m,
+            };
+
+            return rounded * magnitude;
+        }
+
+        private static string Svg(double value) =>
+            value.ToString("0.##", CultureInfo.InvariantCulture);
     }
 }

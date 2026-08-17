@@ -1,14 +1,20 @@
-# Bills Manager — Blazor Server + MudBlazor
+# Bills Manager — Blazor Server + Bootstrap 5
 
 A modern, fully featured billing management system built with **Blazor Server**,
-**ASP.NET Core Minimal API**, and **MudBlazor**. It provides a clean admin-style
-UI for managing bills, viewing analytics, and interacting with a live-updating
-dashboard.
+**ASP.NET Core Minimal API**, and **Bootstrap 5**. It provides a clean
+admin-style UI for managing bills, viewing analytics, and interacting with a
+live-updating dashboard.
 
-**Zero external dependencies at runtime.** MudBlazor ships as local static web
-assets and its icons are inline SVG constants, so the app loads nothing from a
-CDN — check the Network tab and you will see no third-party requests. That is
-what lets the container run fully self-contained.
+**Zero external dependencies at runtime.** Bootstrap, Bootstrap Icons and
+open-iconic are vendored under `wwwroot/css/`, so the project carries no NuGet
+`PackageReference` at all and the browser loads nothing from a CDN — check the
+Network tab and you will see no third-party requests. That is what lets the
+container run fully self-contained.
+
+There is also no `bootstrap.bundle.js`. Modals are conditional Blazor markup
+(`modal fade show d-block` plus a backdrop colour) and toasts work because
+Bootstrap hides `.toast` unless it also carries `.show` — both are driven by
+component state instead of JavaScript.
 
 ---
 
@@ -93,18 +99,22 @@ container. Startup fails fast with a clear message if the setting is missing.
 - **Animated counters** that ease into their value on load and after any change
 - **Paid vs Unpaid donut chart** and a **monthly totals bar chart** over the last
   six months
-- Responsive `MudGrid` stat cards and quick-action tiles
+- A gradient hero banner, an equal-height Bootstrap card grid, and quick-action
+  tiles
 
-Both charts are `MudChart` — inline SVG rendered from C#, so there is no JS
-interop, no npm, and nothing fetched over the network. That also sidesteps the
-prerender lifecycle traps that bite JS charting libraries in Blazor Server.
+Both charts are hand-rolled inline SVG rendered from C# — the donut from a
+`stroke-dasharray` arc, the bars from a computed scale in a fixed `viewBox` — so
+there is no JS interop, no npm, and nothing fetched over the network. That also
+sidesteps the prerender lifecycle traps that bite JS charting libraries in
+Blazor Server: `_Host.cshtml` uses `render-mode="ServerPrerendered"`, where
+`IJSRuntime` is unusable during the first render.
 
 ### 📄 Bills management page
 
-A complete CRUD interface built on `MudTable`:
+A complete CRUD interface built on a styled Bootstrap table:
 
-- Create / Edit through a shared `MudDialog` form with validation
-- Delete with a confirmation dialog
+- Create / Edit through a shared modal form with validation
+- Delete with a confirmation modal
 - Inline validation messages
 - **Sorting** on ID, Payee, Amount, and Due Date
 - **Pagination** with a 10 / 25 / 50 page-size selector and a result count
@@ -117,13 +127,14 @@ A complete CRUD interface built on `MudTable`:
 
 ### 📱 Mobile layout
 
-Below the `Sm` breakpoint the table collapses to stacked label/value cards, the
-dialogs go full-width, and the navigation drawer becomes an overlay.
+At phone widths the action bar wraps, the modals go full-width, and the table
+scrolls inside its own `.table-responsive` container so the page itself never
+scrolls sideways.
 
 ### 🧭 Sidebar navigation
 
-`MudLayout` + `MudAppBar` + `MudDrawer`: a persistent drawer on desktop, an
-overlay on mobile, with a hamburger toggle in the app bar.
+A gradient sidebar that is persistent on desktop and collapses behind a
+hamburger toggle on mobile.
 
 ### 🔄 Real-time UI updates
 
@@ -144,7 +155,7 @@ PUT, and DELETE. See the [API README](../../BillsMinimalApi/README.md).
 ### Frontend
 
 - **Blazor Server (.NET 10)**
-- **MudBlazor 9.8.0** — table, dialogs, snackbars, drawer, charts
+- **Bootstrap 5.1 + Bootstrap Icons**, vendored locally — no NuGet packages
 - **Blazor `EditForm` validation**
 - **Event-driven updates using a pub/sub service**
 - No CDN, no npm, no JavaScript of our own

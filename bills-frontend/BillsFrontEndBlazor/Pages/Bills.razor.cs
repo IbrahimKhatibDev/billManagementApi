@@ -1,8 +1,6 @@
 using BillsFrontEndBlazor.Models;
 using BillsFrontEndBlazor.Services;
-using BillsFrontEndBlazor.Shared;
 using Microsoft.AspNetCore.Components;
-using MudBlazor;
 
 namespace BillsFrontEndBlazor.Pages
 {
@@ -13,8 +11,19 @@ namespace BillsFrontEndBlazor.Pages
         Unpaid,
     }
 
+    public enum BillSortColumn
+    {
+        Id,
+        Payee,
+        DueDate,
+        Amount,
+        Paid,
+    }
+
     public partial class Bills : IDisposable
     {
+        private static readonly int[] PageSizeOptions = { 10, 25, 50 };
+
         [Inject]
         public BillService BillService { get; set; } = default!;
 
@@ -22,32 +31,47 @@ namespace BillsFrontEndBlazor.Pages
         public BillEventService BillEventService { get; set; } = default!;
 
         [Inject]
-        public IDialogService DialogService { get; set; } = default!;
+        public ToastService Toasts { get; set; } = default!;
 
-        [Inject]
-        public ISnackbar Snackbar { get; set; } = default!;
-
-        private MudTable<Bill> _table = default!;
         private List<Bill> _bills = new();
-        private string _searchText = string.Empty;
-        private PaidFilter _paidFilter = PaidFilter.All;
         private bool _isLoading = true;
         private bool _loadFailed;
 
+        private string _searchText = string.Empty;
+        private PaidFilter _paidFilter = PaidFilter.All;
+
+        private BillSortColumn _sortColumn = BillSortColumn.Id;
+        private bool _sortDescending;
+
+        private int _page = 1;
+        private int _pageSize = 10;
+
+        // Modal state. The three "modals" are plain conditional rendering with
+        // Bootstrap's classes — no bootstrap.bundle.js, no JS interop, which
+        // matters because IJSRuntime is unusable during the prerender pass.
+        private enum FormMode
+        {
+            None,
+            Create,
+            Edit,
+        }
+
+        private FormMode _formMode = FormMode.None;
+        private Bill _formBill = new();
+        private Bill? _deleteTarget;
+        private bool _isSaving;
+
         /// <summary>
-        /// Bound by the toolbar's search box. The explicit
-        /// <see cref="MudTableBase.NavigateTo(Page)"/> is the point of the
-        /// property: MudTable does not rewind its pager when the filter shrinks
-        /// the result set, it only clamps to the last valid page. Filtering from
-        /// page 3 of 25 rows down to 13 matches lands the user on "11-13 of 13"
-        /// — the bottom of results they have not seen the top of.
+        /// Bound by the search box. The pager reset is the point of the property:
+        /// filtering from page 3 of 25 rows down to 4 matches would otherwise
+        /// strand the user on an empty page, or — after clamping — on the bottom
+        /// of results whose top they never saw.
         /// </summary>
         private string SearchText
         {
             get => _searchText;
             set
             {
-                // MudTextField's Clearable button hands back null, not "".
                 var next = value ?? string.Empty;
 
                 if (_searchText == next)
@@ -56,37 +80,132 @@ namespace BillsFrontEndBlazor.Pages
                 }
 
                 _searchText = next;
-                _table?.NavigateTo(Page.First);
+                _page = 1;
             }
         }
 
-        /// <summary>
-        /// Bound by the All/Paid/Unpaid toggle. Same pager reset as
-        /// <see cref="SearchText"/>.
-        /// </summary>
-        private PaidFilter PaidFilterValue
+        private void SetPaidFilter(PaidFilter filter)
         {
-            get => _paidFilter;
+            if (_paidFilter == filter)
+            {
+                return;
+            }
+
+            _paidFilter = filter;
+            _page = 1;
+        }
+
+        private int PageSize
+        {
+            get => _pageSize;
             set
             {
-                if (_paidFilter == value)
+                if (_pageSize == value)
                 {
                     return;
                 }
 
-                _paidFilter = value;
-                _table?.NavigateTo(Page.First);
+                _pageSize = value;
+                _page = 1;
             }
         }
 
-        // Dialogs are full width on phones, capped at Small on desktop.
-        private static readonly DialogOptions FormOptions = new()
+        /// <summary>
+        /// Bound to the rows-per-page select. A plain <c>@bind</c> would need the
+        /// value round-tripped through a string anyway, and going through
+        /// <see cref="PageSize"/> is what resets the pager.
+        /// </summary>
+        private void OnPageSizeChanged(ChangeEventArgs e)
         {
-            FullWidth = true,
-            MaxWidth = MaxWidth.Small,
-            CloseButton = true,
-            BackdropClick = false,
-        };
+            if (int.TryParse(e.Value?.ToString(), out var size))
+            {
+                PageSize = size;
+            }
+        }
+
+        private IEnumerable<Bill> FilteredBills
+        {
+            get
+            {
+                var filtered = _bills.Where(MatchesFilters);
+
+                // DueDate is nullable, so sort the nulls to the end rather than
+                // letting them lead every ascending sort.
+                return _sortColumn switch
+                {
+                    BillSortColumn.Payee => Order(filtered, b => b.PayeeName),
+                    BillSortColumn.DueDate => Order(filtered, b => b.DueDate ?? DateTime.MaxValue),
+                    BillSortColumn.Amount => Order(filtered, b => b.PaymentDue),
+                    BillSortColumn.Paid => Order(filtered, b => b.Paid),
+                    _ => Order(filtered, b => b.Id),
+                };
+            }
+        }
+
+        private IOrderedEnumerable<Bill> Order<TKey>(IEnumerable<Bill> source, Func<Bill, TKey> key)
+            => _sortDescending ? source.OrderByDescending(key) : source.OrderBy(key);
+
+        private int FilteredCount => _bills.Count(MatchesFilters);
+
+        private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)_pageSize));
+
+        /// <summary>Current page, clamped — a delete can shrink the result set
+        /// under the page the user is standing on.</summary>
+        private int CurrentPage => Math.Clamp(_page, 1, TotalPages);
+
+        private IEnumerable<Bill> PagedBills => FilteredBills
+            .Skip((CurrentPage - 1) * _pageSize)
+            .Take(_pageSize);
+
+        private int FirstRowNumber => FilteredCount == 0 ? 0 : ((CurrentPage - 1) * _pageSize) + 1;
+
+        private int LastRowNumber => Math.Min(CurrentPage * _pageSize, FilteredCount);
+
+        /// <summary>A window of at most five page numbers centred on the current
+        /// page, so 50 pages do not render 50 buttons.</summary>
+        private IEnumerable<int> PageWindow
+        {
+            get
+            {
+                const int Window = 5;
+
+                var start = Math.Max(1, CurrentPage - (Window / 2));
+                var end = Math.Min(TotalPages, start + Window - 1);
+                start = Math.Max(1, end - Window + 1);
+
+                return Enumerable.Range(start, end - start + 1);
+            }
+        }
+
+        private void GoToPage(int page) => _page = Math.Clamp(page, 1, TotalPages);
+
+        private void SortBy(BillSortColumn column)
+        {
+            if (_sortColumn == column)
+            {
+                _sortDescending = !_sortDescending;
+            }
+            else
+            {
+                _sortColumn = column;
+                _sortDescending = false;
+            }
+        }
+
+        /// <summary>Marks the header the table is currently ordered by, so the
+        /// caret on that one column renders solid instead of ghosted.</summary>
+        private string? Sorted(BillSortColumn column) =>
+            _sortColumn == column ? "sorted" : null;
+
+        private string SortCaret(BillSortColumn column)
+        {
+            if (_sortColumn != column)
+            {
+                return "bi-arrow-down-up";
+            }
+
+            return _sortDescending ? "bi-caret-down-fill" : "bi-caret-up-fill";
+        }
 
         protected override async Task OnInitializedAsync()
         {
@@ -126,7 +245,7 @@ namespace BillsFrontEndBlazor.Pages
                 // first load if the blazor container outruns the api container.
                 _bills = new List<Bill>();
                 _loadFailed = true;
-                Snackbar.Add("Could not load bills. Is the API running?", Severity.Error);
+                Toasts.ShowError("Could not load bills. Is the API running?");
             }
             finally
             {
@@ -160,21 +279,19 @@ namespace BillsFrontEndBlazor.Pages
                    || bill.PayeeName.Contains(term, StringComparison.OrdinalIgnoreCase);
         }
 
-        private async Task OpenCreateDialogAsync()
-        {
-            var draft = new Bill
-            {
-                DueDate = DateTime.Today,
-            };
+        private void ClearSearch() => SearchText = string.Empty;
 
-            await ShowFormDialogAsync("New Bill", draft, "Create", SaveNewAsync);
+        private void OpenCreateModal()
+        {
+            _formBill = new Bill { DueDate = DateTime.Today };
+            _formMode = FormMode.Create;
         }
 
-        private async Task OpenEditDialogAsync(Bill bill)
+        private void OpenEditModal(Bill bill)
         {
-            // A copy, not the table's instance: cancelling the dialog must not
+            // A copy, not the table's instance: cancelling the form must not
             // leave half-typed values rendered in the row behind it.
-            var draft = new Bill
+            _formBill = new Bill
             {
                 Id = bill.Id,
                 PayeeName = bill.PayeeName,
@@ -184,104 +301,109 @@ namespace BillsFrontEndBlazor.Pages
                 Version = bill.Version,
             };
 
-            await ShowFormDialogAsync($"Edit Bill #{bill.Id}", draft, "Save", SaveEditAsync);
+            _formMode = FormMode.Edit;
         }
 
-        private async Task ShowFormDialogAsync(
-            string title,
-            Bill draft,
-            string confirmText,
-            Func<Bill, Task<bool>> onSave)
-        {
-            var parameters = new DialogParameters<BillFormDialog>
-            {
-                { x => x.Bill, draft },
-                { x => x.ConfirmText, confirmText },
-                { x => x.OnSave, onSave },
-            };
+        private void OpenDeleteModal(Bill bill) => _deleteTarget = bill;
 
-            await DialogService.ShowAsync<BillFormDialog>(title, parameters, FormOptions);
+        private void CloseForm()
+        {
+            _formMode = FormMode.None;
+            _isSaving = false;
         }
 
-        private async Task<bool> SaveNewAsync(Bill bill)
+        private void CloseDelete()
         {
-            var result = await BillService.CreateBillAsync(bill);
-
-            if (!result.Success)
-            {
-                Snackbar.Add(result.ToMessage("create"), Severity.Error);
-                return false;
-            }
-
-            Snackbar.Add("Bill created", Severity.Success);
-            await AfterWriteAsync();
-            return true;
+            _deleteTarget = null;
+            _isSaving = false;
         }
 
-        private async Task<bool> SaveEditAsync(Bill bill)
+        private async Task SaveFormAsync()
         {
-            var result = await BillService.UpdateBillAsync(bill);
-
-            if (!result.Success)
-            {
-                Snackbar.Add(result.ToMessage("update"), Severity.Error);
-
-                // A 409 means someone else won the race and our copy is stale,
-                // and a 404 means the row is gone — in both cases the list on
-                // screen is wrong, so refresh it before the user retries.
-                if (result.IsConflict || result.IsNotFound)
-                {
-                    await AfterWriteAsync();
-                }
-
-                return false;
-            }
-
-            Snackbar.Add("Bill updated", Severity.Success);
-            await AfterWriteAsync();
-            return true;
-        }
-
-        private async Task ConfirmDeleteAsync(Bill bill)
-        {
-            var confirmed = await DialogService.ShowMessageBoxAsync(
-                "Delete bill?",
-                $"Delete bill #{bill.Id} for {bill.PayeeName} ({bill.PaymentDue.ToString("C")})? "
-                + "This cannot be undone.",
-                yesText: "Delete",
-                cancelText: "Cancel");
-
-            if (confirmed != true)
+            if (_isSaving)
             {
                 return;
             }
 
-            var result = await BillService.DeleteBillAsync(bill.Id);
+            _isSaving = true;
 
-            if (!result.Success)
+            try
             {
-                Snackbar.Add(result.ToMessage("delete"), Severity.Error);
+                var creating = _formMode == FormMode.Create;
 
-                if (result.IsNotFound)
+                var result = creating
+                    ? await BillService.CreateBillAsync(_formBill)
+                    : await BillService.UpdateBillAsync(_formBill);
+
+                if (!result.Success)
                 {
-                    await AfterWriteAsync();
+                    Toasts.ShowError(result.ToMessage(creating ? "create" : "update"));
+
+                    // A 409 means someone else won the race and our copy is
+                    // stale, and a 404 means the row is gone — in both cases the
+                    // list on screen is wrong, so refresh it before the retry.
+                    // The form stays open with the user's values intact.
+                    if (result.IsConflict || result.IsNotFound)
+                    {
+                        AfterWrite();
+                    }
+
+                    return;
                 }
 
+                Toasts.ShowSuccess(creating ? "Bill created" : "Bill updated");
+                CloseForm();
+                AfterWrite();
+            }
+            finally
+            {
+                _isSaving = false;
+            }
+        }
+
+        private async Task ConfirmDeleteAsync()
+        {
+            if (_deleteTarget is not { } bill || _isSaving)
+            {
                 return;
             }
 
-            Snackbar.Add("Bill deleted", Severity.Success);
-            await AfterWriteAsync();
+            _isSaving = true;
+
+            try
+            {
+                var result = await BillService.DeleteBillAsync(bill.Id);
+
+                if (!result.Success)
+                {
+                    Toasts.ShowError(result.ToMessage("delete"));
+
+                    if (result.IsNotFound)
+                    {
+                        CloseDelete();
+                        AfterWrite();
+                    }
+
+                    return;
+                }
+
+                Toasts.ShowSuccess("Bill deleted");
+                CloseDelete();
+                AfterWrite();
+            }
+            finally
+            {
+                _isSaving = false;
+            }
         }
 
-        private Task AfterWriteAsync()
+        private void AfterWrite()
         {
             // Publishing is enough: this page subscribes too, so the dashboard
             // recomputes its counters and charts and the table reloads from the
             // one notification — no double fetch. Scoped per circuit, so it
             // never reaches another connected browser.
             BillEventService.NotifyBillsChanged();
-            return Task.CompletedTask;
         }
     }
 }

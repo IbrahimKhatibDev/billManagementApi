@@ -6,8 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="MudBlazor" Version="9.8.0" />
-  </ItemGroup>
+  <!-- No PackageReferences. Bootstrap, Bootstrap Icons and open-iconic are
+       vendored under wwwroot/css, so the app has no NuGet dependencies and
+       makes no CDN requests at runtime. -->
 
 </Project>

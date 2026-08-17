@@ -1,58 +1,25 @@
 @inherits LayoutComponentBase
 
-@* All four providers are required, exactly once, at the root:
-   - MudThemeProvider   supplies the palette and CSS variables
-   - MudPopoverProvider  is what lets menus, selects and pickers position
-                         themselves; without it they open in the wrong place
-   - MudDialogProvider   is what IDialogService renders into; without it
-                         ShowAsync silently does nothing
-   - MudSnackbarProvider is where ISnackbar toasts appear *@
-@* Dark mode is a manual toggle rather than GetSystemPreference(): that call
-   needs JS interop, and _Host.cshtml prerenders with render-mode
-   ServerPrerendered, where IJSRuntime is unusable during the first render. *@
-<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
-<MudPopoverProvider />
-<MudDialogProvider />
-<MudSnackbarProvider />
+<PageTitle>Bills Manager</PageTitle>
 
-<MudLayout>
-    <MudAppBar Elevation="1">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu"
-                       Color="Color.Inherit"
-                       Edge="Edge.Start"
-                       aria-label="Toggle navigation"
-                       OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.h6" Class="ml-2">Bill Management</MudText>
-        <MudSpacer />
-        <MudTooltip Text="@(_isDarkMode ? "Switch to light mode" : "Switch to dark mode")">
-            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                           Color="Color.Inherit"
-                           aria-label="Toggle dark mode"
-                           OnClick="@ToggleDarkMode" />
-        </MudTooltip>
-    </MudAppBar>
-
-    <MudDrawer @bind-Open="_drawerOpen"
-               ClipMode="DrawerClipMode.Always"
-               Variant="DrawerVariant.Responsive"
-               Elevation="1">
+<div class="page">
+    <div class="sidebar">
         <NavMenu />
-    </MudDrawer>
+    </div>
 
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <main>
+        <div class="top-row px-4">
+            <a href="https://github.com/IbrahimKhatibDev/billManagementApi" target="_blank" rel="noopener">
+                <i class="bi bi-github me-1"></i> Source
+            </a>
+        </div>
+
+        <article class="content px-4">
             @Body
-        </MudContainer>
-    </MudMainContent>
-</MudLayout>
+        </article>
+    </main>
+</div>
 
-@code {
-    private bool _drawerOpen = true;
-    private bool _isDarkMode;
-
-    private readonly MudTheme _theme = new();
-
-    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
-
-    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
-}
+@* One host for every toast the app raises. It lives outside @Body so a toast
+   survives navigation between Dashboard and Bills. *@
+<ToastHost />

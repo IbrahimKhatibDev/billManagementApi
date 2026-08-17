@@ -1,7 +1,7 @@
 # Bill Management
 
 A bill tracking app: an ASP.NET Core Minimal API over PostgreSQL, a Blazor Server
-admin UI built on MudBlazor, and an integration test suite that runs against a
+admin UI built on Bootstrap 5, and an integration test suite that runs against a
 real database. Everything runs in Docker, on Apple Silicon and x86 alike, with no
 emulation.
 
@@ -20,7 +20,7 @@ purely so you can reach Swagger and `curl` from the host.
 
 | Service | Container port | Host port | What it is |
 |---|---|---|---|
-| `blazor` | 8080 | **5254** | Blazor Server UI (MudBlazor) |
+| `blazor` | 8080 | **5254** | Blazor Server UI (Bootstrap 5) |
 | `api` | 8080 | **5131** | Minimal API + Swagger |
 | `db` | 5432 | **5432** | PostgreSQL 16 |
 
@@ -104,7 +104,7 @@ first — but there is no conflict if it is already running.
 | Path | What |
 |---|---|
 | `BillsMinimalApi/` | Minimal API, EF Core, migrations, seeder |
-| `bills-frontend/BillsFrontEndBlazor/` | Blazor Server UI (MudBlazor) |
+| `bills-frontend/BillsFrontEndBlazor/` | Blazor Server UI (Bootstrap 5) |
 | `bills-frontend/FrontEndReact/` | Alternative React frontend |
 | `tests/BillsMinimalApi.Tests/` | Integration tests |
 

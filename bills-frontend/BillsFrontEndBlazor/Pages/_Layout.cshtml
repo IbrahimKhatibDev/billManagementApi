@@ -9,14 +9,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="~/" />
 
-    @* MudBlazor replaces Bootstrap entirely. Both ship a CSS reset, so loading
-       them together makes them fight over the same elements. Everything below is
-       served from this app — there are no CDN or third-party requests. *@
-    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    @* Everything below is served from this app — there are no CDN or other
+       third-party requests. Bootstrap Icons is vendored under
+       wwwroot/css/bootstrap-icons/ rather than pulled from jsdelivr, so the
+       container stays self-contained and the UI renders with the network off. *@
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/bootstrap-icons/bootstrap-icons.min.css" />
     <link href="css/site.css" rel="stylesheet" />
-    @* No BillsFrontEndBlazor.styles.css link: the scoped-CSS bundle is only
-       emitted when the project has .razor.css files, and MudDrawer/MudNavMenu
-       replaced the two that existed. Linking it anyway is a guaranteed 404. *@
+    <link href="BillsFrontEndBlazor.styles.css" rel="stylesheet" />
 
     <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
 </head>
@@ -34,8 +34,9 @@
         <a class="dismiss">🗙</a>
     </div>
 
+    @* No Bootstrap JS bundle. The modals and toasts in this app are plain
+       Blazor conditional rendering plus Bootstrap's own classes, so nothing
+       here needs a JS component to drive it. *@
     <script src="_framework/blazor.server.js"></script>
-    @* Must come after blazor.server.js. *@
-    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 </html>

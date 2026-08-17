@@ -1,0 +1,48 @@
+@implements IDisposable
+@inject ToastService Toasts
+
+@* Bootstrap hides .toast unless it also carries .show, so adding the class from
+   Blazor is all it takes to drive these — no bootstrap.bundle.js involved. *@
+<div class="toast-container position-fixed bottom-0 end-0 p-3 toast-host">
+    @foreach (var toast in Toasts.Toasts)
+    {
+        <div @key="toast.Id" class="toast show align-items-center text-white border-0 @BackgroundClass(toast.Severity)"
+             role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi @IconClass(toast.Severity) me-2"></i>@toast.Message
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                        aria-label="Close" @onclick="() => Toasts.Remove(toast)"></button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Toasts.OnToastsChanged += OnToastsChanged;
+
+    public void Dispose() => Toasts.OnToastsChanged -= OnToastsChanged;
+
+    // The auto-dismiss timer fires on a thread-pool thread, so the re-render has
+    // to be marshalled back onto the renderer's synchronisation context.
+    private void OnToastsChanged() => _ = InvokeAsync(StateHasChanged);
+
+    // Bootstrap 5.1 predates the .text-bg-* helpers, so the background and the
+    // foreground are set as a pair.
+    private static string BackgroundClass(ToastSeverity severity) => severity switch
+    {
+        ToastSeverity.Success => "bg-success",
+        ToastSeverity.Error => "bg-danger",
+        ToastSeverity.Warning => "bg-warning",
+        _ => "bg-primary",
+    };
+
+    private static string IconClass(ToastSeverity severity) => severity switch
+    {
+        ToastSeverity.Success => "bi-check-circle-fill",
+        ToastSeverity.Error => "bi-exclamation-octagon-fill",
+        ToastSeverity.Warning => "bi-exclamation-triangle-fill",
+        _ => "bi-info-circle-fill",
+    };
+}

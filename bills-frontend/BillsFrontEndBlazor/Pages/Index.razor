@@ -2,144 +2,217 @@
 
 <PageTitle>Dashboard</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Dashboard</MudText>
-<MudText Typo="Typo.body1" Class="mud-text-secondary mb-6">
-    Manage bills, track payments, and keep your finances organized.
-</MudText>
+<div class="container-fluid p-0">
 
-@if (_loadFailed)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-6">
-        Could not reach the API.
-        <MudButton Variant="Variant.Text"
-                   Color="Color.Inherit"
-                   StartIcon="@Icons.Material.Filled.Refresh"
-                   OnClick="LoadStatsAsync">
-            Retry
-        </MudButton>
-    </MudAlert>
-}
+    <div class="hero-banner p-5 mb-4 text-white">
+        <div class="container py-3">
+            <h1 class="display-5 fw-bold">Welcome to Bills Manager</h1>
+            <p class="fs-5 opacity-75">
+                Manage bills, track payments, and keep your finances organized.
+            </p>
+            <a class="btn btn-light btn-lg me-2" href="bills">
+                <i class="bi bi-table me-1"></i> Go to Bills
+            </a>
+            <button class="btn btn-outline-light btn-lg" @onclick="LoadStatsAsync" disabled="@_isLoading">
+                <i class="bi bi-arrow-repeat me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
 
-<MudGrid>
-    <MudItem xs="12" sm="4">
-        <MudPaper Class="pa-5" Elevation="1">
-            <div class="d-flex align-center">
-                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Size="Size.Large" />
-                <MudText Typo="Typo.subtitle1" Class="ml-3 mud-text-secondary">Total Bills</MudText>
+    <div class="container">
+
+        @if (_loadFailed)
+        {
+            <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
+                <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+                <div class="flex-grow-1">Could not reach the API.</div>
+                <button class="btn btn-sm btn-outline-danger" @onclick="LoadStatsAsync">
+                    <i class="bi bi-arrow-repeat me-1"></i> Retry
+                </button>
             </div>
-            <MudText Typo="Typo.h3" Class="mt-3">
-                <AnimatedCounter Value="@TotalBills" Format="N0" />
-            </MudText>
-        </MudPaper>
-    </MudItem>
+        }
 
-    <MudItem xs="12" sm="4">
-        <MudPaper Class="pa-5" Elevation="1">
-            <div class="d-flex align-center">
-                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
-                <MudText Typo="Typo.subtitle1" Class="ml-3 mud-text-secondary">Paid</MudText>
-            </div>
-            <MudText Typo="Typo.h3" Class="mt-3">
-                <AnimatedCounter Value="@PaidBills" Format="N0" />
-            </MudText>
-        </MudPaper>
-    </MudItem>
-
-    <MudItem xs="12" sm="4">
-        <MudPaper Class="pa-5" Elevation="1">
-            <div class="d-flex align-center">
-                <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Warning" Size="Size.Large" />
-                <MudText Typo="Typo.subtitle1" Class="ml-3 mud-text-secondary">Outstanding</MudText>
-            </div>
-            @* Renders "$1,234.56" only because Program.cs pins en-US — the
-               container's default culture is invariant, which formats "C" as ¤. *@
-            <MudText Typo="Typo.h3" Class="mt-3">
-                <AnimatedCounter Value="@OutstandingAmount" Format="C" />
-            </MudText>
-        </MudPaper>
-    </MudItem>
-
-    @* Inline SVG rendered from C# by MudBlazor: no JS interop (which is
-       unusable during ServerPrerendered's first render), no CDN, no npm. *@
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-5" Elevation="1">
-            <MudText Typo="Typo.h6" GutterBottom="true">Paid vs Unpaid</MudText>
-            @if (TotalBills == 0)
-            {
-                <MudText Class="mud-text-secondary py-8">No bills to chart yet.</MudText>
-            }
-            else
-            {
-                <div class="d-flex flex-column align-center">
-                    <MudChart T="double"
-                              ChartType="ChartType.Donut"
-                              Width="260px"
-                              Height="260px"
-                              ChartSeries="@_statusSeries"
-                              ChartLabels="@_statusLabels">
-                        @* Font sizes are in user units of the chart's own
-                           viewBox ("0 0 280 280"), not pixels — MudBlazor's
-                           older 40-unit donut viewBox is why samples elsewhere
-                           use single-digit sizes here. *@
-                        <CustomGraphics>
-                            <text x="50%" y="46%"
-                                  dominant-baseline="middle"
-                                  text-anchor="middle"
-                                  fill="currentColor"
-                                  font-size="36"
-                                  font-weight="500">
-                                @PaidPercent.ToString("0")%
-                            </text>
-                            <text x="50%" y="57%"
-                                  dominant-baseline="middle"
-                                  text-anchor="middle"
-                                  fill="currentColor"
-                                  fill-opacity="0.6"
-                                  font-size="15">
-                                paid
-                            </text>
-                        </CustomGraphics>
-                    </MudChart>
+        @* h-100 on every card is what keeps the row even — without it each card
+           is only as tall as its own content and the row reads as ragged. *@
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary fw-bold">
+                            <i class="bi bi-receipt me-1"></i> Total Bills
+                        </h5>
+                        <p class="display-6 fw-bold mb-1">
+                            <AnimatedCounter Value="@TotalBills" Format="N0" />
+                        </p>
+                        <p class="text-muted mb-0">All bills currently tracked.</p>
+                    </div>
                 </div>
-            }
-        </MudPaper>
-    </MudItem>
+            </div>
 
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-5" Elevation="1">
-            <MudText Typo="Typo.h6" GutterBottom="true">Amount due by month</MudText>
-            @if (TotalBills == 0)
-            {
-                <MudText Class="mud-text-secondary py-8">No bills to chart yet.</MudText>
-            }
-            else
-            {
-                <MudChart T="double"
-                          ChartType="ChartType.Bar"
-                          Height="300px"
-                          ChartSeries="@_monthlySeries"
-                          ChartLabels="@_monthLabels" />
-            }
-        </MudPaper>
-    </MudItem>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        <h5 class="card-title text-success fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> Paid
+                        </h5>
+                        <p class="display-6 fw-bold mb-1">
+                            <AnimatedCounter Value="@PaidBills" Format="N0" />
+                        </p>
+                        <p class="text-muted mb-0">@UnpaidBills still outstanding.</p>
+                    </div>
+                </div>
+            </div>
 
-    <MudItem xs="12">
-        <MudPaper Class="pa-5 d-flex flex-wrap gap-4 align-center" Elevation="1">
-            <MudText Typo="Typo.subtitle1">Quick actions</MudText>
-            <MudSpacer />
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.ReceiptLong"
-                       Href="bills">
-                View all bills
-            </MudButton>
-            <MudButton Variant="Variant.Outlined"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Refresh"
-                       Disabled="_isLoading"
-                       OnClick="LoadStatsAsync">
-                Refresh
-            </MudButton>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body">
+                        @* Renders "$1,234.56" only because Program.cs pins en-US —
+                           the container's default culture is invariant, which
+                           formats "C" as ¤. *@
+                        <h5 class="card-title text-danger fw-bold">
+                            <i class="bi bi-cash-coin me-1"></i> Outstanding
+                        </h5>
+                        <p class="display-6 fw-bold mb-1">
+                            <AnimatedCounter Value="@OutstandingAmount" Format="C" />
+                        </p>
+                        <p class="text-muted mb-0">Total still due across unpaid bills.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Charts are hand-rolled inline SVG rendered from C#. No JS interop —
+           IJSRuntime is unusable during ServerPrerendered's first render — and
+           nothing fetched over the network. *@
+        <h3 class="fw-bold mb-3" id="charts">Reports</h3>
+
+        <div class="row g-4 mb-5">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title fw-bold">Paid vs Unpaid</h5>
+
+                        @if (TotalBills == 0)
+                        {
+                            <div class="chart-frame text-muted">No bills to chart yet.</div>
+                        }
+                        else
+                        {
+                            <div class="chart-frame">
+                                <svg viewBox="0 0 200 200" width="220" height="220"
+                                     role="img" aria-label="@($"{PaidPercent:0}% of bills paid")">
+                                    <circle class="donut-track" cx="100" cy="100" r="70"
+                                            fill="none" stroke-width="24" />
+                                    @* rotate(-90) starts the arc at 12 o'clock;
+                                       SVG's 0° is 3 o'clock. *@
+                                    <circle class="donut-value" cx="100" cy="100" r="70"
+                                            fill="none" stroke-width="24"
+                                            stroke-dasharray="@PaidArcDashArray"
+                                            transform="rotate(-90 100 100)" />
+                                    <text x="100" y="96" text-anchor="middle"
+                                          font-size="38" font-weight="600" fill="#212529">
+                                        @PaidPercent.ToString("0")%
+                                    </text>
+                                    <text x="100" y="122" text-anchor="middle"
+                                          font-size="15" fill="#6c757d">paid</text>
+                                </svg>
+                            </div>
+
+                            <div class="d-flex justify-content-center gap-4 pt-3">
+                                <span><span class="badge bg-success">&nbsp;</span> Paid @PaidBills</span>
+                                <span><span class="badge bg-secondary">&nbsp;</span> Unpaid @UnpaidBills</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title fw-bold">Amount due by month</h5>
+
+                        @if (TotalBills == 0)
+                        {
+                            <div class="chart-frame text-muted">No bills to chart yet.</div>
+                        }
+                        else
+                        {
+                            <div class="chart-frame">
+                                <svg viewBox="0 0 480 300" width="480" height="300"
+                                     role="img" aria-label="Amount due by month over the last six months">
+                                    @* Each iteration is wrapped in an SVG <g>. Not
+                                       cosmetic: a bare <text> at the top level of a
+                                       razor code block is parsed as razor's own
+                                       <text> escape tag, which cannot take
+                                       attributes. Nesting it inside an element puts
+                                       the parser back in markup mode. *@
+                                    @foreach (var line in _gridLines)
+                                    {
+                                        <g>
+                                            <line class="chart-grid"
+                                                  x1="56" x2="464"
+                                                  y1="@Svg(line.Y)" y2="@Svg(line.Y)" />
+                                            <text class="chart-label" x="48" y="@Svg(line.Y + 4)"
+                                                  text-anchor="end">@line.Label</text>
+                                        </g>
+                                    }
+
+                                    @foreach (var bar in _bars)
+                                    {
+                                        <g>
+                                            <rect class="bar-fill"
+                                                  x="@Svg(bar.X)" y="@Svg(bar.Y)"
+                                                  width="@Svg(bar.Width)" height="@Svg(bar.Height)"
+                                                  rx="3">
+                                                <title>@bar.Label: @bar.Total.ToString("C")</title>
+                                            </rect>
+                                            <text class="chart-label" x="@Svg(bar.CenterX)" y="280"
+                                                  text-anchor="middle">@bar.Label</text>
+                                        </g>
+                                    }
+                                </svg>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="fw-bold mb-3">Quick Actions</h3>
+
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <a class="text-decoration-none d-block h-100" href="bills">
+                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
+                        <i class="bi bi-table display-4 text-primary"></i>
+                        <h5 class="mt-3 fw-bold">Manage Bills</h5>
+                        <p class="text-muted mb-0">Create, edit and delete bills.</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-md-4">
+                <a class="text-decoration-none d-block h-100" href="#charts">
+                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
+                        <i class="bi bi-graph-up display-4 text-success"></i>
+                        <h5 class="mt-3 fw-bold">View Reports</h5>
+                        <p class="text-muted mb-0">Paid split and monthly totals.</p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-md-4">
+                <button type="button" class="btn border-0 bg-transparent p-0 w-100 h-100 text-start"
+                        @onclick="LoadStatsAsync" disabled="@_isLoading">
+                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
+                        <i class="bi bi-arrow-repeat display-4 text-secondary"></i>
+                        <h5 class="mt-3 fw-bold">Refresh Data</h5>
+                        <p class="text-muted mb-0">Pull the latest bills from the API.</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>

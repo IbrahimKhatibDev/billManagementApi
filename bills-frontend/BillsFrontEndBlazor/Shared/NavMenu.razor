@@ -1,16 +1,35 @@
-@* No collapse/toggle plumbing here any more — MudDrawer in MainLayout owns
-   responsive behaviour, and a second mechanism fighting it produced the layout
-   glitches the old Bootstrap navbar had on narrow screens. *@
-<MudNavMenu Class="pa-2">
-    <MudText Typo="Typo.overline" Class="px-4 pt-2 pb-1 mud-text-secondary">
-        Navigation
-    </MudText>
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">
+            <i class="bi bi-receipt-cutoff me-1"></i> Bills Manager
+        </a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
 
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
-        Dashboard
-    </MudNavLink>
+<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="oi oi-home" aria-hidden="true"></span> Dashboard
+            </NavLink>
 
-    <MudNavLink Href="bills" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ReceiptLong">
-        Bills
-    </MudNavLink>
-</MudNavMenu>
+            <NavLink class="nav-link" href="/bills">
+                <span class="oi oi-list-rich" aria-hidden="true"></span> Bills
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

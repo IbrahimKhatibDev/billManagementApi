@@ -2,150 +2,315 @@
 
 <PageTitle>Bills</PageTitle>
 
-@* The pager, sorting, filtering, loading overlay, empty state and the
-   responsive stacked-card layout are all MudTable features — none of it is
-   hand-rolled. It does not, however, rewind the pager when Filter's output
-   shrinks; it only clamps, so filtering from page 3 lands you on the *last*
-   page of the new result set. SearchText/PaidFilter below call NavigateTo to
-   fix that. *@
-<MudTable T="Bill"
-          @ref="_table"
-          Items="_bills"
-          Filter="new Func<Bill, bool>(MatchesFilters)"
-          Loading="_isLoading"
-          LoadingProgressColor="Color.Primary"
-          Breakpoint="Breakpoint.Sm"
-          Hover="true"
-          Striped="true"
-          Elevation="1"
-          RowsPerPage="10">
+<div class="container py-4">
 
-    <ToolBarContent>
-        <MudText Typo="Typo.h5">Bills</MudText>
+    <!-- PAGE HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold">
+            <i class="bi bi-receipt-cutoff me-2"></i> Bills Management
+        </h2>
+    </div>
 
-        <MudSpacer />
+    @if (_loadFailed)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
+            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <div class="flex-grow-1">Could not reach the API.</div>
+            <button class="btn btn-sm btn-outline-danger" @onclick="LoadBillsAsync">
+                <i class="bi bi-arrow-repeat me-1"></i> Retry
+            </button>
+        </div>
+    }
 
-        <MudTextField @bind-Value="SearchText"
-                      Immediate="true"
-                      DebounceInterval="200"
-                      Placeholder="Search id or payee"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      IconSize="Size.Medium"
-                      Clearable="true"
-                      Variant="Variant.Outlined"
-                      Margin="Margin.Dense"
-                      Class="mt-0 mr-4"
-                      Style="max-width: 260px;" />
+    <!-- ACTION BAR -->
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
 
-        <MudToggleGroup T="PaidFilter"
-                        @bind-Value="PaidFilterValue"
-                        Color="Color.Primary"
-                        Size="Size.Small"
-                        CheckMark="false"
-                        Class="mr-4">
-            <MudToggleItem T="PaidFilter" Value="@PaidFilter.All" Text="All" />
-            <MudToggleItem T="PaidFilter" Value="@PaidFilter.Paid" Text="Paid" />
-            <MudToggleItem T="PaidFilter" Value="@PaidFilter.Unpaid" Text="Unpaid" />
-        </MudToggleGroup>
+        <button class="btn btn-primary" @onclick="LoadBillsAsync" disabled="@_isLoading">
+            <i class="bi bi-arrow-repeat me-1"></i> Refresh
+        </button>
 
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="OpenCreateDialogAsync">
-            New Bill
-        </MudButton>
-    </ToolBarContent>
+        <button class="btn btn-success" @onclick="OpenCreateModal">
+            <i class="bi bi-plus-lg me-1"></i> New Bill
+        </button>
 
-    <HeaderContent>
-        <MudTh>
-            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.Id)" InitialDirection="SortDirection.Ascending">
-                ID
-            </MudTableSortLabel>
-        </MudTh>
-        <MudTh>
-            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.PayeeName)">Payee</MudTableSortLabel>
-        </MudTh>
-        <MudTh>
-            @* DueDate is nullable; coalescing to MaxValue keeps undated bills
-               sorted last instead of first. *@
-            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.DueDate ?? DateTime.MaxValue)">
-                Due Date
-            </MudTableSortLabel>
-        </MudTh>
-        <MudTh>
-            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.PaymentDue)">Amount</MudTableSortLabel>
-        </MudTh>
-        <MudTh>
-            <MudTableSortLabel SortBy="new Func<Bill, object>(x => x.Paid)">Status</MudTableSortLabel>
-        </MudTh>
-        <MudTh Style="text-align: right;">Actions</MudTh>
-    </HeaderContent>
+        <div class="btn-group" role="group" aria-label="Filter by paid status">
+            @foreach (var option in Enum.GetValues<PaidFilter>())
+            {
+                <button type="button"
+                        class="btn btn-outline-secondary @(_paidFilter == option ? "active" : null)"
+                        @onclick="() => SetPaidFilter(option)">
+                    @option
+                </button>
+            }
+        </div>
 
-    @* DataLabel is what makes the stacked mobile cards readable — below the
-       Sm breakpoint MudTable drops the header row and prints these instead. *@
-    <RowTemplate>
-        <MudTd DataLabel="ID">@context.Id</MudTd>
-        <MudTd DataLabel="Payee">@context.PayeeName</MudTd>
-        <MudTd DataLabel="Due Date">
-            @(context.DueDate?.ToString("d") ?? "—")
-        </MudTd>
-        <MudTd DataLabel="Amount">@context.PaymentDue.ToString("C")</MudTd>
-        <MudTd DataLabel="Status">
-            <MudChip T="string"
-                     Size="Size.Small"
-                     Variant="Variant.Filled"
-                     Color="@(context.Paid ? Color.Success : Color.Warning)">
-                @(context.Paid ? "Paid" : "Unpaid")
-            </MudChip>
-        </MudTd>
-        <MudTd DataLabel="Actions" Style="text-align: right;">
-            <MudTooltip Text="Edit">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                               Color="Color.Primary"
-                               Size="Size.Small"
-                               aria-label="@($"Edit bill {context.Id}")"
-                               OnClick="@(() => OpenEditDialogAsync(context))" />
-            </MudTooltip>
-            <MudTooltip Text="Delete">
-                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                               Color="Color.Error"
-                               Size="Size.Small"
-                               aria-label="@($"Delete bill {context.Id}")"
-                               OnClick="@(() => ConfirmDeleteAsync(context))" />
-            </MudTooltip>
-        </MudTd>
-    </RowTemplate>
+        <div class="ms-auto d-flex gap-2">
+            <input class="form-control" style="max-width: 250px;"
+                   placeholder="Search by ID or Payee..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
 
-    <NoRecordsContent>
-        @if (_loadFailed)
+            <button class="btn btn-outline-secondary" @onclick="ClearSearch">
+                Clear
+            </button>
+        </div>
+
+    </div>
+
+    <!-- TABLE CARD -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+
+            @if (_isLoading)
+            {
+                <div class="d-flex justify-content-center align-items-center gap-2 text-muted py-5">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    Loading bills…
+                </div>
+            }
+            else if (FilteredCount == 0)
+            {
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                    @if (_bills.Count == 0)
+                    {
+                        <span>No bills yet. Create one to get started.</span>
+                    }
+                    else
+                    {
+                        <span>No bills match the current filter.</span>
+                    }
+                </div>
+            }
+            else
+            {
+                @* .table-responsive keeps the six columns from forcing a
+                   horizontal scrollbar on the whole page at phone widths. *@
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="sortable @Sorted(BillSortColumn.Id)" @onclick="() => SortBy(BillSortColumn.Id)">
+                                    ID <i class="bi @SortCaret(BillSortColumn.Id) sort-caret"></i>
+                                </th>
+                                <th class="sortable @Sorted(BillSortColumn.Payee)" @onclick="() => SortBy(BillSortColumn.Payee)">
+                                    Payee <i class="bi @SortCaret(BillSortColumn.Payee) sort-caret"></i>
+                                </th>
+                                <th class="sortable @Sorted(BillSortColumn.DueDate)" @onclick="() => SortBy(BillSortColumn.DueDate)">
+                                    Due Date <i class="bi @SortCaret(BillSortColumn.DueDate) sort-caret"></i>
+                                </th>
+                                <th class="sortable @Sorted(BillSortColumn.Amount)" @onclick="() => SortBy(BillSortColumn.Amount)">
+                                    Amount <i class="bi @SortCaret(BillSortColumn.Amount) sort-caret"></i>
+                                </th>
+                                <th class="sortable @Sorted(BillSortColumn.Paid)" @onclick="() => SortBy(BillSortColumn.Paid)">
+                                    Paid <i class="bi @SortCaret(BillSortColumn.Paid) sort-caret"></i>
+                                </th>
+                                <th style="width: 160px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var bill in PagedBills)
+                            {
+                                <tr @key="bill.Id">
+                                    <td>@bill.Id</td>
+                                    <td>@bill.PayeeName</td>
+                                    <td>@bill.DueDate?.ToShortDateString()</td>
+                                    @* ToString("C") renders "$1,234.56" only because
+                                       Program.cs pins en-US; the container default is
+                                       the invariant culture, which formats "C" as ¤. *@
+                                    <td>@bill.PaymentDue.ToString("C")</td>
+                                    <td>
+                                        @if (bill.Paid)
+                                        {
+                                            <span class="badge bg-success">Yes</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">No</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-secondary" title="Edit"
+                                                    @onclick="() => OpenEditModal(bill)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+
+                                            <button class="btn btn-sm btn-danger" title="Delete"
+                                                    @onclick="() => OpenDeleteModal(bill)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        @if (!_isLoading && FilteredCount > 0)
         {
-            <div class="d-flex flex-column align-center py-8">
-                <MudIcon Icon="@Icons.Material.Filled.CloudOff" Size="Size.Large" Color="Color.Error" />
-                <MudText Class="my-3">Could not reach the API.</MudText>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Refresh"
-                           OnClick="LoadBillsAsync">
-                    Retry
-                </MudButton>
+            <div class="card-footer d-flex flex-wrap gap-3 align-items-center bg-white">
+                <span class="text-muted small">
+                    Showing @FirstRowNumber–@LastRowNumber of @FilteredCount
+                </span>
+
+                <div class="d-flex align-items-center gap-2">
+                    <label class="text-muted small mb-0" for="page-size">Rows</label>
+                    <select id="page-size" class="form-select form-select-sm" style="width: auto;"
+                            value="@PageSize"
+                            @onchange="OnPageSizeChanged">
+                        @foreach (var size in PageSizeOptions)
+                        {
+                            <option value="@size">@size</option>
+                        }
+                    </select>
+                </div>
+
+                <nav class="ms-auto" aria-label="Bills pages">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(CurrentPage == 1 ? "disabled" : null)">
+                            <button class="page-link" @onclick="() => GoToPage(CurrentPage - 1)">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </li>
+
+                        @* Not named "page": @page in markup is the routing
+                           directive, so the razor parser chokes on it. *@
+                        @foreach (var pageNumber in PageWindow)
+                        {
+                            <li class="page-item @(pageNumber == CurrentPage ? "active" : null)">
+                                <button class="page-link" @onclick="() => GoToPage(pageNumber)">
+                                    @pageNumber
+                                </button>
+                            </li>
+                        }
+
+                        <li class="page-item @(CurrentPage == TotalPages ? "disabled" : null)">
+                            <button class="page-link" @onclick="() => GoToPage(CurrentPage + 1)">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
             </div>
         }
-        else if (_bills.Count == 0)
-        {
-            <MudText Class="py-6">No bills yet. Use “New Bill” to add one.</MudText>
-        }
-        else
-        {
-            <MudText Class="py-6">No bills match the current search or filter.</MudText>
-        }
-    </NoRecordsContent>
+    </div>
+</div>
 
-    <LoadingContent>
-        <MudText Class="py-6">Loading bills…</MudText>
-    </LoadingContent>
 
-    <PagerContent>
-        <MudTablePager PageSizeOptions="new[] { 10, 25, 50 }" />
-    </PagerContent>
-</MudTable>
+@* CREATE / EDIT MODAL — one block for both, because they are the same form.
+   "modal fade show d-block" plus a backdrop colour is what makes a Bootstrap
+   modal work without bootstrap.bundle.js. *@
+@if (_formMode != FormMode.None)
+{
+    var creating = _formMode == FormMode.Create;
+
+    <div class="modal fade show d-block" tabindex="-1" role="dialog"
+         style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header text-white @(creating ? "bg-success" : "bg-primary")">
+                    <h5 class="modal-title">
+                        <i class="bi @(creating ? "bi-plus-lg" : "bi-pencil-square") me-2"></i>
+                        @(creating ? "Create Bill" : $"Edit Bill #{_formBill.Id}")
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseForm"></button>
+                </div>
+
+                <EditForm Model="_formBill" OnValidSubmit="SaveFormAsync">
+                    <DataAnnotationsValidator />
+
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Payee Name</label>
+                            <input class="form-control" @bind="_formBill.PayeeName" />
+                            <ValidationMessage For="@(() => _formBill.PayeeName)" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" class="form-control" @bind="_formBill.DueDate" />
+                            <ValidationMessage For="@(() => _formBill.DueDate)" class="text-danger small" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="0.01" class="form-control" @bind="_formBill.PaymentDue" />
+                            </div>
+                            <ValidationMessage For="@(() => _formBill.PaymentDue)" class="text-danger small" />
+                        </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="form-paid" @bind="_formBill.Paid" />
+                            <label class="form-check-label" for="form-paid">Paid</label>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseForm" disabled="@_isSaving">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn @(creating ? "btn-success" : "btn-primary")" disabled="@_isSaving">
+                            @if (_isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            @(creating ? "Save" : "Save Changes")
+                        </button>
+                    </div>
+                </EditForm>
+
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- DELETE MODAL -->
+@if (_deleteTarget is { } target)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog"
+         style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle me-2"></i> Delete Bill
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseDelete"></button>
+                </div>
+
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this bill?</p>
+
+                    <ul>
+                        <li><strong>Payee:</strong> @target.PayeeName</li>
+                        <li><strong>Amount:</strong> @target.PaymentDue.ToString("C")</li>
+                        <li><strong>Due Date:</strong> @target.DueDate?.ToShortDateString()</li>
+                    </ul>
+
+                    <p class="text-danger fw-bold">This action cannot be undone.</p>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseDelete" disabled="@_isSaving">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_isSaving">
+                        @if (_isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
