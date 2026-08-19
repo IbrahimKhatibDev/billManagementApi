@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Lets you re-run the suite from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & test
+    # ubuntu-latest ships a running Docker daemon, which is the whole reason this
+    # works: the integration tests use Testcontainers to start their own
+    # postgres:16-alpine. There is deliberately no `services:` block here — the
+    # fixture owns the container's lifetime so the suite behaves identically on a
+    # laptop and on CI.
+    runs-on: ubuntu-latest
+
+    # The first run pulls the Postgres image, so allow more than the default
+    # 6-minute expectation while still failing fast if something hangs.
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # setup-dotnet's built-in cache needs a packages.lock.json, which this repo
+      # does not use, so cache the global package folder directly. Keyed on the
+      # project files: any dependency change invalidates it, nothing else does.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      # This solution references all three projects — API, Blazor UI, and tests —
+      # so one command covers the whole repo.
+      - name: Restore
+        run: dotnet restore BillsMinimalApi/BillsMinimalApi.sln
+
+      - name: Build
+        run: dotnet build BillsMinimalApi/BillsMinimalApi.sln --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test BillsMinimalApi/BillsMinimalApi.sln
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./TestResults
+          --collect:"XPlat Code Coverage"
+
+      # Uploaded rather than gated on a threshold: a coverage number that fails
+      # the build invites writing tests to move the number instead of to catch
+      # bugs. This keeps it visible without making it a target.
+      - name: Upload test results and coverage
+        # `always()` so a failing suite still publishes its results — that is
+        # exactly when you want to read them.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./TestResults
+          retention-days: 14
