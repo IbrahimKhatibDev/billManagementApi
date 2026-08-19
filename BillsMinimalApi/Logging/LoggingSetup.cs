@@ -1,3 +1,4 @@
+using BillsMinimalApi.Endpoints;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Serilog;
 using Serilog.Events;
@@ -110,7 +111,10 @@ public static class LoggingSetup
             return LogEventLevel.Error;
         }
 
-        if (http.Request.Path.StartsWithSegments("/health"))
+        // The same question the rate limiter asks, asked the same way. Spelling
+        // the prefix out here instead would be a second definition of "probe" in
+        // a second file, and the two only have to disagree once.
+        if (HealthEndpoints.IsProbe(http.Request.Path))
         {
             return LogEventLevel.Verbose;
         }

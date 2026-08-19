@@ -55,7 +55,8 @@ builder.Services.AddValidation();
 // Liveness and readiness probes. See HealthEndpoints for why there are two.
 builder.Services.AddAppHealthChecks();
 
-// A loose limit over everything and a tight one on sign-in. See RateLimitSetup.
+// A loose limit over everything, a tight one on sign-in, and one the readiness
+// probe keeps to itself. See RateLimitSetup.
 builder.Services.AddAppRateLimiter(builder.Configuration);
 
 // Register CORS policy
