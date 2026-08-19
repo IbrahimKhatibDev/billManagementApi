@@ -3,6 +3,7 @@ using System.Text;
 using BillsMinimalApi.Auth;
 using BillsMinimalApi.Data;
 using BillsMinimalApi.Endpoints;
+using BillsMinimalApi.Logging;
 using BillsMinimalApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +13,12 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
+LoggingSetup.CreateBootstrapLogger();
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog replaces the default console logger outright. See LoggingSetup.
+builder.UseAppSerilog();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -192,6 +198,13 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+
+// First, so that everything below runs inside the id's scope and the request
+// summary line — written on the way out, after the rest of the pipeline has
+// unwound — still carries it.
+app.UseCorrelationId();
+app.UseAppRequestLogging();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

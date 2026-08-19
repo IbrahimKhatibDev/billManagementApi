@@ -38,6 +38,9 @@ BillsMinimalApi/
 │   ├── AuthEndpoints.cs          /auth/register, /auth/login, /auth/me
 │   ├── BillEndPoints.cs          the bills route group
 │   └── HealthEndpoints.cs        /health/live, /health/ready
+├── Logging/
+│   ├── CorrelationId.cs          the per-request id, and the header allowlist
+│   └── LoggingSetup.cs           Serilog sinks, levels, request logging
 ├── Mappers/BillMappers.cs        DTO ⇄ entity
 ├── Migrations/                   EF Core migrations (PostgreSQL dialect)
 ├── Models/
@@ -346,6 +349,56 @@ The response is JSON with the per-check breakdown, rather than the bare word
 `error` carries the exception *message* only. A stack trace on an
 unauthenticated endpoint hands the app's internals to anyone who can reach it.
 
+### Logging
+
+Serilog replaces the default console logger, and the framework's several lines
+per request are replaced by one summary line carrying the same facts:
+
+```
+[20:54:21 INF] my-trace-0001 HTTP GET /restapi/BillDtos responded 401 in 1.57 ms
+```
+
+That is the Development format. Everywhere else the same event is compact JSON
+on stdout, one object per line, for a log shipper to pick up:
+
+```json
+{"@t":"2026-08-19T02:55:08.03Z","@mt":"HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms","RequestMethod":"GET","RequestPath":"/restapi/BillDtos","StatusCode":401,"Elapsed":2.645,"CorrelationId":"prod-check-1","UserId":"…"}
+```
+
+Levels live in `appsettings.json` under `Serilog:MinimumLevel`; sinks live in
+`Logging/LoggingSetup.cs`. The `Logging:LogLevel` section is deliberately gone —
+with Serilog installed, keeping both means two sets of rules that both apply, and
+working out which one silenced a message is a bad afternoon.
+
+**Health probes do not appear above.** Docker polls `/health/ready` every ten
+seconds, forever; at `Information` that is 8,640 lines a day saying nothing
+happened, burying the ones that mean something and costing real money once logs
+are shipped somewhere that charges by volume. `LoggingSetup.GetLevel` drops
+`/health` to `Verbose` — available when you lower the level to chase a problem,
+invisible otherwise — and promotes anything that threw, or answered 5xx, to
+`Error`.
+
+#### Correlation IDs
+
+Every response carries an `X-Correlation-ID` header, and every log line the
+request produced carries the same value. That is what makes "it failed at about
+four o'clock" answerable: the id the user read off the response pulls the whole
+request out of the log, including the stack trace that never left the server.
+
+An inbound `X-Correlation-ID` is honoured so a chain of services shares one id;
+otherwise the request falls back to ASP.NET's own trace identifier rather than
+minting a second id nothing joins to.
+
+Inbound values are attacker-controlled and land in log output, so they are
+accepted only if short (≤ 64 characters) and drawn from letters, digits, `-`,
+`_`, `.` and `:`. Anything else is dropped in favour of the trusted fallback.
+A bare newline in that header would otherwise let a caller end the current log
+line and write one of their own — the classic log-injection trick — and while
+the JSON sink escapes it, the plain-text one used in development does not.
+`CorrelationIdTests` covers the round trip and the rejections, including the one
+easy to get wrong: the ids this app generates contain a colon, so it has to
+accept its own output back.
+
 ### CORS
 
 `Program.cs` registers an `AllowAll` policy — any origin, header and method. The
@@ -567,13 +620,15 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-114 integration tests in `../tests/BillsMinimalApi.Tests/`, running against a
+126 integration tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth
 rules: registration and login, 401 without a bearer token, and one user getting
 **404** rather than 403 on another user's bill — for GET, PUT and DELETE alike,
-since a 403 on any one of the three would confirm the row exists.
+since a 403 on any one of the three would confirm the row exists — plus the two
+things that are invisible until they break: that the health probes answer
+without a token, and that a hostile `X-Correlation-ID` never reaches the log.
 
 The fixture registers two accounts once per run and hands out an authenticated
 `HttpClient` for each: `Client`, which every pre-existing test already used and

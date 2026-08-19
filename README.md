@@ -204,12 +204,13 @@ alternative is an app that signs tokens with a secret nobody chose.
 dotnet test BillsMinimalApi/BillsMinimalApi.sln
 ```
 
-114 integration tests covering the full API surface — CRUD, optimistic
+126 integration tests covering the full API surface — CRUD, optimistic
 concurrency, validation, UTC round-tripping, the paged list endpoint's paging,
-filtering, searching and sorting, the report aggregates, and the auth rules:
-registration and login, 401 without a token, and one user getting **404** rather
-than 403 on another user's bill for GET, PUT and DELETE alike. 403 would confirm
-the bill exists, which is a thing user B should not be able to learn.
+filtering, searching and sorting, the report aggregates, the health probes, the
+correlation-ID header, and the auth rules: registration and login, 401 without a
+token, and one user getting **404** rather than 403 on another user's bill for
+GET, PUT and DELETE alike. 403 would confirm the bill exists, which is a thing
+user B should not be able to learn.
 
 **The tests need a running Docker daemon.** They use
 [Testcontainers](https://dotnet.testcontainers.org/) to start a throwaway
