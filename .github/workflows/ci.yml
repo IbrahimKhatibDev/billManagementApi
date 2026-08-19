@@ -40,8 +40,8 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: ${{ runner.os }}-nuget-
 
-      # This solution references all three projects — API, Blazor UI, and tests —
-      # so one command covers the whole repo.
+      # This solution references every .NET project in the repo — API, contracts,
+      # Blazor UI, and both test projects — so one command covers all of it.
       - name: Restore
         run: dotnet restore BillsMinimalApi/BillsMinimalApi.sln
 

@@ -720,7 +720,33 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-136 integration tests in `../tests/BillsMinimalApi.Tests/`, running against a
+201 tests across two projects, split by what they need to run:
+
+| Project | Tests | Needs Docker | Covers |
+|---|---|---|---|
+| `../tests/BillsMinimalApi.UnitTests/` | 65 | no | Arithmetic and parsing with no I/O in it |
+| `../tests/BillsMinimalApi.Tests/` | 136 | **yes** | The API end to end, against a real PostgreSQL |
+
+The split is about feedback rather than about taxonomy. Everything in the second
+project boots a host and a container, so the fastest it can be is seconds and
+the answer with the daemon down is an error rather than a result. The first
+project references no test host and no Testcontainers at all — it cannot start
+one by accident — and runs in about 20ms, which makes it the thing to run while
+editing a `switch` expression.
+
+What is in the unit project is what the integration suite cannot see: computed
+getters that never cross the wire (`PagedResult`'s row numbers and page count,
+`BillSummary`'s outstanding and paid-percent figures), `BillQuery.ToQueryString`
+— the integration tests spell their query strings out by hand on purpose, so the
+half of that type which *writes* one had no coverage — the `ReportRanges` window
+arithmetic that the Reports page, the CSV export and the API's `from`/`to`
+filtering all read from, and `UtcDateTime.Normalize`, whose two branches agree
+with each other on a machine set to UTC and therefore cannot be told apart by a
+test running in the container.
+
+#### Integration tests
+
+136 tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth

@@ -209,7 +209,9 @@ alternative is an app that signs tokens with a secret nobody chose.
 dotnet test BillsMinimalApi/BillsMinimalApi.sln
 ```
 
-136 integration tests covering the full API surface — CRUD, optimistic
+201 tests in two projects, split by what they need to run:
+
+**136 integration tests** covering the full API surface — CRUD, optimistic
 concurrency, validation, UTC round-tripping, the paged list endpoint's paging,
 filtering, searching and sorting, the report aggregates, the health probes, the
 correlation-ID header, the rate limiter and the account lockout, and the auth
@@ -217,12 +219,23 @@ rules: registration and login, 401 without a token, and one user getting **404**
 rather than 403 on another user's bill for GET, PUT and DELETE alike. 403 would
 confirm the bill exists, which is a thing user B should not be able to learn.
 
-**The tests need a running Docker daemon.** They use
+**65 unit tests** over the arithmetic underneath it: the report date presets, the
+pager's row numbers, the reports page's derived figures, the query-string writer,
+and the UTC normalisation rule. These are the parts an integration test cannot
+see — computed properties that never cross the wire, and a `DateTimeKind` branch
+whose two halves agree with each other on a machine set to UTC.
+
+```bash
+dotnet test tests/BillsMinimalApi.UnitTests   # no Docker, ~20ms
+```
+
+**The integration tests need a running Docker daemon.** They use
 [Testcontainers](https://dotnet.testcontainers.org/) to start a throwaway
 `postgres:16-alpine` and boot the real host against it, because a fake provider
 cannot reproduce the `timestamp with time zone` behaviour that most of this
 app's date handling depends on. With Docker down you get a connection error from
-the container runtime, not a test failure.
+the container runtime, not a test failure. The unit project references neither
+Testcontainers nor a test host, so it is unaffected either way.
 
 The tests bring up their own container, so you do not need `docker compose up`
 first — but there is no conflict if it is already running.
@@ -235,7 +248,8 @@ first — but there is no conflict if it is already running.
 | `BillsMinimalApi.Contracts/` | Query and response shapes shared by the API and the Blazor app |
 | `bills-frontend/BillsFrontEndBlazor/` | Blazor Server UI (Bootstrap 5) — the maintained frontend |
 | `bills-frontend/FrontEndReact/` | Earlier React frontend |
-| `tests/BillsMinimalApi.Tests/` | Integration tests |
+| `tests/BillsMinimalApi.Tests/` | Integration tests — a real host over a real PostgreSQL |
+| `tests/BillsMinimalApi.UnitTests/` | Unit tests — the arithmetic, with no I/O and no Docker |
 | `docs/screenshots/` | Images used by these READMEs |
 | `.github/workflows/ci.yml` | Build and test on every push and PR |
 

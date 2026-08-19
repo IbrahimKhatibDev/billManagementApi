@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- xunit 2.x ships no implicit usings of its own. -->
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    No Testcontainers and no Mvc.Testing, which is the point of the separate
+    project: nothing here starts a container or a host, so `dotnet test` on this
+    one alone runs in under a second with the Docker daemon stopped.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+  </ItemGroup>
+
+  <!--
+    Contracts holds everything under test except UtcDateTime, which is why the
+    API is referenced too. It is a reference for one static class: worth it
+    because the DateTimeKind rule it encodes is the app's most consequential
+    piece of arithmetic, and worth noting because if a second thing ever needs
+    it, moving it into Contracts is the better answer than growing this list.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\BillsMinimalApi.Contracts\BillsMinimalApi.Contracts.csproj" />
+    <ProjectReference Include="..\..\BillsMinimalApi\BillsMinimalApi.csproj" />
+  </ItemGroup>
+
+</Project>
