@@ -57,7 +57,9 @@ above point in opposite directions:
 
 Getting that token is rate limited to ten attempts a minute per IP and an account
 stops answering after five wrong passwords, so both clients can also meet a
-**429** on the sign-in form. See
+**429** on the sign-in form. The demo account is the one exception to the
+lockout: its password is printed above, so there is nothing to guess and the
+lockout could only serve as a fifteen-minute kill switch for any passer-by. See
 [Rate limiting](./BillsMinimalApi/README.md#rate-limiting).
 
 The host ports match the original `launchSettings.json` and Vite defaults, so the
@@ -209,9 +211,9 @@ alternative is an app that signs tokens with a secret nobody chose.
 dotnet test BillsMinimalApi/BillsMinimalApi.sln
 ```
 
-201 tests in two projects, split by what they need to run:
+202 tests in two projects, split by what they need to run:
 
-**136 integration tests** covering the full API surface — CRUD, optimistic
+**137 integration tests** covering the full API surface — CRUD, optimistic
 concurrency, validation, UTC round-tripping, the paged list endpoint's paging,
 filtering, searching and sorting, the report aggregates, the health probes, the
 correlation-ID header, the rate limiter and the account lockout, and the auth

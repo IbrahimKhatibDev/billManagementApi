@@ -46,6 +46,29 @@ public static class DbSeeder
             }
         }
 
+        // The one account in this app that must not be lockable.
+        //
+        // Everywhere else, five wrong passwords and a fifteen-minute pause is
+        // exactly right. Here the password is printed in the README, so there is
+        // nothing to guess and nothing to protect — all the lockout can do is
+        // hand any visitor a fifteen-minute kill switch on the front door of the
+        // demo, and a reviewer who arrives during someone else's joke reads it
+        // as an app that does not work.
+        //
+        // Only this account: LockoutEnabled is per user, and UserManager checks
+        // it before it looks at the failure count, so every registered account
+        // keeps the protection.
+        //
+        // Set on every boot rather than in the object initializer above, because
+        // CreateAsync overwrites the flag from Lockout.AllowedForNewUsers — and
+        // because a database that predates this line needs repairing rather than
+        // leaving locked.
+        if (demo.LockoutEnabled)
+        {
+            demo.LockoutEnabled = false;
+            await users.UpdateAsync(demo);
+        }
+
         // IgnoreQueryFilters, and scoped to the demo user by hand.
         //
         // Two things are going on. The ownership filter reads ICurrentUser,

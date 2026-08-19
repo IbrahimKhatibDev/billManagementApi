@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using BillsMinimalApi.Data;
 using BillsMinimalApi.Dtos;
 
 namespace BillsMinimalApi.Tests;
@@ -95,6 +96,20 @@ public sealed class LoginHardeningTests : ApiTestBase
         // account: the caller is an IP address, and an attacker has more of those
         // than this app has accounts.
         Assert.Equal(HttpStatusCode.OK, (await LoginAsync(bystander, GoodPassword)).Status);
+    }
+
+    [Fact]
+    public async Task The_demo_account_cannot_be_locked_out()
+    {
+        // The exception to every test above it, and the reason the seeder turns
+        // the flag off: this password is published in the README, so the lockout
+        // protects nothing and any visitor could use it to take the demo down
+        // for fifteen minutes at a time.
+        await FailSignInAsync(DbSeeder.DemoEmail, times: 5);
+
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await LoginAsync(DbSeeder.DemoEmail, DbSeeder.DemoPassword)).Status);
     }
 
     /// <summary>

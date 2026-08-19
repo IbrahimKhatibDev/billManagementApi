@@ -232,6 +232,13 @@ anyone who knows your email can lock you out — so the window is 15 minutes rat
 than hours: long enough to make brute force hopeless at twenty guesses an hour,
 short enough that being griefed is an annoyance rather than an eviction.
 
+The seeded demo account carries `LockoutEnabled = false`, and that is the whole
+of the exemption. Its password is published in the README, so the lockout is
+guarding a door with the key taped to it — all it could do is let any visitor
+close the demo for fifteen minutes. The flag is per user and `UserManager` reads
+it before it looks at the failure count, so every account anyone actually
+registers is protected exactly as described above.
+
 > One thing this does **not** close: `/auth/register` still reports "email is
 > already taken", because a registration form that cannot tell you why it
 > refused you is a bad form. So the fact is obtainable there — just not silently,
@@ -720,12 +727,12 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-201 tests across two projects, split by what they need to run:
+202 tests across two projects, split by what they need to run:
 
 | Project | Tests | Needs Docker | Covers |
 |---|---|---|---|
 | `../tests/BillsMinimalApi.UnitTests/` | 65 | no | Arithmetic and parsing with no I/O in it |
-| `../tests/BillsMinimalApi.Tests/` | 136 | **yes** | The API end to end, against a real PostgreSQL |
+| `../tests/BillsMinimalApi.Tests/` | 137 | **yes** | The API end to end, against a real PostgreSQL |
 
 The split is about feedback rather than about taxonomy. Everything in the second
 project boots a host and a container, so the fastest it can be is seconds and
@@ -746,7 +753,7 @@ test running in the container.
 
 #### Integration tests
 
-136 tests in `../tests/BillsMinimalApi.Tests/`, running against a
+137 tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth
@@ -755,8 +762,9 @@ rules: registration and login, 401 without a bearer token, and one user getting
 since a 403 on any one of the three would confirm the row exists — plus the
 things that are invisible until they break: that the health probes answer
 without a token, that a hostile `X-Correlation-ID` never reaches the log, that a
-locked account is indistinguishable from a wrong password, and that a 429 arrives
-as a problem document with a `Retry-After` header.
+locked account is indistinguishable from a wrong password, that the demo account
+is the one account five wrong passwords cannot close, and that a 429 arrives as a
+problem document with a `Retry-After` header.
 
 The fixture registers two accounts once per run and hands out an authenticated
 `HttpClient` for each: `Client`, which every pre-existing test already used and
