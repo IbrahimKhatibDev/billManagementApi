@@ -84,6 +84,7 @@ public sealed class PostgresApiFixture : IAsyncLifetime
         // limiter is still exercised — just not by every test at once.
         Environment.SetEnvironmentVariable("RateLimiting__Global__PermitLimit", "1000000");
         Environment.SetEnvironmentVariable("RateLimiting__Auth__PermitLimit", "1000000");
+        Environment.SetEnvironmentVariable("RateLimiting__Ready__PermitLimit", "1000000");
 
         _factory = new WebApplicationFactory<Program>();
 

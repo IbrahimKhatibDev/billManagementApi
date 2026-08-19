@@ -26,6 +26,19 @@ public sealed class RateLimitOptions
     /// </summary>
     public WindowOptions Global { get; set; } = new() { PermitLimit = 300, WindowSeconds = 60 };
 
+    /// <summary>
+    /// The readiness probe, which is unauthenticated and costs a round trip to
+    /// Postgres per call.
+    /// <para>
+    /// Sixty a minute is two orders of magnitude above what an orchestrator asks
+    /// for — Docker's default healthcheck interval is 30 seconds, Kubernetes'
+    /// readiness probe 10 — so no real prober can meet this, while a script
+    /// pointed at the endpoint stops being able to open connections faster than
+    /// one a second.
+    /// </para>
+    /// </summary>
+    public WindowOptions Ready { get; set; } = new() { PermitLimit = 60, WindowSeconds = 60 };
+
     public sealed class WindowOptions
     {
         public int PermitLimit { get; set; }

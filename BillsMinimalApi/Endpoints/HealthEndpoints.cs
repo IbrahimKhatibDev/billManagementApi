@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BillsMinimalApi.Data;
+using BillsMinimalApi.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -27,6 +28,25 @@ public static class HealthEndpoints
     /// </summary>
     public const string ReadyTag = "ready";
 
+    /// <summary>
+    /// Both probes live under here, which is what lets the global rate limiter
+    /// recognise them without being told about each route separately. Kept as a
+    /// constant so that "what is a probe" has one definition rather than a
+    /// prefix written out in two files that can drift apart.
+    /// </summary>
+    public const string BasePath = "/health";
+
+    public const string LivePath = BasePath + "/live";
+
+    public const string ReadyPath = BasePath + "/ready";
+
+    /// <summary>
+    /// Whether a request is aimed at a probe. Used by the rate limiter, which
+    /// runs before routing has picked an endpoint and so has only the path to go
+    /// on.
+    /// </summary>
+    public static bool IsProbe(PathString path) => path.StartsWithSegments(BasePath);
+
     public static IServiceCollection AddAppHealthChecks(this IServiceCollection services)
     {
         services.AddHealthChecks()
@@ -46,7 +66,7 @@ public static class HealthEndpoints
         // applies to every endpoint that does not state otherwise — including
         // these. Without it the probes answer 401, Docker marks the container
         // unhealthy, and the stack never comes up.
-        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        app.MapHealthChecks(LivePath, new HealthCheckOptions
         {
             // Runs no checks at all: reaching this line already proves the
             // process is alive and the pipeline is serving, which is the whole
@@ -56,23 +76,29 @@ public static class HealthEndpoints
             ResponseWriter = WriteJson,
         })
         .AllowAnonymous()
-        // DisableRateLimiting on both, and it is load-bearing for the same reason
-        // AllowAnonymous is. The probes are exempt from the global limit because
-        // a throttled probe reads as a failed probe: under exactly the traffic
-        // spike a rate limiter exists to survive, Docker would start getting 429s
-        // from /health/live and restart the container, which is how a slow ten
-        // minutes becomes a restart loop. Both probes are cheap and neither
-        // touches the partition key an attacker controls.
+        // DisableRateLimiting, and it is load-bearing for the same reason
+        // AllowAnonymous is. A throttled probe reads as a failed probe: under
+        // exactly the traffic spike a rate limiter exists to survive, Docker
+        // would start getting 429s here and restart the container, which is how
+        // a slow ten minutes becomes a restart loop. This one costs a status
+        // code and touches nothing, so there is no budget worth counting.
         .DisableRateLimiting()
         .WithTags("Health");
 
-        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        app.MapHealthChecks(ReadyPath, new HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains(ReadyTag),
             ResponseWriter = WriteJson,
         })
         .AllowAnonymous()
-        .DisableRateLimiting()
+        // Not exempt, unlike liveness, because this one is not free: every call
+        // opens a connection and asks Postgres a question, on an endpoint with
+        // no token in front of it. A budget of its own rather than the global
+        // one, so that other people's traffic can never spend the orchestrator's
+        // — which is the property DisableRateLimiting was protecting, and the
+        // whole of what it was protecting. See RateLimitSetup.ReadyPolicy for the
+        // size of it.
+        .RequireRateLimiting(RateLimitSetup.ReadyPolicy)
         .WithTags("Health");
     }
 
@@ -83,6 +109,29 @@ public static class HealthEndpoints
     /// </summary>
     private static Task WriteJson(HttpContext http, HealthReport report)
     {
+        var services = http.RequestServices;
+
+        // Which check failed is safe to say anywhere. *Why* is not: an Npgsql
+        // exception message names the host, the port, the database and the login
+        // role, and this endpoint answers anyone who can reach it. In Development
+        // that detail is the point — it is usually the answer to "why will this
+        // not start" — so the line is drawn at the environment rather than
+        // removed entirely.
+        var detailed = services.GetRequiredService<IHostEnvironment>().IsDevelopment();
+
+        if (!detailed)
+        {
+            // Suppressed from the response, not thrown away. The operator still
+            // needs it, and the log is where it belongs: correlated by request
+            // id, and readable only by someone who can already read the logs.
+            var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(HealthEndpoints));
+
+            foreach (var entry in report.Entries.Where(e => e.Value.Exception is not null))
+            {
+                logger.LogWarning(entry.Value.Exception, "Health check {Check} failed.", entry.Key);
+            }
+        }
+
         http.Response.ContentType = "application/json; charset=utf-8";
 
         var payload = new
@@ -97,10 +146,10 @@ public static class HealthEndpoints
                 name = entry.Key,
                 status = entry.Value.Status.ToString(),
                 durationMs = entry.Value.Duration.TotalMilliseconds,
-                // The exception message, not the exception. A stack trace on an
-                // unauthenticated endpoint hands out the internals of the app to
-                // anyone who can reach it.
-                error = entry.Value.Exception?.Message,
+                // Null outside Development, where the message has already gone
+                // to the log. The status above still says which check failed,
+                // which is the part a caller is entitled to.
+                error = detailed ? entry.Value.Exception?.Message : null,
             }),
         };
 

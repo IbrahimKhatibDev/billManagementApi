@@ -211,9 +211,9 @@ alternative is an app that signs tokens with a secret nobody chose.
 dotnet test BillsMinimalApi/BillsMinimalApi.sln
 ```
 
-204 tests in two projects, split by what they need to run:
+207 tests in two projects, split by what they need to run:
 
-**139 integration tests** covering the full API surface — CRUD, optimistic
+**142 integration tests** covering the full API surface — CRUD, optimistic
 concurrency, validation, UTC round-tripping, the paged list endpoint's paging,
 filtering, searching and sorting, the report aggregates, the health probes, the
 correlation-ID header, the rate limiter and the account lockout, and the auth

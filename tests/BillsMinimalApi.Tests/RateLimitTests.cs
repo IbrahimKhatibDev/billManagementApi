@@ -37,6 +37,14 @@ public sealed class RateLimitTests : IAsyncLifetime
 
     private const int GlobalLimit = 8;
 
+    /// <summary>
+    /// Deliberately larger than <see cref="GlobalLimit"/>, which is what makes
+    /// the readiness test able to tell the two budgets apart: a probe that is
+    /// still answering after more calls than the general limit allows is a probe
+    /// the general limiter is not counting.
+    /// </summary>
+    private const int ReadyLimit = GlobalLimit * 2;
+
     private readonly PostgresApiFixture _fixture;
 
     private WebApplicationFactory<Program>? _factory;
@@ -51,7 +59,10 @@ public sealed class RateLimitTests : IAsyncLifetime
         // for each one, which is exactly what is wanted here: the limiter's
         // counters live in the host, so each test starts with a full budget
         // instead of inheriting whatever the previous one spent.
-        SetLimits(AuthLimit.ToString(CultureInfo.InvariantCulture), GlobalLimit.ToString(CultureInfo.InvariantCulture));
+        SetLimits(
+            AuthLimit.ToString(CultureInfo.InvariantCulture),
+            GlobalLimit.ToString(CultureInfo.InvariantCulture),
+            ReadyLimit.ToString(CultureInfo.InvariantCulture));
 
         _factory = new WebApplicationFactory<Program>();
         _client = _factory.CreateClient();
@@ -70,13 +81,14 @@ public sealed class RateLimitTests : IAsyncLifetime
         // these set would hand the rest of the suite a limit it exhausts in the
         // first second, and the failures would land in whichever tests happened
         // to run next.
-        SetLimits("1000000", "1000000");
+        SetLimits("1000000", "1000000", "1000000");
     }
 
-    private static void SetLimits(string auth, string global)
+    private static void SetLimits(string auth, string global, string ready)
     {
         Environment.SetEnvironmentVariable("RateLimiting__Auth__PermitLimit", auth);
         Environment.SetEnvironmentVariable("RateLimiting__Global__PermitLimit", global);
+        Environment.SetEnvironmentVariable("RateLimiting__Ready__PermitLimit", ready);
     }
 
     [Fact]
@@ -154,7 +166,7 @@ public sealed class RateLimitTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_health_probes_are_never_refused()
+    public async Task Liveness_is_never_refused()
     {
         // The one exemption that has to hold. Docker polls /health/live forever;
         // if those polls spent the same budget as everything else, the traffic
@@ -166,6 +178,28 @@ public sealed class RateLimitTests : IAsyncLifetime
             using var response = await _client.GetAsync("/health/live");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task Readiness_outlives_the_general_budget_but_not_its_own()
+    {
+        // Both halves matter, and they pull in opposite directions.
+        //
+        // Past the general limit, because readiness answers the question "should
+        // traffic come here?" and a flood must not be able to answer it — behind
+        // a proxy every caller shares a partition, so a shared budget would let
+        // somebody else's requests take this instance out of the load balancer.
+        for (var i = 0; i < ReadyLimit; i++)
+        {
+            using var allowed = await _client.GetAsync("/health/ready");
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        }
+
+        // And not unbounded, because unlike liveness this one opens a connection
+        // and asks Postgres a question, with no token in front of it.
+        using var refused = await _client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
     }
 
     private Task<HttpResponseMessage> Login(string email, string password) =>

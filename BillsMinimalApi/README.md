@@ -51,7 +51,7 @@ BillsMinimalApi/
 │   └── BillSummaryBuilder.cs     the report aggregates, computed in Postgres
 ├── RateLimiting/
 │   ├── RateLimitOptions.cs       the RateLimiting config section
-│   └── RateLimitSetup.cs         the two limiters and the 429 response
+│   └── RateLimitSetup.cs         the three limiters and the 429 response
 ├── BillsMinimalApi.http          ready-made requests for VS Code / Rider
 └── Program.cs                    DI, migrate-on-startup, middleware
 ```
@@ -346,7 +346,7 @@ Bills live under one base route:
 | `PUT` | `/restapi/BillDtos/{id}` | 200 | 400, 404, **409** |
 | `DELETE` | `/restapi/BillDtos/{id}` | 204 | 404 |
 | `GET` | `/health/live` | 200 | — |
-| `GET` | `/health/ready` | 200 | 503 |
+| `GET` | `/health/ready` | 200 | 503, **429** |
 
 Every `/restapi` row also answers **401** without a bearer token — only
 `/auth/register`, `/auth/login` and the two `/health` routes are anonymous — and
@@ -354,9 +354,9 @@ the three `{id}` routes answer **404** for a bill belonging to somebody else,
 rather than 403. See
 [Ownership is a property of the model](#ownership-is-a-property-of-the-model).
 
-Every row except the two `/health` probes can also answer **429**; the two
-`/auth` rows have a far tighter budget than the rest. See
-[Rate limiting](#rate-limiting).
+Every row except `/health/live` can also answer **429**; the two `/auth` rows
+have a far tighter budget than the rest, and `/health/ready` has a generous one
+that nothing else can spend. See [Rate limiting](#rate-limiting).
 
 `BillsMinimalApi.http` has a ready-made request for each of these.
 
@@ -394,8 +394,18 @@ The response is JSON with the per-check breakdown, rather than the bare word
 }
 ```
 
-`error` carries the exception *message* only. A stack trace on an
-unauthenticated endpoint hands the app's internals to anyone who can reach it.
+`error` is **null outside Development**, and never carries a stack trace
+anywhere. The message alone is enough to be worth withholding: a failed Npgsql
+connection names the host, the port, the database and the login role, and this
+endpoint answers anyone who can reach it. In Development that detail is the
+point — it is usually the answer to "why will this not start" — so the line is
+drawn at the environment rather than at the field.
+
+Nothing is lost by it. Outside Development the exception is written to the log
+at `Warning` instead, correlated by request id and readable only by someone who
+can already read the logs, and `status` still names the check that failed —
+which is the part a caller is entitled to. `HealthDetailTests` boots a host in
+each environment against a check that always fails and asserts both halves.
 
 ### Logging
 
@@ -472,17 +482,23 @@ otherwise.
 
 ### Rate limiting
 
-Two limits, because sign-in and everything else are not the same problem:
+Three limits, because sign-in, the readiness probe and everything else are not
+the same problem:
 
 | Limit | Applies to | Budget | Shape |
 |---|---|---|---|
 | `RateLimiting:Auth` | `/auth/login`, `/auth/register` | 10 / minute | sliding window, 6 segments |
+| `RateLimiting:Ready` | `/health/ready` | 60 / minute | fixed window |
 | `RateLimiting:Global` | everything else | 300 / minute | fixed window |
 
 Ten a minute is generous for a person mistyping a password and hopeless for
 anything working through a list. Three hundred is far above what using the app
 costs — the bills table issues a handful of requests per page view — and far
-below what scripting it does.
+below what scripting it does. Sixty is two orders of magnitude above what a
+prober asks for — Docker's default healthcheck interval is 30 seconds,
+Kubernetes' readiness probe 10 — so no real orchestrator can meet it, while a
+script pointed at the endpoint stops being able to open database connections
+faster than one a second.
 
 The sign-in limiter slides and the general one does not, which is the whole
 difference between the two: a fixed window lets a caller spend a full budget at
@@ -504,12 +520,29 @@ so a browser can see a 429 as a 429 rather than an opaque network error, before
 authentication so a flood is refused without first paying to validate the token
 attached to it.
 
-The health probes opt out entirely with `DisableRateLimiting()`, which exempts
-them from the global limiter and not just from endpoint policies. This is
-load-bearing: a throttled probe reads as a failed probe, so under exactly the
-traffic spike a rate limiter exists to survive, Docker would start getting 429s
-from `/health/live` and restart the container — turning a slow ten minutes into a
-restart loop.
+**Neither probe is counted against the global budget**, and that is the property
+the whole arrangement is arranged around. A throttled probe reads as a failed
+probe, so if the probes shared the general budget then under exactly the traffic
+spike a rate limiter exists to survive, Docker would start getting 429s and
+restart the container — turning a slow ten minutes into a restart loop. Behind a
+proxy it is worse still: every caller shares one partition, so somebody else's
+flood would be what takes this instance out of the load balancer.
+
+The two get there differently, because they cost differently:
+
+- **`/health/live`** uses `DisableRateLimiting()`, which skips endpoint policies
+  *and* the global limiter. It runs no checks and touches nothing, so there is
+  no budget worth counting.
+- **`/health/ready`** opens a connection and asks Postgres a question, on an
+  endpoint with no token in front of it — so it is bounded, just separately. The
+  global limiter returns a no-op partition for anything under `/health`, and the
+  route carries `RequireRateLimiting("ready")` on top. Both are needed:
+  `RequireRateLimiting` *composes with* the global limiter rather than replacing
+  it, so the policy alone would leave the probe still spending the general
+  budget.
+
+`HealthEndpoints.IsProbe` is what the global limiter asks, so "what counts as a
+probe" has one definition rather than a path prefix written out in two files.
 
 A refusal is a problem document like every other error, with the wait attached:
 
@@ -736,12 +769,12 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-204 tests across two projects, split by what they need to run:
+207 tests across two projects, split by what they need to run:
 
 | Project | Tests | Needs Docker | Covers |
 |---|---|---|---|
 | `../tests/BillsMinimalApi.UnitTests/` | 65 | no | Arithmetic and parsing with no I/O in it |
-| `../tests/BillsMinimalApi.Tests/` | 139 | **yes** | The API end to end, against a real PostgreSQL |
+| `../tests/BillsMinimalApi.Tests/` | 142 | **yes** | The API end to end, against a real PostgreSQL |
 
 The split is about feedback rather than about taxonomy. Everything in the second
 project boots a host and a container, so the fastest it can be is seconds and
@@ -762,7 +795,7 @@ test running in the container.
 
 #### Integration tests
 
-139 tests in `../tests/BillsMinimalApi.Tests/`, running against a
+142 tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth
@@ -770,10 +803,11 @@ rules: registration and login, 401 without a bearer token, and one user getting
 **404** rather than 403 on another user's bill — for GET, PUT and DELETE alike,
 since a 403 on any one of the three would confirm the row exists — plus the
 things that are invisible until they break: that the health probes answer
-without a token, that a hostile `X-Correlation-ID` never reaches the log, that a
-locked account is indistinguishable from a wrong password, that the demo account
-is the one account five wrong passwords cannot close, and that a 429 arrives as a
-problem document with a `Retry-After` header.
+without a token and never say why a check failed outside Development, that a
+hostile `X-Correlation-ID` never reaches the log, that a locked account is
+indistinguishable from a wrong password, that the demo account is the one account
+five wrong passwords cannot close, and that a 429 arrives as a problem document
+with a `Retry-After` header.
 
 The fixture registers two accounts once per run and hands out an authenticated
 `HttpClient` for each: `Client`, which every pre-existing test already used and
@@ -787,8 +821,10 @@ the two tokens already handed out and force a re-login before every test.
 Two consequences of that shared host are worth knowing before you add a test.
 `TestServer` has no socket, so `Connection.RemoteIpAddress` is null and the
 limiter files the entire run into one partition — the fixture therefore raises
-both limits out of the way, and `RateLimitTests` builds a host of its own with
-limits small enough to reach on purpose. And because `AspNetUsers` survives
+all three limits out of the way, and `RateLimitTests` builds a host of its own
+with limits small enough to reach on purpose. `HealthDetailTests` does the same
+for a different reason: the probe's behaviour branches on the environment, and
+the shared host has exactly one. And because `AspNetUsers` survives
 `ResetAsync`, `LoginHardeningTests` registers a throwaway account per test rather
 than borrowing the shared one: locking that user out would fail every later test
 that signs in.
