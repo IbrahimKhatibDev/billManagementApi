@@ -1,7 +1,23 @@
 @BillsMinimalApi_HostAddress = http://localhost:5131
 
-### Get all bills
+### Get the first page of bills
+# Every parameter is optional; this is what the defaults amount to.
 GET {{BillsMinimalApi_HostAddress}}/restapi/BillDtos
+Accept: application/json
+
+### Get a filtered, sorted page
+# pageSize is clamped to 100 server-side, and anything unrecognised — a bad
+# status, an unknown sort column — falls back to its default rather than 400.
+GET {{BillsMinimalApi_HostAddress}}/restapi/BillDtos?page=1&pageSize=5&status=overdue&sort=amount&dir=desc
+Accept: application/json
+
+### Search by payee or id
+GET {{BillsMinimalApi_HostAddress}}/restapi/BillDtos?search=lind
+Accept: application/json
+
+### Get the report summary
+# Both bounds are optional. Omit them for every bill on record.
+GET {{BillsMinimalApi_HostAddress}}/restapi/BillDtos/summary?from=2026-01-01&to=2026-12-31
 Accept: application/json
 
 ### Get a single bill by id

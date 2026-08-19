@@ -6,8 +6,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <!-- No PackageReferences. Bootstrap, Bootstrap Icons and open-iconic are
-       vendored under wwwroot/css, so the app has no NuGet dependencies and
-       makes no CDN requests at runtime. -->
+  <!-- Still no PackageReferences. Bootstrap, Bootstrap Icons and open-iconic
+       are vendored under wwwroot/css, so the app has no NuGet dependencies and
+       makes no CDN requests at runtime.
+
+       The one reference below is a project, not a package, and is deliberately
+       to Contracts rather than to the API itself: referencing the API would
+       drag EF Core, Npgsql and Swashbuckle into this process to reuse a handful
+       of plain types. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\BillsMinimalApi.Contracts\BillsMinimalApi.Contracts.csproj" />
+  </ItemGroup>
 
 </Project>

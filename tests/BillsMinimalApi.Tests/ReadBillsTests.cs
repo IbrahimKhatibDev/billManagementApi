@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using BillsMinimalApi.Contracts;
 using BillsMinimalApi.Dtos;
 
 namespace BillsMinimalApi.Tests;
@@ -11,27 +12,38 @@ public class ReadBillsTests : ApiTestBase
     }
 
     [Fact]
-    public async Task GetAll_returns_an_empty_array_when_there_are_no_bills()
+    public async Task GetAll_returns_an_empty_page_when_there_are_no_bills()
     {
         var response = await Client.GetAsync(Routes.Bills);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Empty((await response.Content.ReadFromJsonAsync<List<BillDto>>())!);
+
+        var page = (await response.Content.ReadFromJsonAsync<PagedResult<BillDto>>())!;
+
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalCount);
+
+        // Not zero: a client rendering "page 1 of 0" reads as a bug, and the
+        // row numbers have to collapse rather than say "showing 1 to 0".
+        Assert.Equal(1, page.TotalPages);
+        Assert.Equal(0, page.FirstRowNumber);
+        Assert.False(page.HasNext);
+        Assert.False(page.HasPrevious);
     }
 
     [Fact]
-    public async Task GetAll_returns_every_bill()
+    public async Task GetAll_returns_every_bill_when_they_fit_on_one_page()
     {
         await Fixture.CreateBillAsync("Acme Corp");
         await Fixture.CreateBillAsync("Globex");
         await Fixture.CreateBillAsync("Initech");
 
-        var bills = await Client.GetFromJsonAsync<List<BillDto>>(Routes.Bills);
+        var page = await Fixture.GetPageAsync();
 
-        Assert.Equal(3, bills!.Count);
+        Assert.Equal(3, page.TotalCount);
         Assert.Equal(
             new[] { "Acme Corp", "Globex", "Initech" },
-            bills.Select(b => b.PayeeName).Order());
+            page.Items.Select(b => b.PayeeName).Order());
     }
 
     [Fact]

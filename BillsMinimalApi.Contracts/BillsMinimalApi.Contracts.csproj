@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Deliberately dependency-free. Both the API and the Blazor UI reference
+       this, and the Blazor project has no NuGet packages at all; anything added
+       here lands in both processes. Plain types and arithmetic only — no EF, no
+       ASP.NET, no serializer attributes. -->
+
+</Project>

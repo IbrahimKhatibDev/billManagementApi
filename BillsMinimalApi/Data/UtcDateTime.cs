@@ -20,6 +20,21 @@ namespace BillsMinimalApi.Data;
 /// </summary>
 public static class UtcDateTime
 {
+    /// <summary>
+    /// Today, as the server reckons it. Due dates are stored at midnight UTC, so
+    /// comparing them against a UTC date is what makes "overdue" flip at the same
+    /// moment as the stored value it is compared to.
+    /// <para>
+    /// The API runs in a UTC container, so this is simply the date. On a
+    /// developer's machine west of Greenwich it can be tomorrow's date for the
+    /// last few hours of the evening, which will call a bill due tomorrow
+    /// overdue. That is a local-only artefact and the alternative — reading the
+    /// host's local date — would make the same endpoint answer differently
+    /// depending on where it was deployed.
+    /// </para>
+    /// </summary>
+    public static DateTime Today => DateTime.UtcNow.Date;
+
     public static DateTime Normalize(DateTime value) => value.Kind switch
     {
         DateTimeKind.Utc => value,

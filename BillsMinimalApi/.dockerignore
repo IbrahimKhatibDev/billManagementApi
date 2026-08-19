@@ -1,9 +1,0 @@
-bin/
-obj/
-*.sln
-*.user
-Dockerfile
-.dockerignore
-Properties/launchSettings.json
-*.http
-README.md

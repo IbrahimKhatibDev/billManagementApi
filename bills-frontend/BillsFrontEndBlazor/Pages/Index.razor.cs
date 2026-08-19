@@ -1,10 +1,21 @@
 using System.Globalization;
-using BillsFrontEndBlazor.Models;
 using BillsFrontEndBlazor.Services;
+using BillsMinimalApi.Contracts;
 using Microsoft.AspNetCore.Components;
 
 namespace BillsFrontEndBlazor.Pages
 {
+    /// <summary>
+    /// The dashboard. Three headline numbers and two charts, all of them read
+    /// off a single <see cref="BillSummary"/> for the whole table.
+    /// <para>
+    /// It used to fetch every bill and count them in C#. Once the list endpoint
+    /// started paging, "every bill" would have quietly become the first ten —
+    /// and a dashboard that says "Total Bills 10" forever is worse than no
+    /// dashboard. The summary endpoint answers the same questions from Postgres
+    /// in one round trip.
+    /// </para>
+    /// </summary>
     public partial class Index : IDisposable
     {
         private const int ChartMonths = 6;
@@ -41,21 +52,35 @@ namespace BillsFrontEndBlazor.Pages
         [Inject]
         public ToastService Toasts { get; set; } = default!;
 
-        // LoadStats already fetched the whole list and threw it away after
-        // computing three numbers; keeping it is what makes the charts free.
-        private List<Bill> _bills = new();
+        /// <summary>Stands in until the first response lands, so the headline
+        /// properties and the charts can read a summary without a null check
+        /// apiece.</summary>
+        private static readonly BillSummary NoData = new();
+
+        private BillSummary? _summary;
 
         private bool _isLoading = true;
         private bool _loadFailed;
 
-        private int TotalBills => _bills.Count;
-        private int PaidBills => _bills.Count(b => b.Paid);
-        private int UnpaidBills => TotalBills - PaidBills;
+        /// <summary>The date the figures on screen were computed against — the
+        /// server's, from <see cref="BillSummary.AsOf"/>. The bar chart's six
+        /// months are counted back from it, so the axis agrees with the totals
+        /// plotted on it.</summary>
+        private DateTime _today = DateTime.Today;
 
-        private decimal OutstandingAmount => _bills
-            .Where(b => !b.Paid)
-            .Sum(b => b.PaymentDue);
+        private BillSummary Summary => _summary ?? NoData;
 
+        private int TotalBills => Summary.BillCount;
+        private int UnpaidBills => Summary.UnpaidCount;
+        private int PaidBills => TotalBills - UnpaidBills;
+
+        private decimal OutstandingAmount => Summary.OutstandingAmount;
+
+        /// <summary>
+        /// Share of <em>bills</em> paid, which is what the donut and its legend
+        /// say. Deliberately not <see cref="BillSummary.PaidPercent"/> — that is
+        /// the share of the money, the question the reports page asks.
+        /// </summary>
         private double PaidPercent => TotalBills == 0
             ? 0
             : Math.Round(PaidBills * 100d / TotalBills);
@@ -132,11 +157,20 @@ namespace BillsFrontEndBlazor.Pages
 
             try
             {
-                _bills = await BillService.GetBillsAsync();
+                // No window: the dashboard is about everything on record, so it
+                // asks for the unbounded summary.
+                var summary = await BillService.GetSummaryAsync(from: null, to: null);
+
+                _summary = summary;
+                _today = summary.AsOf;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                _bills = new List<Bill>();
+                _summary = NoData;
+
+                // Back to this machine's date. NoData.AsOf is default(DateTime),
+                // and counting six months back from year 1 throws.
+                _today = DateTime.Today;
                 _loadFailed = true;
                 Toasts.ShowError("Could not load the dashboard. Is the API running?");
             }
@@ -230,21 +264,20 @@ namespace BillsFrontEndBlazor.Pages
         private void BuildMonthlyBars(bool collapsed)
         {
             // Last ChartMonths months ending with the current one. Built from a
-            // fixed month list rather than by grouping, so months with no bills
-            // still appear as an empty slot instead of being skipped.
-            var firstMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+            // fixed month list rather than from the response, so months with no
+            // bills still appear as an empty slot instead of being skipped — the
+            // summary only sends months that have something in them.
+            var firstMonth = new DateTime(_today.Year, _today.Month, 1)
                 .AddMonths(-(ChartMonths - 1));
 
             var months = Enumerable.Range(0, ChartMonths)
                 .Select(offset => firstMonth.AddMonths(offset))
                 .ToArray();
 
+            var billed = Summary.Months.ToDictionary(m => (m.Year, m.Month), m => m.Billed);
+
             var totals = months
-                .Select(month => _bills
-                    .Where(b => b.DueDate is { } due
-                                && due.Year == month.Year
-                                && due.Month == month.Month)
-                    .Sum(b => b.PaymentDue))
+                .Select(month => billed.GetValueOrDefault((month.Year, month.Month)))
                 .ToArray();
 
             // Round the axis up to a whole "nice" number so the gridline labels

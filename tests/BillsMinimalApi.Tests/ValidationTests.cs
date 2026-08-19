@@ -77,7 +77,7 @@ public class ValidationTests : ApiTestBase
 
     private async Task AssertNothingWasPersistedAsync()
     {
-        var bills = await Client.GetFromJsonAsync<List<BillDto>>(Routes.Bills);
-        Assert.Empty(bills!);
+        var page = await Fixture.GetPageAsync();
+        Assert.Equal(0, page.TotalCount);
     }
 }

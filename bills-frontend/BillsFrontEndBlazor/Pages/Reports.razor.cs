@@ -1,6 +1,6 @@
 using System.Globalization;
-using BillsFrontEndBlazor.Models;
 using BillsFrontEndBlazor.Services;
+using BillsMinimalApi.Contracts;
 using Microsoft.AspNetCore.Components;
 
 namespace BillsFrontEndBlazor.Pages
@@ -14,6 +14,21 @@ namespace BillsFrontEndBlazor.Pages
         Outstanding,
     }
 
+    /// <summary>
+    /// The reports page. Every figure on it is computed by Postgres and arrives
+    /// in one <see cref="BillSummary"/> response.
+    /// <para>
+    /// It used to fetch the whole table and aggregate in C#, which was fine
+    /// until the list endpoint started paging — at which point "every bill" was
+    /// quietly ten of them, and a report is the one page that cannot be allowed
+    /// to describe a page of data as though it were the set. Asking the server
+    /// for the aggregates is both the fix and the faster answer.
+    /// </para>
+    /// <para>
+    /// What is left here is presentation: bar widths, sort order for the payee
+    /// table, and how a month is spelled.
+    /// </para>
+    /// </summary>
     public partial class Reports : IDisposable
     {
         /// <summary>Rows shown before the payee table asks to be expanded. Ten
@@ -21,11 +36,10 @@ namespace BillsFrontEndBlazor.Pages
         /// page into one long table.</summary>
         private const int PayeePreviewRows = 10;
 
-        /// <summary>How many bills the "What to pay next" list shows. It is a
-        /// shortlist, not a second bills page.</summary>
-        private const int PriorityRows = 6;
-
-        private const int DueSoonDays = 30;
+        /// <summary>Stands in until the first response lands, so every headline
+        /// property can read from a summary without a null check apiece.
+        /// </summary>
+        private static readonly BillSummary NoData = new();
 
         [Inject]
         public BillService BillService { get; set; } = default!;
@@ -36,64 +50,57 @@ namespace BillsFrontEndBlazor.Pages
         [Inject]
         public ToastService Toasts { get; set; } = default!;
 
-        private List<Bill> _bills = new();
+        private BillSummary? _summary;
         private bool _isLoading = true;
         private bool _loadFailed;
 
         private ReportRange _range = ReportRange.AllTime;
 
-        /// <summary>The bills the whole page is computed from: everything inside
-        /// the selected window. Cached rather than recomputed per property so a
-        /// render does not re-filter the list a dozen times.</summary>
-        private List<Bill> _scoped = new();
-
-        private List<AgingBucket> _aging = new();
-        private List<PayeeRow> _payees = new();
-        private List<MonthRow> _months = new();
-        private List<SizeBand> _bands = new();
+        private List<AgingRow> _aging = new();
+        private List<PayeeTotals> _payees = new();
+        private List<MonthTotals> _months = new();
+        private List<BandRow> _bands = new();
 
         private PayeeSortColumn _payeeSort = PayeeSortColumn.Outstanding;
         private bool _payeeSortDescending = true;
         private bool _showAllPayees;
 
-        /// <summary>Today, read once per load. Every "days late" figure on the
-        /// page comes from this, so a circuit that stays open across midnight
-        /// still renders a self-consistent report.</summary>
+        /// <summary>
+        /// The date the figures on screen were computed against — the server's,
+        /// taken from <see cref="BillSummary.AsOf"/>, not this machine's. They
+        /// are usually the same day, and when they are not it is the response
+        /// that decides what "3 days late" means, because the response is where
+        /// the number came from.
+        /// </summary>
         private DateTime _today = DateTime.Today;
 
-        /// <summary>Bumped on every rescope so the headline counters replay from
+        /// <summary>Bumped on every load so the headline counters replay from
         /// zero. Without it, switching to a range whose totals happen to match
         /// the previous one — or refreshing unchanged data — animates nothing.
         /// See <c>AnimatedCounter.Generation</c>.</summary>
         private int _animationGeneration;
 
-        private sealed record AgingBucket(
+        /// <summary>Which load is the current one; see the same field in
+        /// Bills.razor.cs. Clicking through the range presets faster than the
+        /// server answers is the case this exists for.</summary>
+        private int _loadGeneration;
+
+        /// <summary>An aging bucket with the two things only the client decides:
+        /// how wide its bar is and what colour.</summary>
+        private sealed record AgingRow(
             string Label,
             int Count,
             decimal Amount,
             double BarPercent,
             string BarClass);
 
-        private sealed record PayeeRow(
-            string Payee,
-            int Bills,
-            decimal Billed,
-            decimal Paid,
-            decimal Outstanding);
-
-        private sealed record MonthRow(
-            string Label,
-            int Bills,
-            decimal Billed,
-            decimal Paid,
-            decimal Outstanding,
-            double PaidPercent);
-
-        private sealed record SizeBand(
+        private sealed record BandRow(
             string Label,
             int Count,
             decimal Total,
             double BarPercent);
+
+        private BillSummary Summary => _summary ?? NoData;
 
         protected override async Task OnInitializedAsync()
         {
@@ -113,36 +120,63 @@ namespace BillsFrontEndBlazor.Pages
             _ = InvokeAsync(LoadBillsAsync);
         }
 
+        /// <summary>
+        /// Kept parameterless so the markup can bind it directly to the Refresh
+        /// and Retry buttons.
+        /// </summary>
         private async Task LoadBillsAsync()
         {
+            var generation = ++_loadGeneration;
+
             _isLoading = true;
             _loadFailed = false;
             StateHasChanged();
 
             try
             {
-                _bills = await BillService.GetBillsAsync();
+                // The window is resolved against this machine's date to ask the
+                // question; the answer comes back stamped with the date it was
+                // actually computed against, and that is what gets rendered.
+                var (from, to) = _range.Window(DateTime.Today);
+
+                var summary = await BillService.GetSummaryAsync(from, to);
+
+                if (generation != _loadGeneration)
+                {
+                    return;
+                }
+
+                _summary = summary;
+                _today = summary.AsOf;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                _bills = new List<Bill>();
+                if (generation != _loadGeneration)
+                {
+                    return;
+                }
+
+                _summary = NoData;
+                _today = DateTime.Today;
                 _loadFailed = true;
                 Toasts.ShowError("Could not load reports. Is the API running?");
             }
             finally
             {
-                _today = DateTime.Today;
-                Rescope();
-                _isLoading = false;
-                StateHasChanged();
+                if (generation == _loadGeneration)
+                {
+                    Rebuild();
+                    _isLoading = false;
+                    StateHasChanged();
+                }
             }
         }
 
-        private void SetRange(ReportRange range)
+        private Task SetRangeAsync(ReportRange range)
         {
             if (_range == range)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             _range = range;
@@ -152,24 +186,22 @@ namespace BillsFrontEndBlazor.Pages
             // the collapse control disappears with it still expanded.
             _showAllPayees = false;
 
-            Rescope();
+            return LoadBillsAsync();
         }
 
-        /// <summary>Recomputes every section from the current window. One place,
-        /// so the sections can never disagree about which bills they cover.
+        /// <summary>
+        /// Turns one response into the shapes the markup renders. One place, so
+        /// the sections can never disagree about which bills they cover — and
+        /// the one place that can never forget to replay the counters.
         /// </summary>
-        private void Rescope()
+        private void Rebuild()
         {
-            _scoped = ReportRanges.Filter(_bills, _range, _today);
-
-            // Here rather than in SetRange and LoadBillsAsync separately: this is
-            // the one place the figures can change, so it is the one place that
-            // can never forget to replay them.
             _animationGeneration++;
 
+            _payees = Summary.Payees;
+            _months = Summary.Months;
+
             BuildAging();
-            BuildPayees();
-            BuildMonths();
             BuildBands();
         }
 
@@ -177,150 +209,86 @@ namespace BillsFrontEndBlazor.Pages
 
         private string RangeCaption => _range.Caption(_today);
 
-        /// <summary>Bills with no due date sit outside any bounded window. Saying
-        /// so is the difference between "there are none" and "they are not being
-        /// counted".</summary>
-        private int UndatedExcluded => _range == ReportRange.AllTime
-            ? 0
-            : _bills.Count(b => b.DueDate is null);
-
         private string CsvHref => $"reports/bills.csv?range={_range.Slug()}";
+
+        /// <summary>
+        /// "All time and nothing in it" is the only way to be sure there are no
+        /// bills at all rather than none in this window — which is the
+        /// difference between offering to create one and suggesting a wider
+        /// range.
+        /// </summary>
+        private bool HasNoBillsAtAll => _range == ReportRange.AllTime && BillCount == 0;
 
         // -- Headline figures -----------------------------------------------
 
-        private int BillCount => _scoped.Count;
+        private int BillCount => Summary.BillCount;
 
-        private decimal TotalBilled => _scoped.Sum(b => b.PaymentDue);
+        private decimal TotalBilled => Summary.TotalBilled;
 
-        private decimal PaidAmount => _scoped.Where(b => b.Paid).Sum(b => b.PaymentDue);
+        private decimal PaidAmount => Summary.PaidAmount;
 
-        private decimal OutstandingAmount => TotalBilled - PaidAmount;
+        private decimal OutstandingAmount => Summary.OutstandingAmount;
 
-        private int UnpaidCount => _scoped.Count(b => !b.Paid);
+        private int UnpaidCount => Summary.UnpaidCount;
 
-        /// <summary>
-        /// Share of money settled, not of bills — ten small paid bills and one
-        /// large unpaid one is not a 91% healthy picture.
-        /// </summary>
-        private double PaidPercent => TotalBilled == 0
-            ? 0
-            : (double)(PaidAmount / TotalBilled) * 100;
+        private double PaidPercent => Summary.PaidPercent;
 
-        private IEnumerable<Bill> OverdueBills => _scoped.Where(IsOverdue);
+        private int OverdueCount => Summary.OverdueCount;
 
-        private int OverdueCount => OverdueBills.Count();
+        private decimal OverdueAmount => Summary.OverdueAmount;
 
-        private decimal OverdueAmount => OverdueBills.Sum(b => b.PaymentDue);
+        private SummaryBill? LargestBill => Summary.LargestBill;
 
-        private Bill? LargestBill => _scoped
-            .OrderByDescending(b => b.PaymentDue)
-            .FirstOrDefault();
+        private decimal AverageBill => Summary.AverageBill;
 
-        private decimal AverageBill => BillCount == 0 ? 0 : TotalBilled / BillCount;
+        private decimal MedianBill => Summary.MedianBill;
 
-        private decimal MedianBill
-        {
-            get
-            {
-                if (BillCount == 0)
-                {
-                    return 0;
-                }
+        private int DueSoonCount => Summary.DueSoonCount;
 
-                var sorted = _scoped.Select(b => b.PaymentDue).OrderBy(a => a).ToList();
-                var middle = sorted.Count / 2;
-
-                return sorted.Count % 2 == 1
-                    ? sorted[middle]
-                    : (sorted[middle - 1] + sorted[middle]) / 2;
-            }
-        }
-
-        private IEnumerable<Bill> DueSoonBills => _scoped.Where(b =>
-            !b.Paid
-            && b.DueDate is { } due
-            && due.Date >= _today
-            && due.Date <= _today.AddDays(DueSoonDays));
-
-        private int DueSoonCount => DueSoonBills.Count();
-
-        private decimal DueSoonAmount => DueSoonBills.Sum(b => b.PaymentDue);
+        private decimal DueSoonAmount => Summary.DueSoonAmount;
 
         // -- Overdue aging ---------------------------------------------------
 
+        /// <summary>
+        /// The buckets themselves come from the server, always five and always
+        /// in order; what is added here is the bar. It is scaled against the
+        /// biggest bucket rather than the total, because against the total a
+        /// healthy spread renders as five slivers.
+        /// </summary>
         private void BuildAging()
         {
-            var unpaid = _scoped.Where(b => !b.Paid).ToList();
+            var buckets = Summary.Aging;
+            var max = buckets.Count == 0 ? 0m : buckets.Max(b => b.Amount);
 
-            // Fixed buckets, built whether or not anything lands in them: an
-            // empty "90+ days" row is information, and a table that grows and
-            // shrinks as you change the range is hard to read across presets.
-            var definitions = new (string Label, Func<int, bool> Matches, string BarClass)[]
-            {
-                ("Not yet due", days => days <= 0, "aging-bar-0"),
-                ("1–30 days late", days => days is >= 1 and <= 30, "aging-bar-1"),
-                ("31–60 days late", days => days is >= 31 and <= 60, "aging-bar-2"),
-                ("61–90 days late", days => days is >= 61 and <= 90, "aging-bar-3"),
-                ("Over 90 days late", days => days > 90, "aging-bar-4"),
-            };
+            _aging = buckets
+                .Select((bucket, index) => new AgingRow(
+                    bucket.Label,
+                    bucket.Count,
+                    bucket.Amount,
+                    max == 0 ? 0 : (double)(bucket.Amount / max) * 100,
 
-            var grouped = definitions
-                .Select(d =>
-                {
-                    var matching = unpaid.Where(b => d.Matches(DaysLate(b))).ToList();
-                    return (d.Label, d.BarClass, Count: matching.Count, Amount: matching.Sum(b => b.PaymentDue));
-                })
-                .ToList();
-
-            // Bars are scaled against the biggest bucket, not against the total:
-            // against the total, a healthy spread renders as five slivers.
-            var max = grouped.Count == 0 ? 0m : grouped.Max(g => g.Amount);
-
-            _aging = grouped
-                .Select(g => new AgingBucket(
-                    g.Label,
-                    g.Count,
-                    g.Amount,
-                    max == 0 ? 0 : (double)(g.Amount / max) * 100,
-                    g.BarClass))
+                    // Positional, so the ramp from grey through to red follows
+                    // the order the server sends rather than a label match that
+                    // would break the day a bucket is reworded.
+                    $"aging-bar-{index}"))
                 .ToList();
         }
 
-        /// <summary>Days past due, or 0 for anything not yet due. Undated bills
-        /// count as not yet due — they cannot be late without a date to be late
-        /// against.</summary>
-        private int DaysLate(Bill bill) => bill.DueDate is { } due
-            ? Math.Max(0, (_today - due.Date).Days)
-            : 0;
+        private IReadOnlyList<SummaryBill> PriorityBills => Summary.Priority;
 
-        private bool IsOverdue(Bill bill) =>
-            !bill.Paid && bill.DueDate is { } due && due.Date < _today;
+        /// <summary>Days late is computed server-side against the same date as
+        /// the rest of the response, so anything late is overdue by
+        /// definition.</summary>
+        private static bool IsOverdue(SummaryBill bill) => bill.DaysLate > 0;
 
-        /// <summary>
-        /// The unpaid bills to deal with first: latest first, then whatever is
-        /// due soonest. Undated bills sort last — they are never urgent.
-        /// </summary>
-        private IEnumerable<Bill> PriorityBills => _scoped
-            .Where(b => !b.Paid)
-            .OrderByDescending(DaysLate)
-            .ThenBy(b => b.DueDate ?? DateTime.MaxValue)
-            .Take(PriorityRows);
-
-        private string PriorityNote(Bill bill)
+        private string PriorityNote(SummaryBill bill)
         {
-            var days = DaysLate(bill);
-
-            if (days > 0)
+            if (bill.DaysLate > 0)
             {
-                return days == 1 ? "1 day late" : $"{days} days late";
+                return bill.DaysLate == 1 ? "1 day late" : $"{bill.DaysLate} days late";
             }
 
-            if (bill.DueDate is not { } due)
-            {
-                return "no due date";
-            }
-
-            var until = (due.Date - _today).Days;
+            var until = (bill.DueDate.Date - _today.Date).Days;
 
             return until switch
             {
@@ -332,29 +300,14 @@ namespace BillsFrontEndBlazor.Pages
 
         // -- Payee breakdown -------------------------------------------------
 
-        private void BuildPayees()
-        {
-            _payees = _scoped
-                .GroupBy(b => b.PayeeName?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new PayeeRow(
-                    // The group key is whichever casing came first; take the
-                    // first row's name so the table shows a real payee name.
-                    Payee: string.IsNullOrEmpty(g.First().PayeeName) ? "(no name)" : g.First().PayeeName,
-                    Bills: g.Count(),
-                    Billed: g.Sum(b => b.PaymentDue),
-                    Paid: g.Where(b => b.Paid).Sum(b => b.PaymentDue),
-                    Outstanding: g.Where(b => !b.Paid).Sum(b => b.PaymentDue)))
-                .ToList();
-        }
-
-        private IEnumerable<PayeeRow> SortedPayees
+        private IEnumerable<PayeeTotals> SortedPayees
         {
             get
             {
                 // Payee sorts alphabetically ascending by default; every money
                 // column sorts biggest-first, because that is the question the
                 // column exists to answer.
-                IOrderedEnumerable<PayeeRow> ordered = _payeeSort switch
+                IOrderedEnumerable<PayeeTotals> ordered = _payeeSort switch
                 {
                     PayeeSortColumn.Payee => OrderPayees(p => p.Payee),
                     PayeeSortColumn.Bills => OrderPayees(p => p.Bills),
@@ -367,15 +320,20 @@ namespace BillsFrontEndBlazor.Pages
             }
         }
 
-        private IOrderedEnumerable<PayeeRow> OrderPayees<TKey>(Func<PayeeRow, TKey> key) =>
+        private IOrderedEnumerable<PayeeTotals> OrderPayees<TKey>(Func<PayeeTotals, TKey> key) =>
             _payeeSortDescending ? _payees.OrderByDescending(key) : _payees.OrderBy(key);
 
-        private IEnumerable<PayeeRow> VisiblePayees => _showAllPayees
+        private IEnumerable<PayeeTotals> VisiblePayees => _showAllPayees
             ? SortedPayees
             : SortedPayees.Take(PayeePreviewRows);
 
         private int HiddenPayeeCount => Math.Max(0, _payees.Count - PayeePreviewRows);
 
+        /// <summary>
+        /// Reorders in place rather than refetching. The server already sent
+        /// every payee in the window — this is the one table on the page that is
+        /// complete in the response, so sorting it is a render, not a request.
+        /// </summary>
         private void SortPayeesBy(PayeeSortColumn column)
         {
             if (_payeeSort == column)
@@ -405,64 +363,32 @@ namespace BillsFrontEndBlazor.Pages
 
         // -- Month by month --------------------------------------------------
 
-        private void BuildMonths()
-        {
-            _months = _scoped
-                .Where(b => b.DueDate is not null)
-                .GroupBy(b => new DateTime(b.DueDate!.Value.Year, b.DueDate.Value.Month, 1))
-                // Newest first: the months you are being asked about now are the
-                // recent ones, and they should not be at the bottom of a scroll.
-                .OrderByDescending(g => g.Key)
-                .Select(g =>
-                {
-                    var billed = g.Sum(b => b.PaymentDue);
-                    var paid = g.Where(b => b.Paid).Sum(b => b.PaymentDue);
-
-                    return new MonthRow(
-                        Label: g.Key.ToString("MMMM yyyy", CultureInfo.CurrentCulture),
-                        Bills: g.Count(),
-                        Billed: billed,
-                        Paid: paid,
-                        Outstanding: billed - paid,
-                        PaidPercent: billed == 0 ? 0 : (double)(paid / billed) * 100);
-                })
-                .ToList();
-        }
-
-        private int UndatedInScope => _scoped.Count(b => b.DueDate is null);
+        /// <summary>
+        /// The server sends a year and a month, not "March 2026": how a month is
+        /// spelled depends on the culture the page is rendered in, and that is
+        /// not something a JSON response should be deciding.
+        /// </summary>
+        private static string MonthLabel(MonthTotals month) =>
+            month.FirstDay.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
 
         // -- Bill size distribution ------------------------------------------
 
+        /// <summary>
+        /// Bars scaled on count, not amount: this chart is about how many bills
+        /// are of each size, and scaling by money would make one large bill
+        /// outweigh twenty small ones.
+        /// </summary>
         private void BuildBands()
         {
-            var definitions = new (string Label, Func<decimal, bool> Matches)[]
-            {
-                ("Under $50", amount => amount < 50),
-                ("$50 – $99", amount => amount is >= 50 and < 100),
-                ("$100 – $249", amount => amount is >= 100 and < 250),
-                ("$250 – $499", amount => amount is >= 250 and < 500),
-                ("$500 and over", amount => amount >= 500),
-            };
+            var bands = Summary.SizeBands;
+            var max = bands.Count == 0 ? 0 : bands.Max(b => b.Count);
 
-            var grouped = definitions
-                .Select(d =>
-                {
-                    var matching = _scoped.Where(b => d.Matches(b.PaymentDue)).ToList();
-                    return (d.Label, Count: matching.Count, Total: matching.Sum(b => b.PaymentDue));
-                })
-                .ToList();
-
-            // Scaled on count, not amount: this chart is about how many bills
-            // are of each size, and scaling by money would make one large bill
-            // outweigh twenty small ones.
-            var max = grouped.Count == 0 ? 0 : grouped.Max(g => g.Count);
-
-            _bands = grouped
-                .Select(g => new SizeBand(
-                    g.Label,
-                    g.Count,
-                    g.Total,
-                    max == 0 ? 0 : g.Count * 100d / max))
+            _bands = bands
+                .Select(band => new BandRow(
+                    band.Label,
+                    band.Count,
+                    band.Total,
+                    max == 0 ? 0 : band.Count * 100d / max))
                 .ToList();
         }
 
@@ -474,7 +400,7 @@ namespace BillsFrontEndBlazor.Pages
         private static string Width(double percent) =>
             percent.ToString("0.##", CultureInfo.InvariantCulture);
 
-        private static string DueDateText(Bill bill) =>
-            bill.DueDate?.ToString("MMM d, yyyy") ?? "—";
+        private static string DueDateText(SummaryBill bill) =>
+            bill.DueDate.ToString("MMM d, yyyy");
     }
 }

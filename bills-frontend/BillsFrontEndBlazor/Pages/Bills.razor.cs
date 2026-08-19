@@ -1,36 +1,33 @@
 using BillsFrontEndBlazor.Models;
 using BillsFrontEndBlazor.Services;
+using BillsMinimalApi.Contracts;
 using Microsoft.AspNetCore.Components;
 
 namespace BillsFrontEndBlazor.Pages
 {
     /// <summary>
-    /// Overdue is deliberately a peer of Unpaid rather than a separate axis,
-    /// even though it is a strict subset of it: the filter is one row of
-    /// buttons answering one question — "which bills am I looking at?" — and
-    /// two independent controls would let you ask for Paid + Overdue, which is
-    /// always empty.
+    /// The bills table. Every question it asks — which rows, in what order, which
+    /// page — is answered by Postgres rather than by LINQ over a full copy of the
+    /// table, so the filter buttons, the column headers, the pager and the search
+    /// box are all round trips.
+    /// <para>
+    /// <see cref="BillStatus"/> and <see cref="BillSort"/> come from the shared
+    /// contracts project rather than being declared here. They used to be a local
+    /// pair of enums with the same members, which was fine while the filtering
+    /// happened in this file and became a translation layer the moment it did
+    /// not.
+    /// </para>
     /// </summary>
-    public enum BillFilter
-    {
-        All,
-        Paid,
-        Unpaid,
-        Overdue,
-    }
-
-    public enum BillSortColumn
-    {
-        Id,
-        Payee,
-        DueDate,
-        Amount,
-        Paid,
-    }
-
     public partial class Bills : IDisposable
     {
         private static readonly int[] PageSizeOptions = { 10, 25, 50 };
+
+        /// <summary>
+        /// How long the search box waits after the last keystroke. Long enough
+        /// that typing a payee name is one query rather than eleven, short enough
+        /// that it still feels like it is keeping up.
+        /// </summary>
+        private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(300);
 
         [Inject]
         public BillService BillService { get; set; } = default!;
@@ -47,23 +44,46 @@ namespace BillsFrontEndBlazor.Pages
         [SupplyParameterFromQuery(Name = "new")]
         public bool OpenCreateForm { get; set; }
 
-        private List<Bill> _bills = new();
+        private PagedResult<Bill> _result = PagedResult<Bill>.Empty(1, BillQuery.DefaultPageSize);
         private bool _isLoading = true;
         private bool _loadFailed;
 
         private string _searchText = string.Empty;
-        private BillFilter _filter = BillFilter.All;
+        private BillStatus _filter = BillStatus.All;
 
         /// <summary>Bills mid-flight in <see cref="TogglePaidAsync"/>. Keyed by
         /// id rather than a single bool so one slow row cannot freeze the whole
         /// table.</summary>
         private readonly HashSet<long> _togglingIds = new();
 
-        private BillSortColumn _sortColumn = BillSortColumn.Id;
+        private BillSort _sortColumn = BillSort.Id;
         private bool _sortDescending;
 
         private int _page = 1;
-        private int _pageSize = 10;
+        private int _pageSize = BillQuery.DefaultPageSize;
+
+        /// <summary>
+        /// Overdue bills across the whole table, not just this page — the badge
+        /// on the filter button is a reason to click it, so counting only the
+        /// rows already on screen would defeat the point. Filled from a separate
+        /// count request rather than from the rows.
+        /// </summary>
+        private int _overdueCount;
+
+        /// <summary>
+        /// Which load is the current one. A debounced keystroke, a filter click
+        /// and a background refresh from <see cref="BillEventService"/> are
+        /// routinely in flight together, and they do not come back in the order
+        /// they were sent; without this, a slow early response can land after a
+        /// fast later one and put the table back to what you already stopped
+        /// asking for.
+        /// </summary>
+        private int _loadGeneration;
+
+        /// <summary>Cancels the pending debounce when another key is pressed.
+        /// Disposed in <see cref="Dispose"/> along with the event
+        /// subscription.</summary>
+        private CancellationTokenSource? _searchCts;
 
         // Modal state. The three "modals" are plain conditional rendering with
         // Bootstrap's classes — no bootstrap.bundle.js, no JS interop, which
@@ -80,107 +100,37 @@ namespace BillsFrontEndBlazor.Pages
         private Bill? _deleteTarget;
         private bool _isSaving;
 
+        // -- What the markup binds ---------------------------------------------
+
+        private IReadOnlyList<Bill> PagedBills => _result.Items;
+
+        private bool HasRows => _result.Items.Count > 0;
+
+        /// <summary>Total matching the current filter and search, which is what
+        /// the pager and the "showing 1–10 of 34" line describe.</summary>
+        private int FilteredCount => _result.TotalCount;
+
         /// <summary>
-        /// Bound by the search box. The pager reset is the point of the property:
-        /// filtering from page 3 of 25 rows down to 4 matches would otherwise
-        /// strand the user on an empty page, or — after clamping — on the bottom
-        /// of results whose top they never saw.
+        /// Distinguishes "you have no bills" from "nothing matches what you
+        /// asked for" without a second request: a zero count while nothing is
+        /// filtered or searched can only be the former.
         /// </summary>
-        private string SearchText
-        {
-            get => _searchText;
-            set
-            {
-                var next = value ?? string.Empty;
+        private bool HasNoBillsAtAll =>
+            _result.TotalCount == 0 && _filter == BillStatus.All && !HasSearch;
 
-                if (_searchText == next)
-                {
-                    return;
-                }
+        private int TotalPages => _result.TotalPages;
 
-                _searchText = next;
-                _page = 1;
-            }
-        }
+        private int CurrentPage => _result.Page;
+
+        private int FirstRowNumber => _result.FirstRowNumber;
+
+        private int LastRowNumber => _result.LastRowNumber;
+
+        private int PageSize => _pageSize;
+
+        private int OverdueCount => _overdueCount;
 
         private bool HasSearch => !string.IsNullOrEmpty(_searchText);
-
-        private void SetFilter(BillFilter filter)
-        {
-            if (_filter == filter)
-            {
-                return;
-            }
-
-            _filter = filter;
-            _page = 1;
-        }
-
-        private int PageSize
-        {
-            get => _pageSize;
-            set
-            {
-                if (_pageSize == value)
-                {
-                    return;
-                }
-
-                _pageSize = value;
-                _page = 1;
-            }
-        }
-
-        /// <summary>
-        /// Bound to the rows-per-page select. A plain <c>@bind</c> would need the
-        /// value round-tripped through a string anyway, and going through
-        /// <see cref="PageSize"/> is what resets the pager.
-        /// </summary>
-        private void OnPageSizeChanged(ChangeEventArgs e)
-        {
-            if (int.TryParse(e.Value?.ToString(), out var size))
-            {
-                PageSize = size;
-            }
-        }
-
-        private IEnumerable<Bill> FilteredBills
-        {
-            get
-            {
-                var filtered = _bills.Where(MatchesFilters);
-
-                // DueDate is nullable, so sort the nulls to the end rather than
-                // letting them lead every ascending sort.
-                return _sortColumn switch
-                {
-                    BillSortColumn.Payee => Order(filtered, b => b.PayeeName),
-                    BillSortColumn.DueDate => Order(filtered, b => b.DueDate ?? DateTime.MaxValue),
-                    BillSortColumn.Amount => Order(filtered, b => b.PaymentDue),
-                    BillSortColumn.Paid => Order(filtered, b => b.Paid),
-                    _ => Order(filtered, b => b.Id),
-                };
-            }
-        }
-
-        private IOrderedEnumerable<Bill> Order<TKey>(IEnumerable<Bill> source, Func<Bill, TKey> key)
-            => _sortDescending ? source.OrderByDescending(key) : source.OrderBy(key);
-
-        private int FilteredCount => _bills.Count(MatchesFilters);
-
-        private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)_pageSize));
-
-        /// <summary>Current page, clamped — a delete can shrink the result set
-        /// under the page the user is standing on.</summary>
-        private int CurrentPage => Math.Clamp(_page, 1, TotalPages);
-
-        private IEnumerable<Bill> PagedBills => FilteredBills
-            .Skip((CurrentPage - 1) * _pageSize)
-            .Take(_pageSize);
-
-        private int FirstRowNumber => FilteredCount == 0 ? 0 : ((CurrentPage - 1) * _pageSize) + 1;
-
-        private int LastRowNumber => Math.Min(CurrentPage * _pageSize, FilteredCount);
 
         /// <summary>A window of at most five page numbers centred on the current
         /// page, so 50 pages do not render 50 buttons.</summary>
@@ -198,9 +148,61 @@ namespace BillsFrontEndBlazor.Pages
             }
         }
 
-        private void GoToPage(int page) => _page = Math.Clamp(page, 1, TotalPages);
+        // -- Controls -----------------------------------------------------------
 
-        private void SortBy(BillSortColumn column)
+        /// <summary>
+        /// Every control resets to page 1 before reloading. Narrowing a 25-row
+        /// result to 4 matches while standing on page 3 would otherwise ask the
+        /// server for a page that no longer exists — it clamps rather than
+        /// erroring, but landing on the bottom of results whose top you never saw
+        /// is its own kind of wrong.
+        /// </summary>
+        private Task SetFilterAsync(BillStatus filter)
+        {
+            if (_filter == filter)
+            {
+                return Task.CompletedTask;
+            }
+
+            _filter = filter;
+            _page = 1;
+
+            return LoadBillsAsync();
+        }
+
+        /// <summary>
+        /// Bound to the rows-per-page select. A plain <c>@bind</c> would need the
+        /// value round-tripped through a string anyway, and the page has to be
+        /// reset and the rows refetched either way.
+        /// </summary>
+        private Task OnPageSizeChangedAsync(ChangeEventArgs e)
+        {
+            if (!int.TryParse(e.Value?.ToString(), out var size) || size == _pageSize)
+            {
+                return Task.CompletedTask;
+            }
+
+            _pageSize = size;
+            _page = 1;
+
+            return LoadBillsAsync();
+        }
+
+        private Task GoToPageAsync(int page)
+        {
+            var next = Math.Clamp(page, 1, TotalPages);
+
+            if (next == _page)
+            {
+                return Task.CompletedTask;
+            }
+
+            _page = next;
+
+            return LoadBillsAsync();
+        }
+
+        private Task SortByAsync(BillSort column)
         {
             if (_sortColumn == column)
             {
@@ -211,30 +213,50 @@ namespace BillsFrontEndBlazor.Pages
                 _sortColumn = column;
                 _sortDescending = false;
             }
+
+            // Re-sorting reorders the entire result set, so page 3 now holds
+            // different bills than the ones being read a moment ago. Going back
+            // to the top is the only reading of "sort by amount" that makes
+            // sense.
+            _page = 1;
+
+            return LoadBillsAsync();
         }
 
         /// <summary>
         /// Used by the mobile sort control, where the header row that normally
-        /// carries <see cref="SortBy"/> is hidden. Picking a column from a
+        /// carries <see cref="SortByAsync"/> is hidden. Picking a column from a
         /// dropdown must not flip the direction the way clicking a header does
         /// — there is a separate button for that.
         /// </summary>
-        private void SetSortColumn(ChangeEventArgs e)
+        private Task SetSortColumnAsync(ChangeEventArgs e)
         {
-            if (Enum.TryParse<BillSortColumn>(e.Value?.ToString(), out var column))
+            if (!Enum.TryParse<BillSort>(e.Value?.ToString(), out var column)
+                || column == _sortColumn)
             {
-                _sortColumn = column;
+                return Task.CompletedTask;
             }
+
+            _sortColumn = column;
+            _page = 1;
+
+            return LoadBillsAsync();
         }
 
-        private void ToggleSortDirection() => _sortDescending = !_sortDescending;
+        private Task ToggleSortDirectionAsync()
+        {
+            _sortDescending = !_sortDescending;
+            _page = 1;
+
+            return LoadBillsAsync();
+        }
 
         /// <summary>Marks the header the table is currently ordered by, so the
         /// caret on that one column renders solid instead of ghosted.</summary>
-        private string? Sorted(BillSortColumn column) =>
+        private string? Sorted(BillSort column) =>
             _sortColumn == column ? "sorted" : null;
 
-        private string SortCaret(BillSortColumn column)
+        private string SortCaret(BillSort column)
         {
             if (_sortColumn != column)
             {
@@ -243,6 +265,64 @@ namespace BillsFrontEndBlazor.Pages
 
             return _sortDescending ? "bi-caret-down-fill" : "bi-caret-up-fill";
         }
+
+        /// <summary>
+        /// Waits out <see cref="SearchDebounce"/> before asking the server, and
+        /// abandons the wait if another key arrives. Bound to <c>oninput</c>
+        /// rather than through <c>@bind</c>: two-way binding would fire a request
+        /// per keystroke, which is exactly what the debounce exists to prevent.
+        /// </summary>
+        private async Task OnSearchInputAsync(ChangeEventArgs e)
+        {
+            var next = e.Value?.ToString() ?? string.Empty;
+
+            if (_searchText == next)
+            {
+                return;
+            }
+
+            _searchText = next;
+            _page = 1;
+
+            // Cancel first, then dispose: Cancel runs the delay's registration
+            // synchronously, so by the time it returns there is nothing left
+            // holding the source.
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+
+            var cts = new CancellationTokenSource();
+            _searchCts = cts;
+
+            try
+            {
+                await Task.Delay(SearchDebounce, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Another key arrived; that keystroke owns the request now.
+                return;
+            }
+
+            await LoadBillsAsync();
+        }
+
+        private Task ClearSearchAsync()
+        {
+            if (!HasSearch)
+            {
+                return Task.CompletedTask;
+            }
+
+            // No debounce on the way back to empty: pressing Clear is a decision,
+            // not a keystroke on the way to one.
+            _searchCts?.Cancel();
+            _searchText = string.Empty;
+            _page = 1;
+
+            return LoadBillsAsync();
+        }
+
+        // -- Loading ------------------------------------------------------------
 
         protected override async Task OnInitializedAsync()
         {
@@ -264,6 +344,9 @@ namespace BillsFrontEndBlazor.Pages
         public void Dispose()
         {
             BillEventService.OnBillsChanged -= OnBillsChanged;
+
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
         }
 
         private void OnBillsChanged()
@@ -274,59 +357,87 @@ namespace BillsFrontEndBlazor.Pages
             _ = InvokeAsync(LoadBillsAsync);
         }
 
+        /// <summary>
+        /// Turns the current state of the page into one request. Deliberately the
+        /// only place that happens, so the pager, the header carets and the
+        /// search box cannot end up describing different queries.
+        /// </summary>
+        private BillQuery BuildQuery() => new(
+            Page: _page,
+            PageSize: _pageSize,
+            Search: _searchText,
+            Status: _filter,
+            Sort: _sortColumn,
+            Descending: _sortDescending,
+            From: null,
+            To: null);
+
+        /// <summary>
+        /// Kept parameterless so the markup can still write
+        /// <c>@onclick="LoadBillsAsync"</c> — an optional parameter would break
+        /// the method-group conversion the event binding relies on.
+        /// </summary>
         private async Task LoadBillsAsync()
         {
+            var generation = ++_loadGeneration;
+
             _isLoading = true;
             _loadFailed = false;
             StateHasChanged();
 
             try
             {
-                _bills = await BillService.GetBillsAsync();
+                // Concurrently: the badge count asks a different question from
+                // the rows (every overdue bill, regardless of what is filtered or
+                // searched), so it cannot be derived from them — but it need not
+                // wait for them either.
+                var rows = BillService.GetBillsAsync(BuildQuery());
+                var overdue = BillService.CountAsync(BillStatus.Overdue);
+
+                await Task.WhenAll(rows, overdue);
+
+                if (generation != _loadGeneration)
+                {
+                    return;
+                }
+
+                _result = rows.Result;
+                _overdueCount = overdue.Result;
+
+                // The server clamps a page past the end and tells us where we
+                // actually landed. Taking its answer is what keeps the pager
+                // honest after a delete empties the last page.
+                _page = _result.Page;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
                 // In Blazor Server an unhandled exception kills the circuit and
                 // replaces the page with the yellow error bar — very likely on
                 // first load if the blazor container outruns the api container.
-                _bills = new List<Bill>();
+                if (generation != _loadGeneration)
+                {
+                    return;
+                }
+
+                _result = PagedResult<Bill>.Empty(_page, _pageSize);
+                _overdueCount = 0;
                 _loadFailed = true;
                 Toasts.ShowError("Could not load bills. Is the API running?");
             }
             finally
             {
-                _isLoading = false;
-                StateHasChanged();
+                // A superseded load must not clear the spinner: the load that
+                // replaced it is still running, and the table would flash from
+                // dimmed to crisp and back.
+                if (generation == _loadGeneration)
+                {
+                    _isLoading = false;
+                    StateHasChanged();
+                }
             }
         }
 
-        private bool MatchesFilters(Bill bill)
-        {
-            var matchesStatus = _filter switch
-            {
-                BillFilter.Paid => bill.Paid,
-                BillFilter.Unpaid => !bill.Paid,
-                BillFilter.Overdue => IsOverdue(bill),
-                _ => true,
-            };
-
-            if (!matchesStatus)
-            {
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(_searchText))
-            {
-                return true;
-            }
-
-            var term = _searchText.Trim();
-
-            return bill.Id.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
-                   || bill.PayeeName.Contains(term, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void ClearSearch() => SearchText = string.Empty;
+        // -- Presentation -------------------------------------------------------
 
         /// <summary>
         /// Past its due date and still unpaid. Compared against
@@ -336,8 +447,6 @@ namespace BillsFrontEndBlazor.Pages
         /// </summary>
         private static bool IsOverdue(Bill bill) =>
             !bill.Paid && bill.DueDate is { } due && due.Date < DateTime.Today;
-
-        private int OverdueCount => _bills.Count(IsOverdue);
 
         /// <summary>Three states from two booleans: an unpaid bill that is not
         /// due yet is not a problem, so it stays grey and the red is saved for
@@ -385,6 +494,8 @@ namespace BillsFrontEndBlazor.Pages
                 _ => null,
             };
         }
+
+        // -- Writes -------------------------------------------------------------
 
         private void OpenCreateModal()
         {

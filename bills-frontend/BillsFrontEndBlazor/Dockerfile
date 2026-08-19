@@ -6,10 +6,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-COPY BillsFrontEndBlazor.csproj ./
-RUN dotnet restore BillsFrontEndBlazor.csproj
+# Repo-root build context, for the same reason as the API's: both projects
+# reference BillsMinimalApi.Contracts. See BillsMinimalApi/Dockerfile.
+COPY BillsMinimalApi.Contracts/BillsMinimalApi.Contracts.csproj BillsMinimalApi.Contracts/
+COPY bills-frontend/BillsFrontEndBlazor/BillsFrontEndBlazor.csproj bills-frontend/BillsFrontEndBlazor/
+RUN dotnet restore bills-frontend/BillsFrontEndBlazor/BillsFrontEndBlazor.csproj
 
-COPY . .
+COPY BillsMinimalApi.Contracts/ BillsMinimalApi.Contracts/
+COPY bills-frontend/BillsFrontEndBlazor/ bills-frontend/BillsFrontEndBlazor/
 # Deliberately NOT --no-restore, unlike BillsMinimalApi/Dockerfile. On .NET 10
 # the framework's browser assets (_framework/blazor.server.js) come from the
 # Microsoft.AspNetCore.App.Internal.Assets package, which the SDK auto-references
@@ -19,7 +23,7 @@ COPY . .
 # and the package is left out of the graph. Restoring again here, with the
 # sources present, is what puts blazor.server.js in wwwroot; skip it and the app
 # serves prerendered HTML with a 404 on its own JS and no interactivity at all.
-RUN dotnet publish BillsFrontEndBlazor.csproj \
+RUN dotnet publish bills-frontend/BillsFrontEndBlazor/BillsFrontEndBlazor.csproj \
     -c $BUILD_CONFIGURATION \
     -o /app/publish \
     /p:UseAppHost=false

@@ -1,0 +1,39 @@
+# The api and blazor images build from the repository root, because both
+# projects reference BillsMinimalApi.Contracts and a Docker build cannot reach
+# outside its own context. That makes the whole repo the build context, so
+# everything not needed to compile those two projects is excluded here — most
+# importantly the host's bin/obj, which would otherwise be copied over the
+# container's own output, and .git, which is the largest thing in the tree.
+#
+# The react service keeps its own .dockerignore: its context is still its own
+# directory.
+
+**/bin/
+**/obj/
+**/node_modules/
+
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+
+# Screenshots, both the tracked ones and the scratch directory Playwright
+# writes to. Neither is compiled into anything.
+docs/
+.playwright-mcp/
+
+# Integration tests. They run in CI and on a developer machine, never in the
+# image being shipped.
+tests/
+
+# The React client, which builds from its own context.
+bills-frontend/FrontEndReact/
+
+**/*.sln
+**/*.user
+**/*.http
+**/Dockerfile
+**/.dockerignore
+**/Properties/launchSettings.json
+**/*.md

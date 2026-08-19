@@ -10,13 +10,20 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-# Restore against the csproj alone so the (slow) restore layer is only
+# The build context is the repository root rather than this directory: this
+# project references BillsMinimalApi.Contracts, which sits beside it, and a
+# build cannot reach outside its context. Every path below is therefore
+# repo-relative, and docker-compose.yml names this file explicitly.
+#
+# Restore against the csproj files alone so the (slow) restore layer is only
 # invalidated by dependency changes, not by every source edit.
-COPY BillsMinimalApi.csproj ./
-RUN dotnet restore BillsMinimalApi.csproj
+COPY BillsMinimalApi.Contracts/BillsMinimalApi.Contracts.csproj BillsMinimalApi.Contracts/
+COPY BillsMinimalApi/BillsMinimalApi.csproj BillsMinimalApi/
+RUN dotnet restore BillsMinimalApi/BillsMinimalApi.csproj
 
-COPY . .
-RUN dotnet publish BillsMinimalApi.csproj \
+COPY BillsMinimalApi.Contracts/ BillsMinimalApi.Contracts/
+COPY BillsMinimalApi/ BillsMinimalApi/
+RUN dotnet publish BillsMinimalApi/BillsMinimalApi.csproj \
     -c $BUILD_CONFIGURATION \
     -o /app/publish \
     --no-restore \

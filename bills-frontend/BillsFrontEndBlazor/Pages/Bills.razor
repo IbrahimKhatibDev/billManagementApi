@@ -1,4 +1,5 @@
 @page "/bills"
+@attribute [Authorize]
 
 <PageTitle>Bills</PageTitle>
 
@@ -32,16 +33,16 @@
         </button>
 
         <div class="btn-group filter-group" role="group" aria-label="Filter bills by status">
-            @foreach (var option in Enum.GetValues<BillFilter>())
+            @foreach (var option in Enum.GetValues<BillStatus>())
             {
                 <button type="button"
                         class="btn btn-outline-secondary @(_filter == option ? "active" : null)"
-                        @onclick="() => SetFilter(option)">
+                        @onclick="() => SetFilterAsync(option)">
                     @option
                     @* Only on Overdue, and only when there are some: a "0"
                        badge on every filter is noise, and the whole point of
                        the count is to pull attention when it is not zero. *@
-                    @if (option == BillFilter.Overdue && OverdueCount > 0)
+                    @if (option == BillStatus.Overdue && OverdueCount > 0)
                     {
                         <span class="badge bg-danger ms-1">@OverdueCount</span>
                     }
@@ -55,8 +56,8 @@
         <div class="d-flex d-md-none gap-2 align-items-center">
             <label class="text-muted small mb-0" for="sort-column">Sort</label>
             <select id="sort-column" class="form-select form-select-sm" style="width: auto;"
-                    value="@_sortColumn" @onchange="SetSortColumn">
-                @foreach (var column in Enum.GetValues<BillSortColumn>())
+                    value="@_sortColumn" @onchange="SetSortColumnAsync">
+                @foreach (var column in Enum.GetValues<BillSort>())
                 {
                     <option value="@column">@column</option>
                 }
@@ -64,7 +65,7 @@
             <button type="button" class="btn btn-sm btn-outline-secondary"
                     title="@(_sortDescending ? "Sort ascending" : "Sort descending")"
                     aria-label="@(_sortDescending ? "Sort ascending" : "Sort descending")"
-                    @onclick="ToggleSortDirection">
+                    @onclick="ToggleSortDirectionAsync">
                 <i class="bi @(_sortDescending ? "bi-sort-down" : "bi-sort-up")"></i>
             </button>
         </div>
@@ -72,16 +73,19 @@
         <div class="ms-auto d-flex gap-2 flex-grow-1 flex-md-grow-0">
             <div class="position-relative flex-grow-1" style="max-width: 250px;">
                 <i class="bi bi-search search-icon"></i>
+                @* One-way plus @oninput rather than @bind: the search now goes
+                   to the server, and two-way binding would send a request per
+                   keystroke. OnSearchInputAsync debounces instead. *@
                 <input class="form-control ps-5"
                        placeholder="Search by ID or Payee..."
                        aria-label="Search by ID or payee"
-                       @bind="SearchText"
-                       @bind:event="oninput" />
+                       value="@_searchText"
+                       @oninput="OnSearchInputAsync" />
             </div>
 
             @* Disabled when empty rather than hidden: a control that appears
                and disappears as you type moves the search box sideways. *@
-            <button class="btn btn-outline-secondary" @onclick="ClearSearch"
+            <button class="btn btn-outline-secondary" @onclick="ClearSearchAsync"
                     disabled="@(!HasSearch)">
                 Clear
             </button>
@@ -97,7 +101,7 @@
                already has rows — which is what an unconditional spinner did —
                made every Refresh and every inline paid toggle flash the whole
                list away and back. With rows present the reload just dims. *@
-            @if (_isLoading && _bills.Count == 0)
+            @if (_isLoading && !HasRows)
             {
                 <div class="d-flex justify-content-center align-items-center gap-2 text-muted py-5">
                     <div class="spinner-border spinner-border-sm" role="status"></div>
@@ -108,7 +112,7 @@
             {
                 <div class="text-center text-muted py-5">
                     <i class="bi bi-inbox display-6 d-block mb-2"></i>
-                    @if (_bills.Count == 0)
+                    @if (HasNoBillsAtAll)
                     {
                         <span>No bills yet. Create one to get started.</span>
                     }
@@ -129,20 +133,20 @@
                     <table class="table table-hover table-striped align-middle mb-0 bills-table">
                         <thead class="table-light">
                             <tr>
-                                <th class="col-id sortable @Sorted(BillSortColumn.Id)" @onclick="() => SortBy(BillSortColumn.Id)">
-                                    ID <i class="bi @SortCaret(BillSortColumn.Id) sort-caret"></i>
+                                <th class="col-id sortable @Sorted(BillSort.Id)" @onclick="() => SortByAsync(BillSort.Id)">
+                                    ID <i class="bi @SortCaret(BillSort.Id) sort-caret"></i>
                                 </th>
-                                <th class="sortable @Sorted(BillSortColumn.Payee)" @onclick="() => SortBy(BillSortColumn.Payee)">
-                                    Payee <i class="bi @SortCaret(BillSortColumn.Payee) sort-caret"></i>
+                                <th class="sortable @Sorted(BillSort.Payee)" @onclick="() => SortByAsync(BillSort.Payee)">
+                                    Payee <i class="bi @SortCaret(BillSort.Payee) sort-caret"></i>
                                 </th>
-                                <th class="col-due sortable @Sorted(BillSortColumn.DueDate)" @onclick="() => SortBy(BillSortColumn.DueDate)">
-                                    Due Date <i class="bi @SortCaret(BillSortColumn.DueDate) sort-caret"></i>
+                                <th class="col-due sortable @Sorted(BillSort.DueDate)" @onclick="() => SortByAsync(BillSort.DueDate)">
+                                    Due Date <i class="bi @SortCaret(BillSort.DueDate) sort-caret"></i>
                                 </th>
-                                <th class="col-amount text-end sortable @Sorted(BillSortColumn.Amount)" @onclick="() => SortBy(BillSortColumn.Amount)">
-                                    Amount <i class="bi @SortCaret(BillSortColumn.Amount) sort-caret"></i>
+                                <th class="col-amount text-end sortable @Sorted(BillSort.Amount)" @onclick="() => SortByAsync(BillSort.Amount)">
+                                    Amount <i class="bi @SortCaret(BillSort.Amount) sort-caret"></i>
                                 </th>
-                                <th class="col-status sortable @Sorted(BillSortColumn.Paid)" @onclick="() => SortBy(BillSortColumn.Paid)">
-                                    Status <i class="bi @SortCaret(BillSortColumn.Paid) sort-caret"></i>
+                                <th class="col-status sortable @Sorted(BillSort.Paid)" @onclick="() => SortByAsync(BillSort.Paid)">
+                                    Status <i class="bi @SortCaret(BillSort.Paid) sort-caret"></i>
                                 </th>
                                 <th class="col-actions text-end">Actions</th>
                             </tr>
@@ -242,7 +246,7 @@
                     <label class="text-muted small mb-0" for="page-size">Rows</label>
                     <select id="page-size" class="form-select form-select-sm" style="width: auto;"
                             value="@PageSize"
-                            @onchange="OnPageSizeChanged">
+                            @onchange="OnPageSizeChangedAsync">
                         @foreach (var size in PageSizeOptions)
                         {
                             <option value="@size">@size</option>
@@ -253,7 +257,7 @@
                 <nav class="ms-auto" aria-label="Bills pages">
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item @(CurrentPage == 1 ? "disabled" : null)">
-                            <button class="page-link" @onclick="() => GoToPage(CurrentPage - 1)">
+                            <button class="page-link" @onclick="() => GoToPageAsync(CurrentPage - 1)">
                                 <i class="bi bi-chevron-left"></i>
                             </button>
                         </li>
@@ -263,14 +267,14 @@
                         @foreach (var pageNumber in PageWindow)
                         {
                             <li class="page-item @(pageNumber == CurrentPage ? "active" : null)">
-                                <button class="page-link" @onclick="() => GoToPage(pageNumber)">
+                                <button class="page-link" @onclick="() => GoToPageAsync(pageNumber)">
                                     @pageNumber
                                 </button>
                             </li>
                         }
 
                         <li class="page-item @(CurrentPage == TotalPages ? "disabled" : null)">
-                            <button class="page-link" @onclick="() => GoToPage(CurrentPage + 1)">
+                            <button class="page-link" @onclick="() => GoToPageAsync(CurrentPage + 1)">
                                 <i class="bi bi-chevron-right"></i>
                             </button>
                         </li>
