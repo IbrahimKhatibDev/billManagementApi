@@ -5,6 +5,7 @@ using BillsMinimalApi.Data;
 using BillsMinimalApi.Endpoints;
 using BillsMinimalApi.Logging;
 using BillsMinimalApi.Models;
+using BillsMinimalApi.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -52,6 +53,9 @@ builder.Services.AddValidation();
 
 // Liveness and readiness probes. See HealthEndpoints for why there are two.
 builder.Services.AddAppHealthChecks();
+
+// A loose limit over everything and a tight one on sign-in. See RateLimitSetup.
+builder.Services.AddAppRateLimiter(builder.Configuration);
 
 // Register CORS policy
 builder.Services.AddCors(options =>
@@ -163,6 +167,32 @@ builder.Services.AddIdentityCore<AppUser>(options =>
     // The one default worth relaxing. A required symbol pushes people towards
     // "Password1!" rather than towards length, and length is what matters.
     options.Password.RequireNonAlphanumeric = false;
+
+    // LOCKOUT
+    //
+    // What the rate limiter cannot do. The limiter counts per IP, so a thousand
+    // hosts get a thousand budgets against one account; this counts per account,
+    // so they share one. The two together are the pair: one bounds how fast any
+    // single caller can guess, the other bounds how many guesses an account will
+    // answer at all, however widely the guessing is spread.
+    //
+    // Every value here is stated rather than left to the default, including the
+    // two that match it. Lockout was already configured — it just was not
+    // *reached*, because /auth/login called CheckPasswordAsync and nothing ever
+    // recorded a failure. Now that AuthEndpoints does, these numbers matter, and
+    // a reader deciding whether they are the right numbers should not have to
+    // know which of them the framework picked.
+    //
+    // Fifteen minutes rather than the five-minute default because five is only
+    // four minutes of protection: it costs an attacker one pause per five
+    // guesses. Not longer than fifteen because the same mechanism pointed the
+    // other way is a denial of service — anyone who knows an email address can
+    // lock its owner out by failing to sign in as them — and fifteen minutes
+    // makes brute force hopeless (twenty guesses an hour) while keeping that
+    // griefing to an annoyance rather than a way to evict somebody for a day.
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.AllowedForNewUsers = true;
 })
 .AddEntityFrameworkStores<AppDbContext>();
 
@@ -219,6 +249,13 @@ if (app.Environment.IsDevelopment())
 // preflight OPTIONS carries no Authorization header, so it has to be answered
 // here rather than rejected as anonymous by the fallback policy.
 app.UseCors("AllowAll");
+
+// Between CORS and authentication, which is the only place it belongs. After
+// CORS so that a 429 still carries the headers a browser needs in order to show
+// it to the caller as a 429 rather than as an opaque network error. Before
+// authentication so a flood is refused without first paying to validate the
+// token attached to it.
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

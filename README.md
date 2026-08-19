@@ -55,6 +55,11 @@ above point in opposite directions:
   it, because the browser *is* the client. A 401 clears it and drops you back to
   the sign-in form.
 
+Getting that token is rate limited to ten attempts a minute per IP and an account
+stops answering after five wrong passwords, so both clients can also meet a
+**429** on the sign-in form. See
+[Rate limiting](./BillsMinimalApi/README.md#rate-limiting).
+
 The host ports match the original `launchSettings.json` and Vite defaults, so the
 same URLs work whether you are running in Docker or on the host.
 
@@ -204,13 +209,13 @@ alternative is an app that signs tokens with a secret nobody chose.
 dotnet test BillsMinimalApi/BillsMinimalApi.sln
 ```
 
-126 integration tests covering the full API surface — CRUD, optimistic
+136 integration tests covering the full API surface — CRUD, optimistic
 concurrency, validation, UTC round-tripping, the paged list endpoint's paging,
 filtering, searching and sorting, the report aggregates, the health probes, the
-correlation-ID header, and the auth rules: registration and login, 401 without a
-token, and one user getting **404** rather than 403 on another user's bill for
-GET, PUT and DELETE alike. 403 would confirm the bill exists, which is a thing
-user B should not be able to learn.
+correlation-ID header, the rate limiter and the account lockout, and the auth
+rules: registration and login, 401 without a token, and one user getting **404**
+rather than 403 on another user's bill for GET, PUT and DELETE alike. 403 would
+confirm the bill exists, which is a thing user B should not be able to learn.
 
 **The tests need a running Docker daemon.** They use
 [Testcontainers](https://dotnet.testcontainers.org/) to start a throwaway

@@ -49,6 +49,9 @@ BillsMinimalApi/
 ├── Queries/
 │   ├── BillQueryable.cs          composable IQueryable filters, search, sort
 │   └── BillSummaryBuilder.cs     the report aggregates, computed in Postgres
+├── RateLimiting/
+│   ├── RateLimitOptions.cs       the RateLimiting config section
+│   └── RateLimitSetup.cs         the two limiters and the 429 response
 ├── BillsMinimalApi.http          ready-made requests for VS Code / Rider
 └── Program.cs                    DI, migrate-on-startup, middleware
 ```
@@ -196,9 +199,43 @@ minutes (`Jwt:LifetimeMinutes`) and carry the user id in `sub` — the id, not t
 email, because that is what `Bill.OwnerId` stores and it is the one thing about
 an account that never changes.
 
-Login answers "no such account" and "wrong password" identically. Distinguishing
-them turns the endpoint into a way to ask whether a given person has an account
-here.
+### Guessing at the sign-in endpoint
+
+Login answers "no such account", "wrong password" and "account locked"
+identically — same status, same body. Distinguishing them turns the endpoint into
+a way to ask whether a given person has an account here.
+
+Saying the same thing is not enough on its own, because taking a different amount
+of time to say it leaks the same fact. A real account costs a PBKDF2 hash; a
+made-up one costs an index lookup that misses. So the miss branch verifies the
+password against a decoy hash it will never match, which puts the two paths
+within a few milliseconds of each other:
+
+| Attempt | Time |
+|---|---|
+| No such account | 34.8 ms |
+| Account exists but is locked | 34.8 ms |
+| Account exists, wrong password | 38.8 ms |
+
+*(24 samples each over a local socket.)*
+
+The residual 4 ms is not the lookup — that costs nothing measurable. It is the
+database write that records the failed attempt, and that write is what makes the
+leak self-limiting: after five failures the account is locked for 15 minutes and
+joins the 34.8 ms group. With sign-in also capped at ten attempts a minute per
+IP, that is not a budget an enumeration attack can work with.
+
+Lockout is per **account**, not per caller, which is the half a rate limiter
+cannot do: an attacker with a thousand hosts gets a thousand IP budgets but still
+only five guesses per account. Pointed the other way it is a denial of service —
+anyone who knows your email can lock you out — so the window is 15 minutes rather
+than hours: long enough to make brute force hopeless at twenty guesses an hour,
+short enough that being griefed is an annoyance rather than an eviction.
+
+> One thing this does **not** close: `/auth/register` still reports "email is
+> already taken", because a registration form that cannot tell you why it
+> refused you is a bad form. So the fact is obtainable there — just not silently,
+> at ten attempts a minute, and only for addresses somebody tries to register.
 
 ### Everything is private by default
 
@@ -292,8 +329,8 @@ Bills live under one base route:
 
 | Method | Route | Success | Failure |
 |---|---|---|---|
-| `POST` | `/auth/register` | 200 + token | 400 |
-| `POST` | `/auth/login` | 200 + token | 401 |
+| `POST` | `/auth/register` | 200 + token | 400, **429** |
+| `POST` | `/auth/login` | 200 + token | 401, **429** |
 | `GET` | `/auth/me` | 200 | 401 |
 | `GET` | `/restapi/BillDtos` | 200 + one page | — |
 | `GET` | `/restapi/BillDtos/summary` | 200 + aggregates | — |
@@ -309,6 +346,10 @@ Every `/restapi` row also answers **401** without a bearer token — only
 the three `{id}` routes answer **404** for a bill belonging to somebody else,
 rather than 403. See
 [Ownership is a property of the model](#ownership-is-a-property-of-the-model).
+
+Every row except the two `/health` probes can also answer **429**; the two
+`/auth` rows have a far tighter budget than the rest. See
+[Rate limiting](#rate-limiting).
 
 `BillsMinimalApi.http` has a ready-made request for each of these.
 
@@ -412,6 +453,65 @@ anywhere real.
 `UseCors` runs before `UseAuthentication`, because a preflight `OPTIONS` carries
 no `Authorization` header and would be rejected before it could be answered
 otherwise.
+
+### Rate limiting
+
+Two limits, because sign-in and everything else are not the same problem:
+
+| Limit | Applies to | Budget | Shape |
+|---|---|---|---|
+| `RateLimiting:Auth` | `/auth/login`, `/auth/register` | 10 / minute | sliding window, 6 segments |
+| `RateLimiting:Global` | everything else | 300 / minute | fixed window |
+
+Ten a minute is generous for a person mistyping a password and hopeless for
+anything working through a list. Three hundred is far above what using the app
+costs — the bills table issues a handful of requests per page view — and far
+below what scripting it does.
+
+The sign-in limiter slides and the general one does not, which is the whole
+difference between the two: a fixed window lets a caller spend a full budget at
+11:59:59 and another at 12:00:00, doubling the guesses per minute for free. That
+boundary burst is a non-event at 300 requests and exactly the thing being
+prevented at 10.
+
+Both are counted **per client IP, per instance**. Per instance means the real
+ceiling is the limit times the number of replicas; per IP means
+`Connection.RemoteIpAddress`, which is the caller's own address only when nothing
+sits in front of the app. Behind a reverse proxy every request arrives from the
+same address and one client's budget becomes everybody's, so a real deployment
+has to add `UseForwardedHeaders` with the proxy explicitly trusted — reading
+`X-Forwarded-For` without that is worse than not reading it, since the header is
+caller-supplied and anyone can spend a fresh budget per made-up address.
+
+`UseRateLimiter` sits after `UseCors` and before `UseAuthentication`: after CORS
+so a browser can see a 429 as a 429 rather than an opaque network error, before
+authentication so a flood is refused without first paying to validate the token
+attached to it.
+
+The health probes opt out entirely with `DisableRateLimiting()`, which exempts
+them from the global limiter and not just from endpoint policies. This is
+load-bearing: a throttled probe reads as a failed probe, so under exactly the
+traffic spike a rate limiter exists to survive, Docker would start getting 429s
+from `/health/live` and restart the container — turning a slow ten minutes into a
+restart loop.
+
+A refusal is a problem document like every other error, with the wait attached:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+Content-Type: application/problem+json
+
+{ "title": "Too many requests.", "status": 429, "detail": "…Try again shortly." }
+```
+
+That header does not come for free. `SlidingWindowRateLimiter` is the one limiter
+in `System.Threading.RateLimiting` that advertises `RETRY_AFTER` in its
+`MetadataNames` and then never supplies a value — so the sign-in limiter, whose
+429s a real client is far likelier to meet, is precisely the one that would go
+out bare. `RateLimitSetup` falls back to the configured window, which overstates
+the wait for a sliding window that frees a sixth of its budget at a time; making
+a well-behaved client wait too long is the safe direction to be wrong in.
 
 ### GET — a page of bills
 
@@ -620,15 +720,17 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-126 integration tests in `../tests/BillsMinimalApi.Tests/`, running against a
+136 integration tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth
 rules: registration and login, 401 without a bearer token, and one user getting
 **404** rather than 403 on another user's bill — for GET, PUT and DELETE alike,
-since a 403 on any one of the three would confirm the row exists — plus the two
+since a 403 on any one of the three would confirm the row exists — plus the
 things that are invisible until they break: that the health probes answer
-without a token, and that a hostile `X-Correlation-ID` never reaches the log.
+without a token, that a hostile `X-Correlation-ID` never reaches the log, that a
+locked account is indistinguishable from a wrong password, and that a 429 arrives
+as a problem document with a `Retry-After` header.
 
 The fixture registers two accounts once per run and hands out an authenticated
 `HttpClient` for each: `Client`, which every pre-existing test already used and
@@ -638,6 +740,15 @@ tests but deliberately leaves `AspNetUsers` alone — clearing it would invalida
 the two tokens already handed out and force a re-login before every test.
 **A running Docker daemon is required.** See the
 [root README](../README.md#tests).
+
+Two consequences of that shared host are worth knowing before you add a test.
+`TestServer` has no socket, so `Connection.RemoteIpAddress` is null and the
+limiter files the entire run into one partition — the fixture therefore raises
+both limits out of the way, and `RateLimitTests` builds a host of its own with
+limits small enough to reach on purpose. And because `AspNetUsers` survives
+`ResetAsync`, `LoginHardeningTests` registers a throwaway account per test rather
+than borrowing the shared one: locking that user out would fail every later test
+that signs in.
 
 ## Database seeding
 

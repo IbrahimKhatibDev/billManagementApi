@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BillsMinimalApi.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace BillsMinimalApi.Endpoints;
@@ -55,6 +56,14 @@ public static class HealthEndpoints
             ResponseWriter = WriteJson,
         })
         .AllowAnonymous()
+        // DisableRateLimiting on both, and it is load-bearing for the same reason
+        // AllowAnonymous is. The probes are exempt from the global limit because
+        // a throttled probe reads as a failed probe: under exactly the traffic
+        // spike a rate limiter exists to survive, Docker would start getting 429s
+        // from /health/live and restart the container, which is how a slow ten
+        // minutes becomes a restart loop. Both probes are cheap and neither
+        // touches the partition key an attacker controls.
+        .DisableRateLimiting()
         .WithTags("Health");
 
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
@@ -63,6 +72,7 @@ public static class HealthEndpoints
             ResponseWriter = WriteJson,
         })
         .AllowAnonymous()
+        .DisableRateLimiting()
         .WithTags("Health");
     }
 

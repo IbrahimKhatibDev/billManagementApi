@@ -69,6 +69,22 @@ public sealed class PostgresApiFixture : IAsyncLifetime
             "ConnectionStrings__DefaultConnection",
             _container.GetConnectionString());
 
+        // Rate limiting effectively off for the shared host, for the same
+        // before-the-factory reason.
+        //
+        // Under TestServer there is no socket, so Connection.RemoteIpAddress is
+        // null and every request in the suite falls into the limiter's one
+        // "unknown" partition — the whole run shares a single budget. Several
+        // hundred requests arrive in a couple of seconds, so the production
+        // limits would start returning 429 partway through and fail whichever
+        // tests happened to be running at the time. Which ones would depend on
+        // ordering and machine speed, which is the worst kind of failure to own.
+        //
+        // RateLimitTests builds its own host with real limits instead, so the
+        // limiter is still exercised — just not by every test at once.
+        Environment.SetEnvironmentVariable("RateLimiting__Global__PermitLimit", "1000000");
+        Environment.SetEnvironmentVariable("RateLimiting__Auth__PermitLimit", "1000000");
+
         _factory = new WebApplicationFactory<Program>();
 
         // Booting the host runs MigrateAsync() and DbSeeder for real, so the
