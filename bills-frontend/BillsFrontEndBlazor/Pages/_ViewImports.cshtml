@@ -1,0 +1,10 @@
+@* Razor Pages only — the Blazor components next door take their usings from
+   _Imports.razor instead. Added when the account pages arrived: they need the
+   form and anchor tag helpers, and a tag helper registered only in a layout is
+   not registered for the pages that use it. *@
+@using Microsoft.AspNetCore.Authorization
+@using BillsFrontEndBlazor
+@using BillsFrontEndBlazor.Models
+@using BillsFrontEndBlazor.Services
+@namespace BillsFrontEndBlazor.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

@@ -1,0 +1,63 @@
+@page
+@model BillsFrontEndBlazor.Pages.Account.LoginModel
+@{
+    Layout = "_AccountLayout";
+    ViewData["Title"] = "Sign in";
+}
+
+<h1 class="account-title">Sign in</h1>
+<p class="account-subtitle">Your bills, and nobody else's.</p>
+
+@if (Model.Errors.Count > 0)
+{
+    <div class="alert alert-danger py-2 px-3 mb-3" role="alert">
+        @foreach (var error in Model.Errors)
+        {
+            <div><i class="bi bi-exclamation-triangle-fill me-1"></i> @error</div>
+        }
+    </div>
+}
+
+@* No asp-page/asp-route attributes, so the form posts back to this exact URL —
+   query string included, which is what carries ReturnUrl through. The hidden
+   field below makes that explicit rather than relying on it. *@
+<form method="post">
+    <input type="hidden" asp-for="ReturnUrl" />
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.Email">Email</label>
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <input class="form-control" asp-for="Input.Email" type="email"
+                   autocomplete="username" autofocus placeholder="you@example.com" />
+        </div>
+        <span class="text-danger small" asp-validation-for="Input.Email"></span>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" asp-for="Input.Password">Password</label>
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <input class="form-control" asp-for="Input.Password" type="password"
+                   autocomplete="current-password" placeholder="Your password" />
+        </div>
+        <span class="text-danger small" asp-validation-for="Input.Password"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Sign in
+    </button>
+</form>
+
+<p class="account-alt">
+    No account yet? <a asp-page="Register" asp-route-ReturnUrl="@Model.ReturnUrl">Create one</a>
+</p>
+
+@* Only ever a demo. The seeded account exists so a reviewer opening the deployed
+   link has something to look at without signing up; its credentials are in the
+   README as well, so printing them here reveals nothing that was secret. *@
+<div class="account-demo">
+    <i class="bi bi-info-circle me-1"></i>
+    Just looking? Sign in as
+    <code>@LoginModel.DemoEmail</code> / <code>@LoginModel.DemoPassword</code>.
+</div>

@@ -1,3 +1,4 @@
+using BillsMinimalApi.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -21,6 +22,10 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
             .UseNpgsql(connectionString)
             .Options;
 
-        return new AppDbContext(options);
+        // NoCurrentUser because there is no request here. The ownership query
+        // filter is part of the model either way, but scaffolding a migration
+        // only reads the model's shape — it never runs a query through the
+        // filter — so "nobody" is the honest answer rather than a limitation.
+        return new AppDbContext(options, new NoCurrentUser());
     }
 }

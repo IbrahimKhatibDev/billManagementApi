@@ -98,6 +98,67 @@
     color: #fff;
 }
 
+/* flex: 0 0 auto so it keeps its height and sits on the floor of the shell —
+   .nav-links above it is the part that grows and scrolls. */
+.nav-account {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    flex: 0 0 auto;
+    padding: .75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nav-account-user {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    height: 2.25rem;
+    padding: 0 .75rem;
+    font-size: .8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.nav-account-user i,
+.nav-signout i {
+    flex: 0 0 1.25rem;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+/* An email is long enough to run past 15rem of sidebar, and wrapping it would
+   push the sign-out button around. title= on the row carries the full address. */
+.nav-account-user .nav-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Styled to match .nav-link above rather than as a Bootstrap button: it sits in
+   the same column as the navigation and should not look like a different kind
+   of control. */
+.nav-signout {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    width: 100%;
+    height: 2.75rem;
+    padding: 0 .75rem;
+    border: 0;
+    border-radius: .5rem;
+    background: transparent;
+    color: #9aa3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.nav-signout:hover,
+.nav-signout:focus-visible {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+}
+
 /* Below the breakpoint the sidebar is a drawer and the rail rules below are
    switched off, so this button would toggle a class nothing responds to. The
    backdrop and the nav links are what dismiss the drawer. */
@@ -131,6 +192,18 @@
     }
 
     .nav-shell.railed ::deep .nav-link {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .nav-shell.railed .nav-account {
+        padding: .75rem .625rem;
+    }
+
+    /* The labels are already hidden by the .nav-label rule above; without these
+       the icons would still be sitting at the left edge of a 4.5rem rail. */
+    .nav-shell.railed .nav-account-user,
+    .nav-shell.railed .nav-signout {
         justify-content: center;
         padding: 0;
     }

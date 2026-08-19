@@ -561,3 +561,79 @@ th.sortable {
 .toast-host {
     z-index: 1090;
 }
+
+/* ---------------------------------------------------------------------------
+   Account pages (sign in, register, sign out)
+   --------------------------------------------------------------------------- */
+
+/* These render under _AccountLayout, which has none of the app chrome — no nav
+   rail, no .content padding — so the centring has to happen here. The gradient
+   is the dashboard hero's, reused so the first screen a visitor sees belongs to
+   the same product as the one behind it. */
+.account-body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0d6efd, #6f42c1);
+}
+
+.account-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.account-card {
+    width: 100%;
+    max-width: 26rem;
+    background: #fff;
+    border-radius: .75rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,.2);
+    padding: 2rem;
+}
+
+.account-brand {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 600;
+    color: #6f42c1;
+    margin-bottom: 1.5rem;
+}
+
+    .account-brand i {
+        font-size: 1.5rem;
+    }
+
+.account-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: .25rem;
+}
+
+.account-subtitle {
+    color: #6c757d;
+    font-size: .9375rem;
+    margin-bottom: 1.5rem;
+}
+
+.account-alt {
+    text-align: center;
+    font-size: .9375rem;
+    color: #6c757d;
+    margin: 1.25rem 0 0;
+}
+
+/* Set apart from the form rather than styled as another alert: it is a hint for
+   someone browsing, not something that went wrong. */
+.account-demo {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f1f3f5;
+    font-size: .8125rem;
+    color: #6c757d;
+}
+
+    .account-demo code {
+        color: #6f42c1;
+    }

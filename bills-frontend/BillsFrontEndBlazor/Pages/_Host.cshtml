@@ -1,6 +1,14 @@
-﻿@page "/"
+@page "/"
 @namespace BillsFrontEndBlazor.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@* The whole app is behind this one attribute. It has to be here rather than only
+   on the fallback route in Program.cs: this file declares @page "/", so
+   MapRazorPages registers "/" as a literal route, and a literal route beats the
+   fallback. Without the attribute the fallback's RequireAuthorization would
+   guard every address except the home page. *@
+@attribute [Authorize]
+
 @{
     Layout = "_Layout";
 }

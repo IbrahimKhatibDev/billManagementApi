@@ -1,4 +1,6 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using BillsMinimalApi.Contracts;
 using BillsMinimalApi.Data;
 using BillsMinimalApi.Dtos;
 using BillsMinimalApi.Models;
@@ -29,7 +31,31 @@ public sealed class PostgresApiFixture : IAsyncLifetime
 
     private WebApplicationFactory<Program>? _factory;
 
+    /// <summary>
+    /// Authenticated as the primary test user. Every pre-auth test used this
+    /// client already, so attaching a token here rather than making each test
+    /// log in kept the whole existing suite unchanged.
+    /// </summary>
     public HttpClient Client { get; private set; } = default!;
+
+    /// <summary>
+    /// A second, unrelated account. The point of the isolation tests: data
+    /// arranged through this client must be invisible through
+    /// <see cref="Client"/>, and vice versa.
+    /// </summary>
+    public HttpClient OtherClient { get; private set; } = default!;
+
+    /// <summary>
+    /// No <c>Authorization</c> header at all — for asserting that endpoints are
+    /// closed rather than merely scoped.
+    /// </summary>
+    public HttpClient AnonymousClient { get; private set; } = default!;
+
+    /// <summary>Identity id of the user behind <see cref="Client"/>.</summary>
+    public string OwnerId { get; private set; } = string.Empty;
+
+    /// <summary>Identity id of the user behind <see cref="OtherClient"/>.</summary>
+    public string OtherOwnerId { get; private set; } = string.Empty;
 
     public async Task InitializeAsync()
     {
@@ -48,8 +74,48 @@ public sealed class PostgresApiFixture : IAsyncLifetime
         // Booting the host runs MigrateAsync() and DbSeeder for real, so the
         // migration and the seeder's UTC handling are exercised on every run
         // before a single test body executes.
-        Client = _factory.CreateClient();
+        AnonymousClient = _factory.CreateClient();
+
+        // Registered once for the whole run rather than per test: ResetAsync
+        // truncates Bills and leaves AspNetUsers alone, so these two accounts and
+        // their tokens stay valid throughout. Registering per test would add a
+        // password hash — deliberately expensive — to every single one.
+        //
+        // The API signs with a key generated at startup (Development, no
+        // Jwt__SigningKey set), which is exactly why the tokens are minted here
+        // from the running host instead of being constructed by the test.
+        (Client, OwnerId) = await RegisterAsync("user-a@tests.local");
+        (OtherClient, OtherOwnerId) = await RegisterAsync("user-b@tests.local");
     }
+
+    private async Task<(HttpClient Client, string UserId)> RegisterAsync(string email)
+    {
+        var response = await AnonymousClient.PostAsJsonAsync("/auth/register", new RegisterRequest
+        {
+            Email = email,
+            Password = "Test-Password-1",
+        });
+
+        response.EnsureSuccessStatusCode();
+        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>())!;
+
+        var client = _factory!.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", auth.Token);
+
+        // Read back from /auth/me rather than decoding the token: it is the id
+        // the API itself puts on OwnerId, so a test comparing against it is
+        // comparing against the server's own answer.
+        var me = await client.GetFromJsonAsync<MeResponse>("/auth/me");
+
+        return (client, me!.Id);
+    }
+
+    /// <summary>
+    /// Shape of <c>GET /auth/me</c>, which returns an anonymous type on the
+    /// server side and so has nothing in the API to deserialize into.
+    /// </summary>
+    private sealed record MeResponse(string Id, string Email);
 
     public async Task DisposeAsync()
     {
@@ -65,6 +131,13 @@ public sealed class PostgresApiFixture : IAsyncLifetime
     /// Clears the table so each test starts from a known state. The seeder's 25
     /// random rows prove the host boots and nothing else, so tests arrange their
     /// own data.
+    /// <para>
+    /// Bills only — the two registered accounts have to outlive this, or the
+    /// tokens handed out in <see cref="InitializeAsync"/> would name users that
+    /// no longer exist. CASCADE is safe for the same reason it is unnecessary:
+    /// it truncates tables holding foreign keys <em>into</em> Bills, and nothing
+    /// does. Bills points at AspNetUsers, not the reverse.
+    /// </para>
     /// </summary>
     public async Task ResetAsync()
     {
@@ -76,25 +149,41 @@ public sealed class PostgresApiFixture : IAsyncLifetime
     /// <summary>
     /// Reads a bill straight out of the database, bypassing the API — the audit
     /// columns the tests assert on are server-owned and not on the DTO.
+    /// <para>
+    /// <c>IgnoreQueryFilters</c> is load-bearing. This runs in a scope of its own
+    /// with no HTTP request behind it, so <c>ICurrentUser.Id</c> is null and the
+    /// ownership filter would match nothing — every call would return null and
+    /// every assertion built on it would fail for a reason having nothing to do
+    /// with what the test is about. Ignoring the filter is also what lets a test
+    /// assert on <see cref="Bill.OwnerId"/> at all.
+    /// </para>
     /// </summary>
     public async Task<Bill?> ReadEntityAsync(long id)
     {
         await using var scope = _factory!.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.Bills.AsNoTracking().SingleOrDefaultAsync(b => b.Id == id);
+        return await db.Bills
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(b => b.Id == id);
     }
 
     /// <summary>
     /// Arranges one bill through the API rather than the DbContext, so it takes
     /// the same mapping and stamping path the tests are asserting against.
     /// </summary>
+    /// <param name="client">
+    /// Whose bill it is. Defaults to the primary user; pass
+    /// <see cref="OtherClient"/> to arrange data the primary user must not see.
+    /// </param>
     public async Task<BillDto> CreateBillAsync(
         string payeeName = "Acme Corp",
         decimal paymentDue = 100.00m,
         bool paid = false,
-        DateTime? dueDate = null)
+        DateTime? dueDate = null,
+        HttpClient? client = null)
     {
-        var response = await Client.PostAsJsonAsync(Routes.Bills, new BillDto
+        var response = await (client ?? Client).PostAsJsonAsync(Routes.Bills, new BillDto
         {
             PayeeName = payeeName,
             DueDate = dueDate ?? new DateTime(2026, 3, 15, 0, 0, 0, DateTimeKind.Utc),
@@ -105,11 +194,31 @@ public sealed class PostgresApiFixture : IAsyncLifetime
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<BillDto>())!;
     }
+
+    /// <summary>
+    /// Fetches one page of the list endpoint. The query string is written out
+    /// literally rather than built from <see cref="BillQuery"/>, so a test
+    /// exercises the same parsing a browser would rather than the round trip of
+    /// the type that does the parsing.
+    /// </summary>
+    public async Task<PagedResult<BillDto>> GetPageAsync(string? query = null, HttpClient? client = null)
+    {
+        var url = string.IsNullOrEmpty(query) ? Routes.Bills : $"{Routes.Bills}?{query}";
+        return (await (client ?? Client).GetFromJsonAsync<PagedResult<BillDto>>(url))!;
+    }
+
+    public async Task<BillSummary> GetSummaryAsync(string? query = null, HttpClient? client = null)
+    {
+        var url = string.IsNullOrEmpty(query) ? Routes.Summary : $"{Routes.Summary}?{query}";
+        return (await (client ?? Client).GetFromJsonAsync<BillSummary>(url))!;
+    }
 }
 
 public static class Routes
 {
     public const string Bills = "/restapi/BillDtos";
+
+    public const string Summary = Bills + "/summary";
 }
 
 /// <summary>

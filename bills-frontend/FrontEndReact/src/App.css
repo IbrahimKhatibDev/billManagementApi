@@ -105,6 +105,36 @@ tr.editing {
   background: #26304a !important;
 }
 
+/* ---- PAGING ---- */
+.results-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+/* Sits between the two page buttons, and pushes them to the edges. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.pager button:disabled {
+  color: #6a6a6a;
+  cursor: default;
+}
+
+.pager button:disabled:hover {
+  background: #2d2d2d;
+}
+
+.muted {
+  color: #9a9a9a;
+  font-size: 0.9rem;
+}
+
 /* ---- SPACING ---- */
 label {
   font-size: 0.9rem;
@@ -161,5 +191,81 @@ hr {
 
 .create-table button:hover {
   background: #5156d8;
+}
+
+/* ---- HEADER ---- */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-account {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ---- SIGN IN ---- */
+.signin-container {
+  max-width: 26rem;
+}
+
+.signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* The inputs are block so the label sits above rather than beside them — the
+   rule at the top of this file only styles the boxes, not their layout. */
+.signin-form input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.signin-form button {
+  margin-top: 0.3rem;
+  padding: 8px;
+  font-weight: 600;
+}
+
+.signin-errors {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem 0.6rem 1.8rem;
+  border: 1px solid #5c2b2b;
+  border-radius: 5px;
+  background: #2a1a1a;
+  color: #f1a9a9;
+  font-size: 0.9rem;
+}
+
+/* A link in everything but markup — it is a button because it changes what this
+   form does rather than going anywhere. */
+.signin-switch button {
+  padding: 0;
+  background: none;
+  color: #7f96ff;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+.signin-switch button:hover {
+  background: none;
+  color: #a3b4ff;
+}
+
+.signin-demo {
+  margin-bottom: 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid #2c2c2c;
+  font-size: 0.8rem;
+}
+
+.signin-demo code {
+  color: #9aa8ff;
 }
 

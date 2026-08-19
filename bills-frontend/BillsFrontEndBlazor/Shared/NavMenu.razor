@@ -1,3 +1,5 @@
+@inject NavigationManager Nav
+
 @* The rail class lives on this element rather than on .page so that everything
    NavMenu.razor.css needs to know is inside NavMenu's own scope — otherwise the
    label/icon rules would have to reach up through the layout with ::deep. *@
@@ -34,6 +36,31 @@
             <span class="nav-label">Reports</span>
         </NavLink>
     </nav>
+
+    @* No <NotAuthorized> half: nothing renders this menu unless you are signed
+       in, so the only case worth handling is the signed-in one. *@
+    <AuthorizeView>
+        <Authorized>
+            <div class="nav-account">
+                <div class="nav-account-user" title="@context.User.Identity?.Name">
+                    <i class="bi bi-person-circle"></i>
+                    <span class="nav-label">@context.User.Identity?.Name</span>
+                </div>
+
+                @* A button, not an anchor. Blazor's router intercepts same-origin
+                   anchor clicks and looks for a matching component route — and
+                   /Account/Logout is a Razor Page, not a component, so a link
+                   there would render "nothing at this address" without ever
+                   asking the server. forceLoad is what makes it a real
+                   navigation. *@
+                <button type="button" class="nav-signout" title="Sign out"
+                        @onclick="@(() => Nav.NavigateTo("Account/Logout", forceLoad: true))">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span class="nav-label">Sign out</span>
+                </button>
+            </div>
+        </Authorized>
+    </AuthorizeView>
 </div>
 
 @code {

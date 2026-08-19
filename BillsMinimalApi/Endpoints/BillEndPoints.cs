@@ -1,7 +1,9 @@
+using BillsMinimalApi.Contracts;
 using BillsMinimalApi.Data;
 using BillsMinimalApi.Dtos;
 using BillsMinimalApi.Mappers;
 using BillsMinimalApi.Models;
+using BillsMinimalApi.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace BillsMinimalApi.Endpoints
@@ -13,11 +15,80 @@ namespace BillsMinimalApi.Endpoints
             var group = app.MapGroup("/restapi/BillDtos")
                        .WithTags("Bills");
 
-            // GET ALL
-            group.MapGet("/", async (AppDbContext db) =>
+            // GET A PAGE
+            //
+            // This used to be `db.Bills.ToListAsync()` — every row, every time,
+            // with the client left to filter, sort and paginate it. The work now
+            // happens in Postgres: the filters below compose into a single
+            // statement whose LIMIT is what bounds the response, and pageSize is
+            // clamped in BillQuery.Parse so that asking for the whole table is
+            // not an option a client has.
+            group.MapGet("/", async (
+                AppDbContext db,
+                CancellationToken cancellationToken,
+                int? page = null,
+                int? pageSize = null,
+                string? search = null,
+                string? status = null,
+                string? sort = null,
+                string? dir = null,
+                DateTime? from = null,
+                DateTime? to = null) =>
             {
-                var bills = await db.Bills.ToListAsync();
-                return Results.Ok(bills.Select(BillMapper.ToDto));
+                var query = BillQuery.Parse(page, pageSize, search, status, sort, dir, from, to);
+
+                // Read once and pass it down: "overdue" is a comparison against
+                // today, and a request that straddled midnight would otherwise
+                // count with one date and page with another.
+                var today = UtcDateTime.Today;
+
+                var filtered = db.Bills
+                    .AsNoTracking()
+                    .ApplyFilters(query, today);
+
+                var totalCount = await filtered.CountAsync(cancellationToken);
+
+                // Clamp to the last page rather than serving an empty one. The
+                // set can shrink under a client that is standing on page 5 —
+                // a delete, or another user's write — and an empty table with
+                // "showing 0 of 40" reads as a bug.
+                var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)query.PageSize));
+                var currentPage = Math.Clamp(query.Page, 1, totalPages);
+
+                // Materialise the page first, then map. BillMapper.ToDto is a
+                // method call EF cannot translate, and inlining the projection
+                // here instead would leave two definitions of what a BillDto is.
+                var rows = await filtered
+                    .ApplySort(query)
+                    .Skip((currentPage - 1) * query.PageSize)
+                    .Take(query.PageSize)
+                    .ToListAsync(cancellationToken);
+
+                return Results.Ok(new PagedResult<BillDto>
+                {
+                    Items = rows.Select(BillMapper.ToDto).ToList(),
+                    Page = currentPage,
+                    PageSize = query.PageSize,
+                    TotalCount = totalCount,
+                });
+            });
+
+            // GET THE REPORT
+            //
+            // Before the id route, or "/summary" would be tried against
+            // "/{id:long}" first. It does not match — the constraint sees to
+            // that — but relying on a route constraint to disambiguate two
+            // endpoints is a fragile thing to leave lying around.
+            group.MapGet("/summary", async (
+                AppDbContext db,
+                CancellationToken cancellationToken,
+                DateTime? from = null,
+                DateTime? to = null) =>
+            {
+                var summary = await BillSummaryBuilder.BuildAsync(
+                    db, from, to, UtcDateTime.Today, cancellationToken);
+
+                return Results.Ok(summary);
             });
 
             // GET BY ID

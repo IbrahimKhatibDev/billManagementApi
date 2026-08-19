@@ -1,12 +1,33 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Not found</PageTitle>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Sorry, there's nothing at this address.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+@* CascadingAuthenticationState wraps the router so every component below can ask
+   who the user is via <AuthorizeView> or an [CascadingParameter] Task<AuthenticationState>. *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @* Reaching here means the cookie expired while the circuit was
+                       still open — the page loaded authenticated and the sign-in
+                       lapsed underneath it. Redirecting from a component would be
+                       a client-side navigation that never touches the server's
+                       login path, so it says what happened and lets the reload do
+                       the work. *@
+                    <PageTitle>Session ended</PageTitle>
+                    <div class="alert alert-warning m-4" role="alert">
+                        <h4 class="alert-heading">Your session has ended</h4>
+                        <p class="mb-0">
+                            Reload the page to sign in again — anything you had
+                            open is still saved.
+                        </p>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

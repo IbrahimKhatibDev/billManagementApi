@@ -26,13 +26,24 @@ services:
 
   api:
     build:
-      context: ./BillsMinimalApi
+      # The repository root, not the project directory: the API and the Blazor
+      # app both reference BillsMinimalApi.Contracts, and a build only sees
+      # what is inside its context. The root .dockerignore keeps that context
+      # from including the whole working tree.
+      context: .
+      dockerfile: BillsMinimalApi/Dockerfile
     environment:
       # Development is deliberate: Program.cs gates UseSwagger on it, and
       # /swagger is the documented way to poke at this API.
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=billdb;Username=bills;Password=bills_dev_password"
+      # A fixed development key, and only that. Program.cs would invent one per
+      # run in Development, which would silently log everybody out on every
+      # `docker compose restart`; pinning it here keeps a token valid across
+      # restarts of the demo stack. It is in source control, so it is public —
+      # anything real gets its key from the deployment environment instead.
+      Jwt__SigningKey: "dev-only-signing-key-not-for-production-32b+"
     ports:
       - "5131:8080"
     depends_on:
@@ -41,7 +52,9 @@ services:
 
   blazor:
     build:
-      context: ./bills-frontend/BillsFrontEndBlazor
+      # Repo root, same reason as the api service above.
+      context: .
+      dockerfile: bills-frontend/BillsFrontEndBlazor/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
@@ -51,6 +64,26 @@ services:
       BillsApi__BaseUrl: "http://api:8080/"
     ports:
       - "5254:8080"
+    depends_on:
+      - api
+
+  react:
+    build:
+      context: ./bills-frontend/FrontEndReact
+      args:
+        # Baked into the bundle at build time, not read at runtime. Unlike the
+        # blazor service above, this one is a static SPA served by nginx: the
+        # request comes from the browser, so it needs the API's published host
+        # port rather than the compose-network name. Change this and the port
+        # mapping on api together.
+        #
+        # The API root, not one endpoint: the client reaches /restapi/BillDtos
+        # and /auth/* and builds both from this.
+        VITE_API_BASE_URL: "http://localhost:5131"
+    # Matches the Vite dev-server port, so the URL is the same whether you run
+    # this in Docker or with `npm run dev`.
+    ports:
+      - "5173:80"
     depends_on:
       - api
 
