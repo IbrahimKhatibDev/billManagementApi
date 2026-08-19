@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi;
 
 LoggingSetup.CreateBootstrapLogger();
@@ -63,7 +64,16 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll", policy =>
         policy.AllowAnyOrigin()
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              // AllowAnyHeader is about the request. A cross-origin caller can
+              // read only a handful of response headers unless the server names
+              // the rest, so without this the React client gets a 429 whose
+              // Retry-After it cannot see and a correlation id it cannot quote
+              // in a bug report — both present on the wire, both absent from
+              // fetch(). Named rather than wildcarded: "*" is ignored by
+              // browsers whenever credentials are involved, and these are the
+              // two headers this API adds.
+              .WithExposedHeaders(HeaderNames.RetryAfter, CorrelationId.HeaderName));
 });
 
 // SIGNING KEY

@@ -457,6 +457,15 @@ a policy naming its allowed headers would have to list that one explicitly. It i
 a development-time default: narrow it to known origins before this is exposed
 anywhere real.
 
+`AllowAnyHeader` governs the *request*, though, and the response has a rule of
+its own: a browser hands script only a short safelist of response headers unless
+the server names the rest. So the policy also carries
+`WithExposedHeaders("Retry-After", "X-Correlation-ID")` — the two headers this
+API adds. Without it both are on the wire and visible in DevTools but unreachable
+from `fetch`, which is the worst version of the bug: `curl` says it works. That
+would leave the React client unable to read how long to wait after a 429, or to
+quote a correlation id into a bug report.
+
 `UseCors` runs before `UseAuthentication`, because a preflight `OPTIONS` carries
 no `Authorization` header and would be rejected before it could be answered
 otherwise.
@@ -727,12 +736,12 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-202 tests across two projects, split by what they need to run:
+204 tests across two projects, split by what they need to run:
 
 | Project | Tests | Needs Docker | Covers |
 |---|---|---|---|
 | `../tests/BillsMinimalApi.UnitTests/` | 65 | no | Arithmetic and parsing with no I/O in it |
-| `../tests/BillsMinimalApi.Tests/` | 137 | **yes** | The API end to end, against a real PostgreSQL |
+| `../tests/BillsMinimalApi.Tests/` | 139 | **yes** | The API end to end, against a real PostgreSQL |
 
 The split is about feedback rather than about taxonomy. Everything in the second
 project boots a host and a container, so the fastest it can be is seconds and
@@ -753,7 +762,7 @@ test running in the container.
 
 #### Integration tests
 
-137 tests in `../tests/BillsMinimalApi.Tests/`, running against a
+139 tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth

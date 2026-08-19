@@ -87,7 +87,10 @@ Two things worth knowing:
 
 The API sets `AllowAnyOrigin`, so these cross-origin calls work without further
 setup — and `AllowAnyHeader`, which is the part that matters once there is a
-token: `Authorization` is not a header CORS lets through by default.
+token: `Authorization` is not a header CORS lets through by default. It also
+exposes `Retry-After` and `X-Correlation-ID`, which is the same rule pointed the
+other way: without that, a response header this client wants to read is on the
+wire and visible in DevTools but absent from the object axios hands back.
 
 ## Signing in
 
