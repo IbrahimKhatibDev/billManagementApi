@@ -44,6 +44,9 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddValidation();
 
+// Liveness and readiness probes. See HealthEndpoints for why there are two.
+builder.Services.AddAppHealthChecks();
+
 // Register CORS policy
 builder.Services.AddCors(options =>
 {
@@ -208,6 +211,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Register endpoints
+app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapBillEndpoints();
 

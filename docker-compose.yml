@@ -49,6 +49,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # /health/ready rather than /health/live: what the services below are
+      # waiting for is an API that can actually reach Postgres, not merely one
+      # whose process has started. -f so a 503 from a failing check is a failed
+      # healthcheck rather than a successful fetch of an error body.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Generous, because the first boot runs migrations and seeds 25 bills
+      # before the app starts serving. Failures during this window do not count
+      # against `retries`.
+      start_period: 45s
 
   blazor:
     build:
@@ -65,7 +78,12 @@ services:
     ports:
       - "5254:8080"
     depends_on:
-      - api
+      # service_healthy, not the bare list form: this app renders bills on first
+      # paint, so starting it the moment the API's container exists — rather
+      # than when the API can serve — shows an error page to anyone quick enough
+      # to load it during startup.
+      api:
+        condition: service_healthy
 
   react:
     build:
@@ -84,6 +102,11 @@ services:
     # this in Docker or with `npm run dev`.
     ports:
       - "5173:80"
+    # Ordering only, deliberately not `condition: service_healthy` like the
+    # blazor service above. This one is nginx serving a static bundle: it has
+    # nothing to fetch at startup, and the browser does not ask the API for
+    # anything until someone signs in. Waiting would delay the login page for
+    # no reason.
     depends_on:
       - api
 

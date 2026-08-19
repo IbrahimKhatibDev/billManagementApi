@@ -31,6 +31,14 @@ RUN dotnet publish BillsMinimalApi/BillsMinimalApi.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+
+# The aspnet image ships neither curl nor wget, and docker-compose.yml's
+# healthcheck for this service needs something that can speak HTTP to
+# /health/ready. Installed before the USER switch below because apt needs root.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 COPY --from=build /app/publish .

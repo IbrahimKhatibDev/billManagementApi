@@ -36,7 +36,8 @@ BillsMinimalApi/
 │   └── BillDto.cs                wire contract + validation attributes
 ├── Endpoints/
 │   ├── AuthEndpoints.cs          /auth/register, /auth/login, /auth/me
-│   └── BillEndPoints.cs          the bills route group
+│   ├── BillEndPoints.cs          the bills route group
+│   └── HealthEndpoints.cs        /health/live, /health/ready
 ├── Mappers/BillMappers.cs        DTO ⇄ entity
 ├── Migrations/                   EF Core migrations (PostgreSQL dialect)
 ├── Models/
@@ -297,13 +298,53 @@ Bills live under one base route:
 | `POST` | `/restapi/BillDtos` | 201 + `Location` | 400 |
 | `PUT` | `/restapi/BillDtos/{id}` | 200 | 400, 404, **409** |
 | `DELETE` | `/restapi/BillDtos/{id}` | 204 | 404 |
+| `GET` | `/health/live` | 200 | — |
+| `GET` | `/health/ready` | 200 | 503 |
 
 Every `/restapi` row also answers **401** without a bearer token — only
-`/auth/register` and `/auth/login` are anonymous — and the three `{id}` routes
-answer **404** for a bill belonging to somebody else, rather than 403. See
+`/auth/register`, `/auth/login` and the two `/health` routes are anonymous — and
+the three `{id}` routes answer **404** for a bill belonging to somebody else,
+rather than 403. See
 [Ownership is a property of the model](#ownership-is-a-property-of-the-model).
 
 `BillsMinimalApi.http` has a ready-made request for each of these.
+
+### Health checks
+
+Two probes, because liveness and readiness are different questions and an
+orchestrator does different things with the answers:
+
+| Route | Asks | Checks | A failure means |
+|---|---|---|---|
+| `/health/live` | Is this process working? | nothing | restart the container |
+| `/health/ready` | Should traffic come here? | Postgres | pull it from the load balancer, leave it running |
+
+Pointing both at the database is the tempting mistake. If liveness depended on
+Postgres, a brief database blip would restart every API instance at once —
+turning a recoverable outage into a herd of cold starts hitting a database that
+is already unwell. So `/health/live` deliberately runs no checks: answering at
+all is the proof.
+
+Both are `AllowAnonymous`, which is load-bearing rather than lax. The fallback
+authorization policy closes every endpoint that does not open itself, and
+Docker's healthcheck presents no bearer token — so without it the probes answer
+401, the `api` container never becomes healthy, and the `blazor` service that
+waits on it never starts. `HealthCheckTests` asserts this so the line cannot be
+quietly dropped.
+
+The response is JSON with the per-check breakdown, rather than the bare word
+`Healthy` the default writer emits:
+
+```json
+{
+  "status": "Healthy",
+  "durationMs": 4.21,
+  "checks": [{ "name": "postgres", "status": "Healthy", "durationMs": 4.10, "error": null }]
+}
+```
+
+`error` carries the exception *message* only. A stack trace on an
+unauthenticated endpoint hands the app's internals to anyone who can reach it.
 
 ### CORS
 
