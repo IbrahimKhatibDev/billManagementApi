@@ -5,15 +5,18 @@
 // already painted, and every load would flash the default theme before
 // switching to the chosen one.
 //
-// The same file also owns the two localStorage keys, so ThemeSwitcher.razor
-// never has to know what they are called.
+// The same file also owns the localStorage key, so ThemeSwitcher.razor never
+// has to know what it is called.
 (function () {
     'use strict';
 
-    var PALETTE_KEY = 'bills.palette';
     var MODE_KEY = 'bills.mode';
-    var PALETTES = ['nocturne', 'current'];
     var MODES = ['light', 'dark'];
+
+    // Left over from when the theme was a palette × mode matrix. Nothing reads
+    // it now; clearing it on the way past keeps a dead key from outliving the
+    // feature in every visitor's browser.
+    var RETIRED_KEY = 'bills.palette';
 
     function readStored(key, allowed, fallback) {
         try {
@@ -27,9 +30,8 @@
         }
     }
 
-    function apply(palette, mode) {
+    function apply(mode) {
         var root = document.documentElement;
-        root.setAttribute('data-palette', palette);
         root.setAttribute('data-mode', mode);
 
         // Bootstrap 5.3 reads this one, and mirroring it is what makes modals,
@@ -40,25 +42,21 @@
     }
 
     function read() {
-        return {
-            palette: readStored(PALETTE_KEY, PALETTES, 'nocturne'),
-            mode: readStored(MODE_KEY, MODES, 'dark')
-        };
+        return readStored(MODE_KEY, MODES, 'dark');
     }
 
-    function save(palette, mode) {
+    function save(mode) {
         try {
-            window.localStorage.setItem(PALETTE_KEY, palette);
             window.localStorage.setItem(MODE_KEY, mode);
+            window.localStorage.removeItem(RETIRED_KEY);
         } catch (e) {
             // See readStored. The choice still applies for this page.
         }
 
-        apply(palette, mode);
+        apply(mode);
     }
 
-    var chosen = read();
-    apply(chosen.palette, chosen.mode);
+    apply(read());
 
     window.billsTheme = { apply: apply, read: read, save: save };
 })();

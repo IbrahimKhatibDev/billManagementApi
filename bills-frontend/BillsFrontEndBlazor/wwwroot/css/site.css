@@ -128,8 +128,8 @@ a, .btn-link {
    The gradient that used to fill .account-body was the dashboard hero's, and the
    hero is gone. What replaces it is what the rest of the app does: the page
    background, with a bordered card on it. _AccountLayout carries the same
-   data-palette and data-mode attributes as _Host, so the sign-in screen is
-   already in whichever theme the visitor last chose. */
+   data-mode attribute as _Host, so the sign-in screen is already in whichever
+   theme the visitor last chose. */
 .account-body {
     background: var(--bg);
     min-height: 100vh;
