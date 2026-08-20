@@ -62,12 +62,34 @@ public sealed class TimelineLayoutTests
     {
         // Wednesday: two days into a seven-day slot, so two sevenths across it.
         // Marking the week boundary instead would put "now" up to six days out.
+        //
+        // Across the slot, not across the bar. With one week the slot is the whole
+        // plot, and the bar is the middle 70% of it — measuring from the bar's
+        // left edge put this at 422.4 when the true two-sevenths is 346.29.
         var wednesday = Monday.AddDays(2);
         var layout = TimelineLayout.Build(new[] { Week(Monday, 100m, 100m) }, wednesday);
-        var bar = layout.Bars[0];
+        var slot = TimelineLayout.PlotRight - TimelineLayout.PlotLeft;
 
         Assert.NotNull(layout.NowX);
-        Assert.Equal(bar.X + (bar.Width * 2 / 7), layout.NowX!.Value, 6);
+        Assert.Equal(TimelineLayout.PlotLeft + (slot * 2 / 7), layout.NowX!.Value, 6);
+    }
+
+    [Fact]
+    public void The_marker_spans_the_whole_week_not_just_its_bar()
+    {
+        // The two ends are what the bar-relative arithmetic could never reach:
+        // Monday sat 15% of a slot late and Sunday stopped 10% short, so the
+        // marker never entered the gap between two bars and never reached the end
+        // of the week it marks. A single week makes the slot the whole plot, so
+        // both bounds are the plot's own.
+        var week = new[] { Week(Monday, 100m, 100m) };
+        var slot = TimelineLayout.PlotRight - TimelineLayout.PlotLeft;
+
+        var monday = TimelineLayout.Build(week, Monday);
+        Assert.Equal(TimelineLayout.PlotLeft, monday.NowX!.Value, 6);
+
+        var sunday = TimelineLayout.Build(week, Monday.AddDays(6));
+        Assert.Equal(TimelineLayout.PlotLeft + (slot * 6 / 7), sunday.NowX!.Value, 6);
     }
 
     [Fact]
@@ -105,6 +127,52 @@ public sealed class TimelineLayoutTests
         Assert.Empty(layout.Bars);
         Assert.Null(layout.NowX);
         Assert.Equal(0m, layout.AxisMax);
+    }
+
+    [Fact]
+    public void One_label_per_month_rather_than_one_per_week()
+    {
+        // Aug 17, 24 and 31, then Sep 7: four bars, two labels.
+        var layout = TimelineLayout.Build(
+            new[]
+            {
+                Week(Monday, 100m, 0m),
+                Week(Monday.AddDays(7), 100m, 0m),
+                Week(Monday.AddDays(14), 100m, 0m),
+                Week(Monday.AddDays(21), 100m, 0m),
+            },
+            Monday);
+
+        Assert.Equal(4, layout.Bars.Count);
+        Assert.Equal(new[] { "Aug", "Sep" }, layout.Ticks.Select(t => t.Label));
+    }
+
+    [Fact]
+    public void The_same_month_a_year_apart_gets_its_own_label()
+    {
+        // WeekBuckets drops the empty weeks between bills once the span passes
+        // MaxWeeks, so two neighbouring entries can be the same month in
+        // different years. Keyed on the month number alone, the second one was
+        // suppressed as a repeat and a year of the chart went unlabelled.
+        var layout = TimelineLayout.Build(
+            new[] { Week(Monday, 100m, 0m), Week(Monday.AddYears(1), 100m, 0m) },
+            Monday);
+
+        Assert.Equal(2, layout.Ticks.Count);
+    }
+
+    [Fact]
+    public void A_book_spanning_more_than_one_year_says_which_year()
+    {
+        // "Aug" twice on the same axis is two labels a reader cannot tell apart.
+        // The year only appears when there is more than one to confuse.
+        var oneYear = TimelineLayout.Build(new[] { Week(Monday, 100m, 0m) }, Monday);
+        Assert.Equal("Aug", oneYear.Ticks[0].Label);
+
+        var twoYears = TimelineLayout.Build(
+            new[] { Week(Monday, 100m, 0m), Week(Monday.AddYears(1), 100m, 0m) },
+            Monday);
+        Assert.Equal(new[] { "Aug 26", "Aug 27" }, twoYears.Ticks.Select(t => t.Label));
     }
 
     [Theory]

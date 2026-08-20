@@ -80,8 +80,13 @@
 
     protected override void OnParametersSet() => _layout = TimelineLayout.Build(Weeks, Today);
 
+    // The year is always spelled out here, unlike the axis, which only adds it
+    // when the book spans one. The axis is a row of labels reading left to right
+    // and can afford to say "Mar" once the year is established; a tooltip is read
+    // on its own, and "Week of Mar 16" on a chart holding five years of bills
+    // does not say which March.
     private static string Tooltip(TimelineBar bar) =>
-        $"Week of {bar.WeekStart:MMM d}: {bar.Unpaid:C} unpaid, {bar.Paid:C} paid";
+        $"Week of {bar.WeekStart:MMM d, yyyy}: {bar.Unpaid:C} unpaid, {bar.Paid:C} paid";
 
     // Invariant: these land in SVG coordinate attributes, which are not
     // culture-aware and would read "12,5" as two values.

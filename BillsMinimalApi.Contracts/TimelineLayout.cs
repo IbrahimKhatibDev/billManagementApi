@@ -56,9 +56,20 @@ public sealed record TimelineLayout(
         var slot = (PlotRight - PlotLeft) / weeks.Count;
         var width = slot * BarFill;
 
+        // MaxWeeks is 260, so a book can legitimately span five years and draw
+        // "Jan" five times with nothing to tell them apart. PaidRateStrip solves
+        // this for its own axis the same way; it was not carried across when this
+        // chart was written alongside it.
+        var spansYears = weeks.Min(w => w.WeekStart.Year) != weeks.Max(w => w.WeekStart.Year);
+
         var bars = new List<TimelineBar>(weeks.Count);
         var ticks = new List<TimelineTick>();
-        var lastMonth = 0;
+
+        // Year and month, not the month alone: WeekBuckets drops the empty weeks
+        // between bills once the span passes MaxWeeks, so two consecutive entries
+        // can be the same month a year apart — and a tick keyed on the month
+        // number would suppress the second one entirely.
+        var lastMonth = (Year: 0, Month: 0);
 
         for (var i = 0; i < weeks.Count; i++)
         {
@@ -84,16 +95,17 @@ public sealed record TimelineLayout(
 
             // One label per month rather than per week — 260 week labels is a
             // grey smear, and the reader is orienting by month anyway.
-            if (week.WeekStart.Month != lastMonth)
+            if ((week.WeekStart.Year, week.WeekStart.Month) != lastMonth)
             {
-                lastMonth = week.WeekStart.Month;
+                lastMonth = (week.WeekStart.Year, week.WeekStart.Month);
                 ticks.Add(new TimelineTick(
                     x + (width / 2),
-                    week.WeekStart.ToString("MMM", CultureInfo.CurrentCulture)));
+                    week.WeekStart.ToString(
+                        spansYears ? "MMM yy" : "MMM", CultureInfo.CurrentCulture)));
             }
         }
 
-        return new TimelineLayout(bars, ticks, ComputeNowX(bars, width, today), axisMax);
+        return new TimelineLayout(bars, ticks, ComputeNowX(bars, slot, today), axisMax);
     }
 
     private static double Scale(decimal amount, decimal axisMax) =>
@@ -109,7 +121,7 @@ public sealed record TimelineLayout(
     /// sharing it with a property is a compile error (CS0102), not an override.
     /// </para>
     /// </summary>
-    private static double? ComputeNowX(List<TimelineBar> bars, double width, DateTime today)
+    private static double? ComputeNowX(List<TimelineBar> bars, double slot, DateTime today)
     {
         var thisWeek = WeekBuckets.StartOfWeek(today);
         var index = bars.FindIndex(b => b.WeekStart == thisWeek);
@@ -123,7 +135,13 @@ public sealed record TimelineLayout(
         // Monday's line is up to four days of error on a chart about timing.
         var dayOfWeek = (today.Date - thisWeek).TotalDays;
 
-        return bars[index].X + (width * dayOfWeek / 7);
+        // Across the week's whole slot, measured from where the slot starts —
+        // not across the bar. The bar is BarFill (0.7) of the slot and inset by
+        // half the remainder, so interpolating over it put Monday 0.15 of a slot
+        // late and Sunday 0.1 of a slot early: the marker could never enter the
+        // gap between bars, and so never reached the end of the week it marks.
+        // That is most of the error this method exists to remove, reintroduced.
+        return PlotLeft + (slot * index) + (slot * dayOfWeek / 7);
     }
 
     /// <summary>

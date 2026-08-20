@@ -381,6 +381,15 @@ public static class BillSummaryBuilder
                 Paid = g.Sum(b => b.Paid ? b.PaymentDue : 0m),
                 Unpaid = g.Sum(b => b.Paid ? 0m : b.PaymentDue),
             })
+            // Bounded, like Priority and Late either side of it. One row per
+            // distinct due date is not one row per bill, but it is not bounded by
+            // anything either: a book spanning decades streams every one of them
+            // back to be folded in memory, on a summary that is rebuilt on every
+            // mark-paid. MaxWeeks * 7 is the widest run of consecutive days the
+            // timeline can draw, so within the horizon the chart documents this
+            // drops nothing; past it the earliest dates are the ones kept.
+            .OrderBy(g => g.Day)
+            .Take(BillSummary.MaxWeeks * 7)
             .ToListAsync(cancellationToken);
 
         return WeekBuckets.FromDays(
