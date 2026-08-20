@@ -33,8 +33,10 @@ public sealed class ParseBillTests(PostgresApiFixture fixture) : ApiTestBase(fix
     {
         // The whole point of the endpoint: the user gets to correct the reading
         // before anything is committed.
-        await Client.PostAsJsonAsync(
+        var response = await Client.PostAsJsonAsync(
             Routes.Parse, new ParseBillRequest { Text = "Verizon 89.20 today" });
+
+        response.EnsureSuccessStatusCode();
 
         var page = await Fixture.GetPageAsync();
 
