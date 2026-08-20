@@ -39,6 +39,14 @@
     --radius-lg: 14px;
     --border-width: 1px;
 
+    /* The wash behind anything modal — the mobile drawer, and the two bill
+       dialogs that draw their own backdrop. Dark in both modes deliberately: a
+       scrim's job is to push the page back, and a pale one over a light page
+       pushes nothing. It is the only colour in the app that does not vary by
+       palette, which is why it sits up here with the metrics rather than in the
+       four blocks below. */
+    --scrim: rgba(0, 0, 0, .5);
+
     --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
