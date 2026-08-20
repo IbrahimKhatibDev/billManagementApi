@@ -3,11 +3,29 @@
     background: var(--surface);
     border: var(--border-width) solid var(--accent);
     border-radius: var(--radius-lg);
-    bottom: 1rem;
     display: flex;
     gap: .85rem;
+    margin-bottom: 1rem;
     padding: .7rem 1rem;
+
+    /* Sticks to the top of the viewport, because that is the edge the bar sits
+       against in the list. An opaque --surface is doing real work here: rows
+       scroll underneath it. */
     position: sticky;
+    top: 0;
+
+    /* Above the rows, below the mobile bar at 1020 and Bootstrap's .modal at
+       1055 — the delete dialog has to cover this. */
+    z-index: 5;
+}
+
+/* The mobile bar is sticky at top: 0 and taller than nothing, so a bar that
+   also stopped at 0 would park underneath it and be unreachable. Same
+   breakpoint and same height as MainLayout's .mobile-bar. */
+@media (max-width: 640.98px) {
+    .bar {
+        top: 3.25rem;
+    }
 }
 
 .label {

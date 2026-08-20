@@ -74,6 +74,23 @@
 
     </div>
 
+    @* Above the list, not below it. The bar acts on the rows you just ticked,
+       and a control that appears under a long list is a control you have to go
+       looking for — the checkboxes are at the top, so the verb is too.
+
+       Outside the groups block on purpose: the selection is pruned to loaded
+       rows on every load, so if this is showing anything there are rows behind
+       it to act on. *@
+    @if (SelectedCount > 0)
+    {
+        <BulkActionBar Count="@SelectedCount"
+                       Total="@SelectedTotal"
+                       PayableCount="@PayableCount"
+                       Busy="@_isBulkWriting"
+                       OnMarkPaid="@MarkSelectedPaidAsync"
+                       OnClear="@ClearSelection" />
+    }
+
     @* Only when there is nothing to show yet. Blanking a list that already has
        rows made every refresh and every paid toggle flash the whole page away
        and back; with rows present the reload just dims. *@
@@ -124,19 +141,6 @@
                 sum above covers those @Rows.Count.
             </p>
         }
-    }
-
-    @* Outside the groups block on purpose: the selection is pruned to loaded
-       rows on every load, so if this is showing anything there are rows behind
-       it to show. *@
-    @if (SelectedCount > 0)
-    {
-        <BulkActionBar Count="@SelectedCount"
-                       Total="@SelectedTotal"
-                       PayableCount="@PayableCount"
-                       Busy="@_isBulkWriting"
-                       OnMarkPaid="@MarkSelectedPaidAsync"
-                       OnClear="@ClearSelection" />
     }
 
     @* Copy verbatim from the design. It earns its place by answering the
