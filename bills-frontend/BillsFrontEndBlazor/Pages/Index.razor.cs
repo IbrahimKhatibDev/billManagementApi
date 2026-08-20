@@ -36,8 +36,15 @@ namespace BillsFrontEndBlazor.Pages
 
         /// <summary>The date the figures were computed against — the server's,
         /// from <see cref="BillSummary.AsOf"/>, so the timeline's "now" marker
-        /// agrees with the bars beside it.</summary>
-        private DateTime _today = DateTime.Today;
+        /// agrees with the bars beside it.
+        /// <para>
+        /// The seed is UTC because that is what the server's answer will be:
+        /// the API reckons today as <c>UtcDateTime.Today</c>, and
+        /// <see cref="DateTime.Today"/> is this host's local date, which west of
+        /// Greenwich is yesterday's between local evening and midnight.
+        /// </para>
+        /// </summary>
+        private DateTime _today = DateTime.UtcNow.Date;
 
         /// <summary>Which late bill is being settled, if any.</summary>
         private long? _busyId;
@@ -103,9 +110,9 @@ namespace BillsFrontEndBlazor.Pages
 
                 _summary = NoData;
 
-                // Back to this machine's date: NoData.AsOf is default(DateTime),
-                // and a "now" marker in year 1 is not a marker.
-                _today = DateTime.Today;
+                // Back to the seed: NoData.AsOf is default(DateTime), and a
+                // "now" marker in year 1 is not a marker.
+                _today = DateTime.UtcNow.Date;
                 _loadFailed = true;
                 Toasts.ShowError("Could not load the overview. Is the API running?");
             }

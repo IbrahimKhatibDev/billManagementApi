@@ -52,8 +52,14 @@ namespace BillsFrontEndBlazor.Pages
         /// are usually the same day, and when they are not it is the response
         /// that decides what "3 days late" means, because the response is where
         /// the number came from.
+        /// <para>
+        /// The seed is UTC for the same reason: the API reckons today as
+        /// <c>UtcDateTime.Today</c>, and <see cref="DateTime.Today"/> is this
+        /// host's local date, which west of Greenwich is yesterday's between
+        /// local evening and midnight.
+        /// </para>
         /// </summary>
-        private DateTime _today = DateTime.Today;
+        private DateTime _today = DateTime.UtcNow.Date;
 
         /// <summary>Bumped on every load so the headline counters replay from
         /// zero. Without it, switching to a range whose totals happen to match
@@ -100,10 +106,13 @@ namespace BillsFrontEndBlazor.Pages
 
             try
             {
-                // The window is resolved against this machine's date to ask the
-                // question; the answer comes back stamped with the date it was
-                // actually computed against, and that is what gets rendered.
-                var (from, to) = _range.Window(DateTime.Today);
+                // UTC, not DateTime.Today. The caption under the presets is drawn
+                // from summary.AsOf — the API's UtcDateTime.Today — while the
+                // window that fetched those figures was cut from this host's
+                // local date. West of Greenwich the two are different days for
+                // the last six hours of the evening, so "Next 3 months" could
+                // say Aug 21 to Nov 21 over a set of bills from Aug 20 to Nov 20.
+                var (from, to) = _range.Window(DateTime.UtcNow.Date);
 
                 var summary = await BillService.GetSummaryAsync(from, to);
 
@@ -123,7 +132,7 @@ namespace BillsFrontEndBlazor.Pages
                 }
 
                 _summary = NoData;
-                _today = DateTime.Today;
+                _today = DateTime.UtcNow.Date;
                 _loadFailed = true;
                 Toasts.ShowError("Could not load reports. Is the API running?");
             }
