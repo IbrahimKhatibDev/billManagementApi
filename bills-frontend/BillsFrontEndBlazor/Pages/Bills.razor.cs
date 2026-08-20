@@ -124,14 +124,12 @@ namespace BillsFrontEndBlazor.Pages
         // Modal state. The two "modals" are plain conditional rendering with
         // Bootstrap's classes — no bootstrap.bundle.js, no JS interop, which
         // matters because IJSRuntime is unusable during the prerender pass.
-        private enum FormMode
-        {
-            None,
-            Create,
-            Edit,
-        }
+        /// <summary>
+        /// Whether the create modal is open. A bool now that the same block no
+        /// longer has to be two forms — editing happens in the rows.
+        /// </summary>
+        private bool _isCreating;
 
-        private FormMode _formMode = FormMode.None;
         private Bill _formBill = new();
         private Bill? _deleteTarget;
         private bool _isSaving;
@@ -504,31 +502,14 @@ namespace BillsFrontEndBlazor.Pages
         private void OpenCreateModal()
         {
             _formBill = new Bill { DueDate = DateTime.Today };
-            _formMode = FormMode.Create;
-        }
-
-        private void OpenEditModal(Bill bill)
-        {
-            // A copy, not the page's instance: cancelling the form must not leave
-            // half-typed values rendered in the row behind it.
-            _formBill = new Bill
-            {
-                Id = bill.Id,
-                PayeeName = bill.PayeeName,
-                DueDate = bill.DueDate,
-                PaymentDue = bill.PaymentDue,
-                Paid = bill.Paid,
-                Version = bill.Version,
-            };
-
-            _formMode = FormMode.Edit;
+            _isCreating = true;
         }
 
         private void OpenDeleteModal(Bill bill) => _deleteTarget = bill;
 
         private void CloseForm()
         {
-            _formMode = FormMode.None;
+            _isCreating = false;
             _isSaving = false;
         }
 
@@ -589,6 +570,64 @@ namespace BillsFrontEndBlazor.Pages
             }
         }
 
+        /// <summary>
+        /// Saves one inline edit. The same optimistic shape as
+        /// <see cref="TogglePaidAsync"/>: apply it, write it, put it back if the
+        /// server refuses.
+        /// </summary>
+        private async Task SaveEditAsync(BillEdit edit)
+        {
+            var bill = edit.Bill;
+
+            // Guards a second edit landing on a bill that already has a write in
+            // flight — the version in hand would be one behind by the time it
+            // arrived, and the second write would 409 against our own first one.
+            if (!_busyIds.Add(bill.Id))
+            {
+                return;
+            }
+
+            // The three editable fields, kept so a refusal can be undone. Cheaper
+            // and more honest than reloading: a failed write should leave the page
+            // exactly as it was, not as the server last saw it.
+            var payee = bill.PayeeName;
+            var dueDate = bill.DueDate;
+            var amount = bill.PaymentDue;
+
+            edit.Apply(bill);
+
+            try
+            {
+                var result = await BillService.UpdateBillAsync(bill);
+
+                if (!result.Success)
+                {
+                    bill.PayeeName = payee;
+                    bill.DueDate = dueDate;
+                    bill.PaymentDue = amount;
+
+                    Toasts.ShowError(result.ToMessage("update"));
+
+                    if (result.IsConflict || result.IsNotFound)
+                    {
+                        AfterWrite();
+                    }
+
+                    return;
+                }
+
+                Toasts.ShowSuccess("Bill updated");
+
+                // A due-date edit can move the row to another group, and every
+                // write bumps Version — so the list has to come back either way.
+                AfterWrite();
+            }
+            finally
+            {
+                _busyIds.Remove(bill.Id);
+            }
+        }
+
         private async Task SaveFormAsync()
         {
             if (_isSaving)
@@ -600,29 +639,17 @@ namespace BillsFrontEndBlazor.Pages
 
             try
             {
-                var creating = _formMode == FormMode.Create;
-
-                var result = creating
-                    ? await BillService.CreateBillAsync(_formBill)
-                    : await BillService.UpdateBillAsync(_formBill);
+                var result = await BillService.CreateBillAsync(_formBill);
 
                 if (!result.Success)
                 {
-                    Toasts.ShowError(result.ToMessage(creating ? "create" : "update"));
-
-                    // A 409 means someone else won the race and our copy is stale,
-                    // and a 404 means the row is gone — in both cases the list on
-                    // screen is wrong, so refresh it before the retry. The form
-                    // stays open with the user's values intact.
-                    if (result.IsConflict || result.IsNotFound)
-                    {
-                        AfterWrite();
-                    }
-
+                    // The form stays open with the values intact, so a rejection
+                    // costs a retry rather than the whole entry.
+                    Toasts.ShowError(result.ToMessage("create"));
                     return;
                 }
 
-                Toasts.ShowSuccess(creating ? "Bill created" : "Bill updated");
+                Toasts.ShowSuccess("Bill created");
                 CloseForm();
                 AfterWrite();
             }

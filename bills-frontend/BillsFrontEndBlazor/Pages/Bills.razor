@@ -113,7 +113,7 @@
                            SelectedIds="@_selectedIds"
                            OnToggleSelected="@ToggleSelected"
                            OnTogglePaid="@TogglePaidAsync"
-                           OnEdit="@OpenEditModal"
+                           OnFieldEdited="@SaveEditAsync"
                            OnDelete="@OpenDeleteModal" />
             }
         </div>
@@ -141,25 +141,33 @@
                        OnClear="@ClearSelection" />
     }
 
+    @* Copy verbatim from the design. It earns its place by answering the
+       question the redesign creates — "where did the edit button go?" — at the
+       moment someone looks for it. *@
+    <p class="footnote">
+        Dates and amounts are editable where they sit — click one. The modal
+        survives only for a bill you are creating from scratch.
+        <button type="button" class="link" @onclick="OpenCreateModal">Open the create form</button>
+    </p>
+
 </div>
 
 
-@* CREATE / EDIT MODAL — one block for both, because they are the same form.
+@* CREATE MODAL. Editing happens in the rows now, so this is the one job the
+   modal still has: a bill that does not exist yet has no row to click.
    "modal fade show d-block" plus a backdrop colour is what makes a Bootstrap
    modal work without bootstrap.bundle.js. *@
-@if (_formMode != FormMode.None)
+@if (_isCreating)
 {
-    var creating = _formMode == FormMode.Create;
-
     <div class="modal fade show d-block" tabindex="-1" role="dialog"
          style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
 
-                <div class="modal-header text-white @(creating ? "bg-success" : "bg-primary")">
+                <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="ph @(creating ? "ph-plus" : "ph-note-pencil") me-2"></i>
-                        @(creating ? "Create Bill" : $"Edit Bill #{_formBill.Id}")
+                        <Icon Name="plus" Size="18" Class="me-2" />
+                        New bill
                     </h5>
                     <button type="button" class="btn-close" aria-label="Close" @onclick="CloseForm"></button>
                 </div>
@@ -169,29 +177,32 @@
 
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Payee Name</label>
-                            <input class="form-control" @bind="_formBill.PayeeName" />
+                            <label class="form-label" for="form-payee">Payee</label>
+                            <input id="form-payee" class="form-control" @bind="_formBill.PayeeName" />
                             <ValidationMessage For="@(() => _formBill.PayeeName)" class="text-danger small" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Due Date</label>
-                            <input type="date" class="form-control" @bind="_formBill.DueDate" />
+                            <label class="form-label" for="form-due">Due date</label>
+                            <input id="form-due" type="date" class="form-control" @bind="_formBill.DueDate" />
                             <ValidationMessage For="@(() => _formBill.DueDate)" class="text-danger small" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Amount</label>
+                            <label class="form-label" for="form-amount">Amount</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
-                                <input type="number" step="0.01" class="form-control" @bind="_formBill.PaymentDue" />
+                                <input id="form-amount" type="number" step="0.01" class="form-control"
+                                       @bind="_formBill.PaymentDue" />
                             </div>
                             <ValidationMessage For="@(() => _formBill.PaymentDue)" class="text-danger small" />
                         </div>
 
+                        @* Kept: a bill can be entered after it was settled, and
+                           the alternative is creating it and then toggling it. *@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="form-paid" @bind="_formBill.Paid" />
-                            <label class="form-check-label" for="form-paid">Paid</label>
+                            <label class="form-check-label" for="form-paid">Already paid</label>
                         </div>
                     </div>
 
@@ -199,12 +210,12 @@
                         <button type="button" class="btn btn-secondary" @onclick="CloseForm" disabled="@_isSaving">
                             Cancel
                         </button>
-                        <button type="submit" class="btn @(creating ? "btn-success" : "btn-primary")" disabled="@_isSaving">
+                        <button type="submit" class="btn btn-primary" disabled="@_isSaving">
                             @if (_isSaving)
                             {
                                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                             }
-                            @(creating ? "Save" : "Save Changes")
+                            Add bill
                         </button>
                     </div>
                 </EditForm>

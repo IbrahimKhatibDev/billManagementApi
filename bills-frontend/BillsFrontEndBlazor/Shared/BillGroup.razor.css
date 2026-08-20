@@ -70,11 +70,19 @@ header {
     border-top: 0;
 }
 
-.payee {
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* The payee cell is now an InlineEdit, which handles its own truncation. The
+   -.3rem pulls the row back into line with the group header, which the editor's
+   own padding would otherwise push it out of.
+
+   ::deep is required: the scope attribute is stamped on this component's own
+   markup, not on the markup InlineEdit renders inside it. */
+::deep .reader {
+    margin-left: -.3rem;
+}
+
+.amount ::deep .reader,
+.amount ::deep .editor {
+    text-align: right;
 }
 
 .due {

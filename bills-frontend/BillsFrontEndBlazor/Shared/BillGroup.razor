@@ -29,10 +29,23 @@
                        checked="@SelectedIds.Contains(bill.Id)"
                        @onchange="@(() => OnToggleSelected.InvokeAsync(bill))" />
 
-                <span class="payee">@bill.PayeeName</span>
+                <InlineEdit Kind="InlineEditKind.Text"
+                            Display="@bill.PayeeName"
+                            Label="@($"payee for {bill.PayeeName}")"
+                            Payee="@bill.PayeeName"
+                            Disabled="@BusyIds.Contains(bill.Id)"
+                            PayeeCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                new BillEdit(bill, b => b.PayeeName = value)))" />
 
                 <span class="due">
-                    @DueDateText(bill)
+                    <InlineEdit Kind="InlineEditKind.Date"
+                                Display="@DueDateText(bill)"
+                                Label="@($"due date for {bill.PayeeName}")"
+                                Date="@bill.DueDate"
+                                Disabled="@BusyIds.Contains(bill.Id)"
+                                DateCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                    new BillEdit(bill, b => b.DueDate = value)))" />
+
                     @if (DueRelativeText(bill, Today) is { } relative)
                     {
                         <span class="relative">@relative</span>
@@ -42,7 +55,15 @@
                 @* ToString("C") renders "$1,234.56" only because Program.cs pins
                    en-US; the container default is the invariant culture, which
                    formats "C" as ¤. *@
-                <span class="amount">@bill.PaymentDue.ToString("C")</span>
+                <span class="amount">
+                    <InlineEdit Kind="InlineEditKind.Amount"
+                                Display="@bill.PaymentDue.ToString("C")"
+                                Label="@($"amount for {bill.PayeeName}")"
+                                Amount="@bill.PaymentDue"
+                                Disabled="@BusyIds.Contains(bill.Id)"
+                                AmountCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                    new BillEdit(bill, b => b.PaymentDue = value)))" />
+                </span>
 
                 @* A button rather than a badge with a click handler: this is the
                    one control on the row that changes data, so it has to be
@@ -67,12 +88,6 @@
                 </button>
 
                 <span class="actions">
-                    <button type="button" class="icon-button" title="Edit"
-                            aria-label="Edit @bill.PayeeName"
-                            @onclick="@(() => OnEdit.InvokeAsync(bill))">
-                        <Icon Name="pencil" Size="16" />
-                    </button>
-
                     <button type="button" class="icon-button danger" title="Delete"
                             aria-label="Delete @bill.PayeeName"
                             @onclick="@(() => OnDelete.InvokeAsync(bill))">
@@ -120,8 +135,10 @@
     [Parameter]
     public EventCallback<Bill> OnTogglePaid { get; set; }
 
+    /// <summary>Raised when a cell commits a new value. The page owns the write,
+    /// because it owns the reload and the toast that follow it.</summary>
     [Parameter]
-    public EventCallback<Bill> OnEdit { get; set; }
+    public EventCallback<BillEdit> OnFieldEdited { get; set; }
 
     [Parameter]
     public EventCallback<Bill> OnDelete { get; set; }
