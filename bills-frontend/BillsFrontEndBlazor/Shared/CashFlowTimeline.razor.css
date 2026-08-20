@@ -57,24 +57,25 @@
     width: 100%;
 }
 
-/* ::deep, because these elements are inside a loop this component renders but
-   Blazor's scoped-CSS attribute is only stamped on the outermost markup. */
-::deep rect.unpaid { fill: var(--accent); }
-::deep rect.paid { fill: var(--ok); }
-::deep line.baseline { stroke: var(--border); stroke-width: 1; }
+/* No ::deep here: these elements — including the ones inside the @foreach
+   loops — are rendered directly by this component's own markup, so Blazor
+   stamps the scoped-CSS attribute on them same as everything else above. */
+rect.unpaid { fill: var(--accent); }
+rect.paid { fill: var(--ok); }
+line.baseline { stroke: var(--border); stroke-width: 1; }
 
-::deep line.now {
+line.now {
     stroke: var(--late);
     stroke-dasharray: 3 3;
     stroke-width: 1.5;
 }
 
-::deep text.now-label {
+text.now-label {
     fill: var(--late);
     font-size: 11px;
 }
 
-::deep text.tick {
+text.tick {
     fill: var(--faint);
     font-size: 11px;
 }

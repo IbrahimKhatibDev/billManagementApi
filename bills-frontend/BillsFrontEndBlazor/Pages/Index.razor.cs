@@ -103,25 +103,30 @@ namespace BillsFrontEndBlazor.Pages
             _busyId = bill.Id;
             StateHasChanged();
 
-            var result = await BillService.MarkPaidAsync(bill.Id);
-
-            _busyId = null;
-
-            if (result.Success)
+            try
             {
-                Toasts.ShowSuccess($"{bill.PayeeName} marked paid.");
+                var result = await BillService.MarkPaidAsync(bill.Id);
 
-                // Every other open page recomputes too — and this page is
-                // subscribed, so this is also what reloads it.
-                BillEventService.NotifyBillsChanged();
-                return;
+                if (result.Success)
+                {
+                    Toasts.ShowSuccess($"{bill.PayeeName} marked paid.");
+
+                    // Every other open page recomputes too — and this page is
+                    // subscribed, so this is also what reloads it.
+                    BillEventService.NotifyBillsChanged();
+                    return;
+                }
+
+                Toasts.ShowError(result.ToMessage("update"));
+
+                // A 409 or a 404 both mean this page is looking at stale data, so
+                // the honest response is to go and get the current answer.
+                await LoadStatsAsync();
             }
-
-            Toasts.ShowError(result.ToMessage("update"));
-
-            // A 409 or a 404 both mean this page is looking at stale data, so the
-            // honest response is to go and get the current answer.
-            await LoadStatsAsync();
+            finally
+            {
+                _busyId = null;
+            }
         }
     }
 }
