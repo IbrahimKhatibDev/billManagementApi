@@ -150,10 +150,16 @@
 /* ---------------------------------------------------------------------------
    Bootstrap bridge.
 
-   Bootstrap 5.3 draws everything from its own custom properties, so pointing
-   those at the tokens re-themes every component this app never restyled —
-   modals, dropdowns, form controls, tables — instead of leaving them in the
-   default light theme against a Nocturne background.
+   Bootstrap 5.3 resolves component chrome through these custom properties, so
+   pointing them at the tokens re-themes components this app never restyled —
+   modal surfaces, form controls, cards, tables all read --bs-body-bg and
+   --bs-border-color — instead of leaving them in the default light theme
+   against a Nocturne background. This needs 5.3: on 5.1 the components were
+   compiled to literal hex and read none of these.
+
+   What it does not cover: the semantic colour utilities. 5.3 still compiles
+   .btn-primary to a literal #0d6efd, and .bg-primary reads --bs-primary-rgb,
+   not --bs-primary. Anywhere those appear is restyled per component instead.
 
    The selector carries a data-palette so it outranks Bootstrap's own
    [data-bs-theme=dark] block, which is one attribute where this is two.
@@ -167,7 +173,6 @@
     --bs-border-color: var(--border);
     --bs-border-radius: var(--radius);
     --bs-border-radius-lg: var(--radius-lg);
-    --bs-primary: var(--accent);
     --bs-link-color: var(--accent-text);
     --bs-link-hover-color: var(--accent);
     --bs-emphasis-color: var(--text);

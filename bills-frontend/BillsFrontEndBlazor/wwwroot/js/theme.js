@@ -33,7 +33,9 @@
         root.setAttribute('data-mode', mode);
 
         // Bootstrap 5.3 reads this one, and mirroring it is what makes modals,
-        // dropdowns and form controls follow the mode without being restyled.
+        // form controls, cards and tables follow the mode without being
+        // restyled — including details the tokens can't reach, like the
+        // form-select chevron, which 5.3 swaps for a light one under dark.
         root.setAttribute('data-bs-theme', mode);
     }
 
