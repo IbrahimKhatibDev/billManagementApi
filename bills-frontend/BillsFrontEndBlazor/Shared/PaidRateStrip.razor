@@ -1,0 +1,108 @@
+@using System.Globalization
+
+@* Idea 10: the month-by-month table's paid-rate column, as one row of shaded
+   cells. The shade is a token mix rather than a scale of its own — the accent
+   blended into the sunken background, more accent the higher the rate — so
+   the strip re-tints itself with the palette instead of pinning five hexes
+   that would only be right in one of the four themes. *@
+
+<section class="paid-rate">
+
+    <h2 class="title">Paid rate by month</h2>
+    <p class="subtitle">Share of each month's money that has actually been paid.</p>
+
+    @if (_months.Count == 0)
+    {
+        <p class="empty">No months in this range yet.</p>
+    }
+    else
+    {
+        <ol class="strip">
+            @foreach (var month in _months)
+            {
+                <li class="month">
+                    <span class="cell" style="@CellStyle(month.PaidPercent)" title="@Tooltip(month)">
+                        @month.PaidPercent.ToString("0")%
+                    </span>
+                    <span class="label">@Label(month)</span>
+                    <span class="billed">@month.Billed.ToString("C0")</span>
+                </li>
+            }
+        </ol>
+
+        @if (_hidden > 0)
+        {
+            <p class="trimmed">
+                @_hidden earlier @(_hidden == 1 ? "month is" : "months are") outside the strip.
+                Narrow the range to see them.
+            </p>
+        }
+    }
+
+</section>
+
+@code {
+    /// <summary>
+    /// How many months fit before the cells stop being readable. All-time on a
+    /// long-lived account is dozens of months, and thirty 12px slivers is not
+    /// a chart. The strip trims rather than scrolls, and says so.
+    /// </summary>
+    private const int MaxMonths = 24;
+
+    /// <summary>The rate at which a cell is dark enough that muted text on it
+    /// stops being legible.</summary>
+    private const double HighlightAt = 80d;
+
+    [Parameter, EditorRequired]
+    public List<MonthTotals> Months { get; set; } = new();
+
+    private List<MonthTotals> _months = new();
+
+    private int _hidden;
+
+    private bool _spansYears;
+
+    protected override void OnParametersSet()
+    {
+        // The response is newest month first, and a timeline reads left to
+        // right, so this is reversed — after trimming, which keeps the most
+        // recent months rather than the oldest.
+        _hidden = Math.Max(0, Months.Count - MaxMonths);
+
+        _months = Months
+            .Take(MaxMonths)
+            .Reverse()
+            .ToList();
+
+        _spansYears = _months.Select(m => m.Year).Distinct().Count() > 1;
+    }
+
+    /// <summary>
+    /// "Mar" is enough until the strip crosses a new year, at which point two
+    /// Marches would sit side by side with nothing to tell them apart.
+    /// </summary>
+    private string Label(MonthTotals month) =>
+        month.FirstDay.ToString(_spansYears ? "MMM yy" : "MMM", CultureInfo.CurrentCulture);
+
+    private static string Tooltip(MonthTotals month) =>
+        $"{month.FirstDay.ToString("MMMM yyyy", CultureInfo.CurrentCulture)} — " +
+        $"{month.Paid.ToString("C")} paid of {month.Billed.ToString("C")}";
+
+    /// <summary>
+    /// Invariant, because this ends up inside a style attribute: a culture
+    /// that writes 12,5 would produce a color-mix the browser drops, and a
+    /// dropped background is an invisible cell rather than a wrong one.
+    /// </summary>
+    private static string CellStyle(double rate)
+    {
+        // Twelve percent at a zero rate rather than nothing, so an unpaid
+        // month still reads as a cell rather than as a gap in the strip.
+        var mix = Math.Clamp(12d + (rate * 0.5d), 0d, 100d);
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "background: color-mix(in srgb, var(--accent) {0:0.##}%, var(--sunken)); color: {1};",
+            mix,
+            rate >= HighlightAt ? "var(--accent-text)" : "var(--text)");
+    }
+}

@@ -1,0 +1,178 @@
+.reports {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin: 0 auto;
+    max-width: 1240px;
+    padding: 2rem 1.5rem 4rem;
+}
+
+.page-head {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+}
+
+.page-head h1 {
+    color: var(--text);
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.lede {
+    color: var(--muted);
+    font-size: .9rem;
+    margin: .2rem 0 0;
+}
+
+/* Same values as the Overview's rule. Two screens, one date line, one look —
+   duplicated rather than hoisted because scoped CSS cannot be shared between
+   components, and a global class for six declarations would be worse. */
+.as-of {
+    color: var(--faint);
+    font-size: .82rem;
+    margin: .1rem 0 0;
+}
+
+.head-actions {
+    display: flex;
+    gap: .5rem;
+}
+
+.ghost {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    padding: .4rem .8rem;
+    text-decoration: none;
+}
+
+.ghost:hover:not(:disabled) { color: var(--text); }
+
+.ghost:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+/* One control, one border: the presets read as a segmented switch rather than
+   five separate buttons that happen to be adjacent. */
+.ranges {
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    display: inline-flex;
+    overflow: hidden;
+}
+
+.range {
+    background: none;
+    border: 0;
+    border-right: var(--border-width) solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: .82rem;
+    padding: .4rem .85rem;
+}
+
+.range:last-child { border-right: 0; }
+
+.range:hover { color: var(--text); }
+
+.range.on {
+    background: var(--sunken);
+    color: var(--accent-text);
+}
+
+.caption,
+.loading,
+.empty {
+    color: var(--muted);
+    font-size: .82rem;
+    margin: .5rem 0 0;
+}
+
+.empty {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    margin: 0;
+    padding: 3rem 1.5rem;
+    text-align: center;
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* A refresh over data already on screen dims rather than blanks: the numbers
+   stay readable and stop being trusted, which is what is actually true. */
+.is-refreshing { opacity: .6; }
+
+.figures {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.figure {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: 1.1rem 1.25rem;
+}
+
+.figure .label {
+    color: var(--muted);
+    font-size: .72rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.figure .value {
+    color: var(--text);
+    font-size: 1.6rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.figure .value.ok { color: var(--ok); }
+
+.figure .value.late { color: var(--late); }
+
+.figure .note {
+    color: var(--faint);
+    font-size: .78rem;
+}
+
+/* The four stat cards that got cut, as prose. */
+.typical {
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: .88rem;
+    gap: .35rem 2rem;
+    margin: 0;
+}
+
+.typical strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.typical .who { color: var(--faint); }
+
+.bands {
+    color: var(--muted);
+    font-size: .88rem;
+    margin: -.75rem 0 0;
+}

@@ -3,20 +3,24 @@
 
 <PageTitle>Reports</PageTitle>
 
-<div class="container py-4 reports-page">
+<div class="reports">
 
-    <!-- PAGE HEADER -->
-    <div class="d-flex flex-wrap gap-2 align-items-start justify-content-between mb-4">
+    <header class="page-head">
         <div>
-            <h2 class="fw-bold mb-1">
-                <i class="ph ph-chart-line-up me-2"></i> Reports
-            </h2>
-            <p class="text-muted mb-0">Where the money is, who it is owed to, and how late it is.</p>
+            <h1>Reports</h1>
+            <p class="lede">Where the money is, who it is owed to, and how late it is.</p>
+
+            @* The server's date, not this machine's. Every figure on the page was
+               computed against it, and the range presets below are cut from it —
+               so if the two clocks ever disagree, this is the one that explains
+               the numbers. Same line, same source, as the Overview. *@
+            <p class="as-of">as of @Summary.AsOf.ToString("MMM d, yyyy")</p>
         </div>
 
-        <div class="d-flex gap-2">
-            <button class="btn btn-primary" @onclick="LoadBillsAsync" disabled="@_isLoading">
-                <i class="ph ph-arrows-clockwise me-1"></i> Refresh
+        <div class="head-actions">
+            <button type="button" class="ghost" @onclick="LoadBillsAsync" disabled="@_isLoading">
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
+                Refresh
             </button>
 
             @* A plain link, not a JS-driven download: the endpoint returns the
@@ -24,30 +28,30 @@
                is the only reason it works during the prerender pass. download
                is also what stops Blazor's router from intercepting the click and
                trying to route to a page that does not exist. *@
-            <a class="btn btn-outline-secondary" href="@CsvHref" download>
-                <i class="ph ph-download-simple me-1"></i> Export CSV
+            <a class="ghost" href="@CsvHref" download>
+                <Icon Name="download-simple" Size="16" Class="me-1" />
+                Export CSV
             </a>
         </div>
-    </div>
+    </header>
 
     @if (_loadFailed)
     {
         <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
-            <i class="ph ph-warning-octagon fs-4"></i>
+            <Icon Name="warning-octagon" Size="22" />
             <div class="flex-grow-1">Could not reach the API.</div>
             <button class="btn btn-sm btn-outline-danger" @onclick="LoadBillsAsync">
-                <i class="ph ph-arrows-clockwise me-1"></i> Retry
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" /> Retry
             </button>
         </div>
     }
 
-    <!-- RANGE PRESETS -->
-    <div class="mb-4">
-        <div class="btn-group filter-group flex-wrap" role="group" aria-label="Report date range">
+    <div class="ranges-row">
+        <div class="ranges" role="group" aria-label="Report date range">
             @foreach (var option in ReportRanges.All)
             {
                 <button type="button"
-                        class="btn btn-outline-secondary @(_range == option ? "active" : null)"
+                        class="range @(_range == option ? "on" : null)"
                         aria-pressed="@(_range == option ? "true" : "false")"
                         @onclick="() => SetRangeAsync(option)">
                     @option.Label()
@@ -58,416 +62,99 @@
         @* Every section below reads from the same window, so the window itself
            has to be spelled out — "Last 6 months" alone does not say whether
            today is in it. *@
-        <p class="text-muted small mb-0 mt-2">@RangeCaption</p>
+        <p class="caption">@RangeCaption</p>
     </div>
 
     @if (_isLoading && _summary is null)
     {
-        <div class="d-flex justify-content-center align-items-center gap-2 text-muted py-5">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            Loading reports…
-        </div>
+        <p class="loading">Loading reports…</p>
     }
     else if (BillCount == 0)
     {
-        <div class="card shadow-sm border-0">
-            <div class="card-body text-center text-muted py-5">
-                <i class="ph ph-tray display-6 d-block mb-2"></i>
-                @if (HasNoBillsAtAll)
-                {
-                    <span>No bills yet. Create one and this page fills itself in.</span>
-                }
-                else
-                {
-                    <span>No bills are due in this range. Try a wider one.</span>
-                }
-            </div>
-        </div>
+        <p class="empty">
+            @if (HasNoBillsAtAll)
+            {
+                <text>No bills yet. Create one and this page fills itself in.</text>
+            }
+            else
+            {
+                <text>No bills are due in this range. Try a wider one.</text>
+            }
+        </p>
     }
     else
     {
-        <div class="@(_isLoading ? "is-refreshing" : null)">
+        <div class="@(_isLoading ? "body is-refreshing" : "body")">
 
-            @* ============================ HEADLINE FIGURES
+            @* Four figures, not eight. The four that were cut — largest,
+               average, median, due-in-30 — are numbers you read once and
+               compare against each other, which is a sentence's job rather
+               than a card's; they are the .typical line below.
 
-               Every figure counts up rather than snapping, the same way the
-               dashboard cards do, and replays whenever the range changes —
-               _animationGeneration is what forces the replay even when the new
-               window happens to total the same as the old one. The .stat-note
-               lines stay static on purpose: eight cards all counting at once is
-               already the limit of what reads as deliberate. *@
-            <div class="row g-3 mb-5">
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Total billed</div>
-                            <div class="stat-value">
-                                <AnimatedCounter Value="@TotalBilled" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            <div class="stat-note">across @BillCount @(BillCount == 1 ? "bill" : "bills")</div>
-                        </div>
-                    </div>
-                </div>
+               _animationGeneration is what replays the count-up when the range
+               changes to a window that happens to total the same as the old
+               one. See AnimatedCounter.Generation. *@
+            <div class="figures">
 
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Paid</div>
-                            <div class="stat-value text-success">
-                                <AnimatedCounter Value="@PaidAmount" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            @* Share of money, not of bills — see PaidPercent. *@
-                            <div class="stat-note">@PaidPercent.ToString("0")% of the total</div>
-                        </div>
-                    </div>
-                </div>
+                <article class="figure">
+                    <span class="label">Total billed</span>
+                    <span class="value">
+                        <AnimatedCounter Value="@TotalBilled" Format="C"
+                                         Generation="@_animationGeneration" />
+                    </span>
+                    <span class="note">across @BillCount @(BillCount == 1 ? "bill" : "bills")</span>
+                </article>
 
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Outstanding</div>
-                            <div class="stat-value">
-                                <AnimatedCounter Value="@OutstandingAmount" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            <div class="stat-note">@UnpaidCount unpaid</div>
-                        </div>
-                    </div>
-                </div>
+                <article class="figure">
+                    <span class="label">Paid</span>
+                    <span class="value ok">
+                        <AnimatedCounter Value="@PaidAmount" Format="C"
+                                         Generation="@_animationGeneration" />
+                    </span>
+                    @* Share of money, not of bills — see PaidPercent. *@
+                    <span class="note">@PaidPercent.ToString("0")% of the total</span>
+                </article>
 
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Overdue</div>
-                            <div class="stat-value @(OverdueAmount > 0 ? "text-danger" : null)">
-                                <AnimatedCounter Value="@OverdueAmount" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            <div class="stat-note">@OverdueCount past their due date</div>
-                        </div>
-                    </div>
-                </div>
+                <article class="figure">
+                    <span class="label">Outstanding</span>
+                    <span class="value">
+                        <AnimatedCounter Value="@OutstandingAmount" Format="C"
+                                         Generation="@_animationGeneration" />
+                    </span>
+                    <span class="note">@UnpaidCount unpaid</span>
+                </article>
 
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Largest bill</div>
-                            <div class="stat-value">
-                                @* An empty range has no largest bill, and a
-                                   counter easing up to nothing would read as
-                                   "$0.00" rather than "there isn't one". *@
-                                @if (LargestBill is { } largest)
-                                {
-                                    <AnimatedCounter Value="@largest.PaymentDue" Format="C"
-                                                     Generation="@_animationGeneration" />
-                                }
-                                else
-                                {
-                                    <text>—</text>
-                                }
-                            </div>
-                            <div class="stat-note text-truncate">@(LargestBill?.PayeeName ?? "—")</div>
-                        </div>
-                    </div>
-                </div>
+                <article class="figure">
+                    <span class="label">Overdue</span>
+                    <span class="value @(OverdueAmount > 0 ? "late" : null)">
+                        <AnimatedCounter Value="@OverdueAmount" Format="C"
+                                         Generation="@_animationGeneration" />
+                    </span>
+                    <span class="note">@OverdueCount past their due date</span>
+                </article>
 
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Average bill</div>
-                            <div class="stat-value">
-                                <AnimatedCounter Value="@AverageBill" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            <div class="stat-note">mean of every bill</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Median bill</div>
-                            <div class="stat-value">
-                                <AnimatedCounter Value="@MedianBill" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            @* Next to the average on purpose: a median well under
-                               the mean says a few big bills are carrying the
-                               total. *@
-                            <div class="stat-note">half are smaller than this</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-6 col-lg-3">
-                    <div class="card shadow-sm border-0 h-100 stat-card">
-                        <div class="card-body">
-                            <div class="stat-label">Due in 30 days</div>
-                            <div class="stat-value">
-                                <AnimatedCounter Value="@DueSoonAmount" Format="C"
-                                                 Generation="@_animationGeneration" />
-                            </div>
-                            <div class="stat-note">@DueSoonCount not yet paid</div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
-            <div class="row g-4 mb-4">
+            <p class="typical">
+                <span class="fact">Typical bill <strong>@MedianBill.ToString("C")</strong> median</span>
+                <span class="fact">Mean <strong>@AverageBill.ToString("C")</strong></span>
+                @if (LargestBill is { } largest)
+                {
+                    <span class="fact">
+                        Largest <strong>@largest.PaymentDue.ToString("C")</strong>
+                        <span class="who">@largest.PayeeName</span>
+                    </span>
+                }
+            </p>
 
-                <!-- ============================ OVERDUE AGING -->
-                <div class="col-lg-7">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <h5 class="card-title fw-bold mb-1">Overdue aging</h5>
-                            <p class="text-muted small">
-                                Everything still unpaid, by how late it is.
-                            </p>
+            @if (_bandSentence is not null)
+            {
+                <p class="bands">@_bandSentence</p>
+            }
 
-                            <div class="table-responsive">
-                                <table class="table table-sm align-middle mb-0 report-table aging-table">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th scope="col">Age</th>
-                                            <th scope="col" class="text-end col-count">Bills</th>
-                                            <th scope="col" class="text-end col-money">Amount</th>
-                                            <th scope="col" class="col-bar">&nbsp;</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var bucket in _aging)
-                                        {
-                                            <tr class="@(bucket.Count == 0 ? "text-muted" : null)">
-                                                <th scope="row" class="fw-normal">@bucket.Label</th>
-                                                <td class="text-end">@bucket.Count</td>
-                                                <td class="text-end amount">@bucket.Amount.ToString("C")</td>
-                                                <td class="col-bar">
-                                                    <div class="report-bar">
-                                                        <div class="report-bar-fill @bucket.BarClass"
-                                                             style="width: @Width(bucket.BarPercent)%"></div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <PaidRateStrip Months="@Summary.Months" />
 
-                <!-- ============================ WHAT TO PAY NEXT -->
-                <div class="col-lg-5">
-                    <div class="card shadow-sm border-0 h-100">
-                        <div class="card-body">
-                            <h5 class="card-title fw-bold mb-1">What to pay next</h5>
-                            <p class="text-muted small">
-                                Unpaid bills, latest first.
-                            </p>
-
-                            @if (PriorityBills.Count == 0)
-                            {
-                                <p class="text-muted mb-0">
-                                    <i class="ph ph-check-circle text-success me-1"></i>
-                                    Nothing outstanding in this range.
-                                </p>
-                            }
-                            else
-                            {
-                                <ul class="list-unstyled mb-0 priority-list">
-                                    @foreach (var bill in PriorityBills)
-                                    {
-                                        <li class="d-flex justify-content-between align-items-baseline gap-3">
-                                            <span class="text-truncate">
-                                                <span class="d-block text-truncate">@bill.PayeeName</span>
-                                                <span class="priority-note @(IsOverdue(bill) ? "text-danger" : "text-muted")">
-                                                    @DueDateText(bill) · @PriorityNote(bill)
-                                                </span>
-                                            </span>
-                                            <span class="amount fw-semibold">@bill.PaymentDue.ToString("C")</span>
-                                        </li>
-                                    }
-                                </ul>
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================ PAYEE BREAKDOWN -->
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-body">
-                    <h5 class="card-title fw-bold mb-1">Payee breakdown</h5>
-                    <p class="text-muted small">
-                        Every payee in range. Click a heading to sort — it opens on
-                        who is owed the most.
-                    </p>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped align-middle mb-0 report-table payee-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col" class="sortable @PayeeSorted(PayeeSortColumn.Payee)"
-                                        @onclick="() => SortPayeesBy(PayeeSortColumn.Payee)">
-                                        Payee <i class="ph @PayeeSortCaret(PayeeSortColumn.Payee) sort-caret"></i>
-                                    </th>
-                                    <th scope="col" class="text-end col-count sortable @PayeeSorted(PayeeSortColumn.Bills)"
-                                        @onclick="() => SortPayeesBy(PayeeSortColumn.Bills)">
-                                        Bills <i class="ph @PayeeSortCaret(PayeeSortColumn.Bills) sort-caret"></i>
-                                    </th>
-                                    <th scope="col" class="text-end col-money sortable @PayeeSorted(PayeeSortColumn.Billed)"
-                                        @onclick="() => SortPayeesBy(PayeeSortColumn.Billed)">
-                                        Billed <i class="ph @PayeeSortCaret(PayeeSortColumn.Billed) sort-caret"></i>
-                                    </th>
-                                    <th scope="col" class="text-end col-money sortable @PayeeSorted(PayeeSortColumn.Paid)"
-                                        @onclick="() => SortPayeesBy(PayeeSortColumn.Paid)">
-                                        Paid <i class="ph @PayeeSortCaret(PayeeSortColumn.Paid) sort-caret"></i>
-                                    </th>
-                                    <th scope="col" class="text-end col-money sortable @PayeeSorted(PayeeSortColumn.Outstanding)"
-                                        @onclick="() => SortPayeesBy(PayeeSortColumn.Outstanding)">
-                                        Outstanding <i class="ph @PayeeSortCaret(PayeeSortColumn.Outstanding) sort-caret"></i>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var payee in VisiblePayees)
-                                {
-                                    <tr>
-                                        <th scope="row" class="fw-normal">@payee.Payee</th>
-                                        <td class="text-end">@payee.Bills</td>
-                                        <td class="text-end amount">@payee.Billed.ToString("C")</td>
-                                        <td class="text-end amount text-success">@payee.Paid.ToString("C")</td>
-                                        <td class="text-end amount fw-semibold">
-                                            @if (payee.Outstanding > 0)
-                                            {
-                                                <span>@payee.Outstanding.ToString("C")</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">—</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if (HiddenPayeeCount > 0)
-                    {
-                        <div class="text-center pt-3">
-                            <button class="btn btn-sm btn-link text-decoration-none"
-                                    @onclick="() => _showAllPayees = !_showAllPayees">
-                                @if (_showAllPayees)
-                                {
-                                    <span><i class="ph ph-caret-up me-1"></i> Show top @PayeePreviewRows only</span>
-                                }
-                                else
-                                {
-                                    <span><i class="ph ph-caret-down me-1"></i> Show all @_payees.Count payees</span>
-                                }
-                            </button>
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <!-- ============================ MONTH BY MONTH -->
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-body">
-                    <h5 class="card-title fw-bold mb-1">Month by month</h5>
-                    <p class="text-muted small">
-                        Grouped by due date, newest first.
-                    </p>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped align-middle mb-0 report-table month-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Month</th>
-                                    <th scope="col" class="text-end col-count">Bills</th>
-                                    <th scope="col" class="text-end col-money">Billed</th>
-                                    <th scope="col" class="text-end col-money">Paid</th>
-                                    <th scope="col" class="text-end col-money">Outstanding</th>
-                                    <th scope="col" class="col-rate">Paid rate</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var month in _months)
-                                {
-                                    <tr>
-                                        <th scope="row" class="fw-normal">@MonthLabel(month)</th>
-                                        <td class="text-end">@month.Bills</td>
-                                        <td class="text-end amount">@month.Billed.ToString("C")</td>
-                                        <td class="text-end amount text-success">@month.Paid.ToString("C")</td>
-                                        <td class="text-end amount">
-                                            @if (month.Outstanding > 0)
-                                            {
-                                                <span>@month.Outstanding.ToString("C")</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">—</span>
-                                            }
-                                        </td>
-                                        <td class="col-rate">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <div class="report-bar flex-grow-1">
-                                                    <div class="report-bar-fill rate-bar"
-                                                         style="width: @Width(month.PaidPercent)%"></div>
-                                                </div>
-                                                <span class="rate-value">@month.PaidPercent.ToString("0")%</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================ BILL SIZE DISTRIBUTION -->
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-body">
-                    <h5 class="card-title fw-bold mb-1">Bill sizes</h5>
-                    <p class="text-muted small">
-                        How many bills fall in each band, and what they add up to.
-                    </p>
-
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0 report-table band-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Size</th>
-                                    <th scope="col" class="text-end col-count">Bills</th>
-                                    <th scope="col" class="text-end col-money">Total</th>
-                                    <th scope="col" class="col-bar">&nbsp;</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var band in _bands)
-                                {
-                                    <tr class="@(band.Count == 0 ? "text-muted" : null)">
-                                        <th scope="row" class="fw-normal">@band.Label</th>
-                                        <td class="text-end">@band.Count</td>
-                                        <td class="text-end amount">@band.Total.ToString("C")</td>
-                                        <td class="col-bar">
-                                            <div class="report-bar">
-                                                <div class="report-bar-fill band-bar"
-                                                     style="width: @Width(band.BarPercent)%"></div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <PayeePareto Payees="@Summary.Payees" />
 
         </div>
     }

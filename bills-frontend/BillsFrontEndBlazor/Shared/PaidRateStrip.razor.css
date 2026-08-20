@@ -1,0 +1,71 @@
+.paid-rate {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 0;
+}
+
+.strip {
+    display: flex;
+    gap: 6px;
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+}
+
+.month {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: .3rem;
+    min-width: 0;
+}
+
+.cell {
+    border-radius: var(--radius);
+    display: grid;
+    font-size: .92rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    height: 62px;
+    place-items: center;
+}
+
+.label,
+.billed {
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.label {
+    color: var(--muted);
+    font-size: .74rem;
+}
+
+.billed {
+    color: var(--faint);
+    font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.trimmed {
+    color: var(--faint);
+    font-size: .78rem;
+    margin: .8rem 0 0;
+}
