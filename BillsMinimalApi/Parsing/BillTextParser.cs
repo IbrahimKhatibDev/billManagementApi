@@ -57,8 +57,13 @@ public static partial class BillTextParser
     };
 
     // The lookarounds are what keep "8/21" out of the amount: a digit touching a
-    // slash or a dot on either side is part of something else.
-    [GeneratedRegex(@"(?<![\d./])\$?(?<amount>\d+(?:\.\d{1,2})?)(?![\d./])")]
+    // slash, a dot or a comma on either side is part of something else.
+    //
+    // The grouped-thousands alternative is written first because .NET alternation
+    // is ordered and does not prefer the longer match. With "\d+" leading,
+    // "1,299.50" matched the "1" and stopped — the comma satisfied the trailing
+    // lookaround — and a bill for $1,299.50 was read as one for $1.00.
+    [GeneratedRegex(@"(?<![\d.,/])\$?(?<amount>\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d./])")]
     private static partial Regex AmountPattern();
 
     [GeneratedRegex(@"^(?<m>\d{1,2})/(?<d>\d{1,2})(?:/(?<y>\d{2}|\d{4}))?$")]
@@ -94,15 +99,38 @@ public static partial class BillTextParser
         }
 
         parsed.Payee = Clean(input[..amount.Index]);
-        parsed.Amount = decimal.Parse(
-            amount.Groups["amount"].Value, CultureInfo.InvariantCulture);
+
+        // TryParse rather than Parse. The pattern bounds the *shape* of the
+        // number but not its length, and decimal.Parse throws OverflowException
+        // past ~7.9e28. The parse endpoint returns the reading directly with no
+        // exception handler, so a pasted 30-digit account number came back as a
+        // 500 on every debounced keystroke while the chips silently vanished.
+        // Unparseable leaves Amount null, which is a reading the user can fix.
+        //
+        // NumberStyles.Number is what accepts the thousands separators the
+        // pattern now matches whole.
+        if (decimal.TryParse(
+                amount.Groups["amount"].Value,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var value))
+        {
+            parsed.Amount = value;
+        }
 
         if (TryResolveDate(input[(amount.Index + amount.Length)..], today, out var due))
         {
             parsed.DueDate = due;
         }
 
-        if (!string.IsNullOrEmpty(parsed.Payee) && parsed.DueDate is not null)
+        // All three fields, which is what ParsedBill.Confidence documents. The
+        // amount is held to the same floor the client's IsComplete and the DTO's
+        // [Range] both enforce: "Gas 0 fri" resolved a payee and a date and so
+        // used to come back high-confidence next to an Add button that refused
+        // it. A number too long to parse also lands here as Low, correctly.
+        if (!string.IsNullOrEmpty(parsed.Payee)
+            && parsed.DueDate is not null
+            && parsed.Amount >= InlineEditValues.MinimumAmount)
         {
             parsed.Confidence = ParseConfidence.High;
         }

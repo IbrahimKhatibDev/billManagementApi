@@ -166,4 +166,51 @@ public sealed class BillTextParserTests
 
         Assert.Equal(new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
     }
+
+    [Theory]
+    [InlineData("Verizon 1,299.50 fri", 1299.50)]
+    [InlineData("Verizon 1,299 fri", 1299)]
+    [InlineData("Verizon 12,345,678.90 fri", 12345678.90)]
+    public void A_thousands_separator_is_part_of_the_amount(string text, decimal expected)
+    {
+        // The trailing lookaround excluded digits, dots and slashes but not
+        // commas, so "1,299.50" matched the "1" and stopped: a bill for $1,299.50
+        // was read as one for $1.00, with no error and a date that no longer
+        // parsed. Wrong money, silently.
+        var parsed = BillTextParser.Parse(text, Today);
+
+        Assert.Equal(expected, parsed.Amount);
+        Assert.Equal("Verizon", parsed.Payee);
+        Assert.Equal(new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+    }
+
+    [Fact]
+    public void A_number_too_large_for_a_decimal_is_a_low_reading_and_not_a_crash()
+    {
+        // An account number pasted into the box. decimal.Parse threw
+        // OverflowException past ~7.9e28 and the parse endpoint has no exception
+        // handler, so this came back as a 500 on every debounced keystroke while
+        // the chips silently vanished.
+        var parsed = BillTextParser.Parse($"Verizon {new string('9', 40)} fri", Today);
+
+        Assert.Null(parsed.Amount);
+        Assert.Equal("Verizon", parsed.Payee);
+        Assert.Equal(ParseConfidence.Low, parsed.Confidence);
+    }
+
+    [Theory]
+    [InlineData("Gas 0 fri")]
+    [InlineData("Gas 0.00 fri")]
+    public void An_amount_the_add_button_would_refuse_is_not_a_confident_reading(string text)
+    {
+        // ParsedBill documents High as "all three fields resolved", and the
+        // client's IsComplete holds the amount to MinimumAmount. Calling this
+        // high-confidence put a confident reading next to a dead Add button with
+        // nothing to say which chip was at fault.
+        var parsed = BillTextParser.Parse(text, Today);
+
+        Assert.Equal(0m, parsed.Amount);
+        Assert.NotNull(parsed.DueDate);
+        Assert.Equal(ParseConfidence.Low, parsed.Confidence);
+    }
 }
