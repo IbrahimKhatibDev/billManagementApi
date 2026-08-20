@@ -26,13 +26,7 @@
     margin: .1rem 0 0;
 }
 
-.head-actions {
-    display: flex;
-    gap: .5rem;
-}
-
-.ghost,
-.primary {
+.ghost {
     align-items: center;
     background: none;
     border: var(--border-width) solid var(--border);
@@ -43,16 +37,9 @@
     padding: .4rem .8rem;
 }
 
-/* Outline, not a flood fill: the accent is a line colour in this palette. */
-.primary {
-    border-color: var(--accent);
-    color: var(--accent-text);
-}
-
 .ghost:hover:not(:disabled) { color: var(--text); }
 
-.ghost:disabled,
-.primary:disabled {
+.ghost:disabled {
     cursor: default;
     opacity: .5;
 }

@@ -659,6 +659,29 @@ namespace BillsFrontEndBlazor.Pages
             }
         }
 
+        /// <summary>
+        /// Saves a bill built from the quick-add reading, and reports back so the
+        /// box knows whether to empty itself.
+        /// </summary>
+        private async Task<bool> AddQuickBillAsync(Bill bill)
+        {
+            var result = await BillService.CreateBillAsync(bill);
+
+            if (!result.Success)
+            {
+                // The typed line stays where it is. A refusal should cost a
+                // retry, not the sentence.
+                Toasts.ShowError(result.ToMessage("create"));
+                return false;
+            }
+
+            // Named rather than generic: the box is emptying, so the toast is the
+            // only confirmation of what went in.
+            Toasts.ShowSuccess($"Added {bill.PayeeName}");
+            AfterWrite();
+            return true;
+        }
+
         private async Task ConfirmDeleteAsync()
         {
             if (_deleteTarget is not { } bill || _isSaving)

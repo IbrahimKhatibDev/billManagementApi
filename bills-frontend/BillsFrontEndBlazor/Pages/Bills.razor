@@ -11,17 +11,13 @@
             <p class="lede">Every bill on the books, grouped by when it falls due.</p>
         </div>
 
-        <div class="head-actions">
-            <button type="button" class="ghost" @onclick="LoadBillsAsync" disabled="@_isLoading">
-                <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
-                Refresh
-            </button>
-
-            <button type="button" class="primary" @onclick="OpenCreateModal">
-                <Icon Name="plus" Size="16" Class="me-1" />
-                Add bill
-            </button>
-        </div>
+        @* "Add bill" now lives on the quick-add row below, where it commits a
+           reading. The modal is reached from the footnote at the foot of the
+           page, which is what that footnote is for. *@
+        <button type="button" class="ghost" @onclick="LoadBillsAsync" disabled="@_isLoading">
+            <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
+            Refresh
+        </button>
     </header>
 
     @if (_loadFailed)
@@ -34,6 +30,8 @@
             </button>
         </div>
     }
+
+    <QuickAddBill OnAdd="AddQuickBillAsync" Busy="@_isBulkWriting" />
 
     <div class="controls">
 

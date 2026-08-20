@@ -1,0 +1,78 @@
+.quick-add {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+}
+
+.entry {
+    display: flex;
+    gap: .5rem;
+}
+
+.text {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    flex: 1;
+    font: inherit;
+    min-height: 2.6rem;
+    padding: .55rem .875rem;
+}
+
+.text::placeholder {
+    color: var(--faint);
+}
+
+.text:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+}
+
+/* Outline, not a flood fill: the accent is a line colour in this palette. */
+.primary {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--accent);
+    border-radius: var(--radius);
+    color: var(--accent-text);
+    cursor: pointer;
+    display: inline-flex;
+    padding: .4rem .9rem;
+}
+
+.primary:disabled {
+    border-color: var(--border);
+    color: var(--muted);
+    cursor: default;
+}
+
+.reading {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: .78rem;
+    gap: .5rem;
+}
+
+/* The three pieces are InlineEdit instances, so a misreading is one click from
+   fixed. ::deep because the scope attribute lands on this component's own
+   markup, not on what InlineEdit renders inside it — and these rules carry more
+   weight than InlineEdit's own, which is what lets a plain reader become a
+   chip here without changing it everywhere else. */
+.reading ::deep .reader,
+.reading ::deep .editor {
+    border-radius: 6px;
+    color: var(--accent-text);
+    font-size: .78rem;
+    padding: .18rem .55rem;
+}
+
+.reading ::deep .reader {
+    border: var(--border-width) solid var(--accent);
+}
+
+.reading ::deep .editor {
+    max-width: 11rem;
+}
