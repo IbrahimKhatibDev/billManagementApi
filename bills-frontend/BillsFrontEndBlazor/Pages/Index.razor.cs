@@ -42,6 +42,17 @@ namespace BillsFrontEndBlazor.Pages
         /// <summary>Which late bill is being settled, if any.</summary>
         private long? _busyId;
 
+        /// <summary>
+        /// Which load is the current one. Three callers put this page's load in
+        /// flight — the first render, the <see cref="BillEventService"/> handler,
+        /// and the resync after a refused write — and nothing serialises them, so
+        /// they do not come back in the order they were sent. Without this a slow
+        /// earlier response lands after a fast later one and puts a just-settled
+        /// bill back in the late list. <c>Bills.razor.cs</c> guards its load the
+        /// same way and for the same reason.
+        /// </summary>
+        private int _loadGeneration;
+
         private BillSummary Summary => _summary ?? NoData;
 
         protected override async Task OnInitializedAsync()
@@ -63,6 +74,8 @@ namespace BillsFrontEndBlazor.Pages
 
         private async Task LoadStatsAsync()
         {
+            var generation = ++_loadGeneration;
+
             _isLoading = true;
             _loadFailed = false;
             StateHasChanged();
@@ -73,11 +86,21 @@ namespace BillsFrontEndBlazor.Pages
                 // asks for the unbounded summary.
                 var summary = await BillService.GetSummaryAsync(from: null, to: null);
 
+                if (generation != _loadGeneration)
+                {
+                    return;
+                }
+
                 _summary = summary;
                 _today = summary.AsOf;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
+                if (generation != _loadGeneration)
+                {
+                    return;
+                }
+
                 _summary = NoData;
 
                 // Back to this machine's date: NoData.AsOf is default(DateTime),
@@ -88,8 +111,13 @@ namespace BillsFrontEndBlazor.Pages
             }
             finally
             {
-                _isLoading = false;
-                StateHasChanged();
+                // A superseded load must not clear the spinner: the load that
+                // replaced it is still running.
+                if (generation == _loadGeneration)
+                {
+                    _isLoading = false;
+                    StateHasChanged();
+                }
             }
         }
 

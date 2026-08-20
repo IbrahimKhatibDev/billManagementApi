@@ -88,10 +88,20 @@ namespace BillsFrontEndBlazor.Pages
 
         /// <summary>
         /// The date the groups are cut against, fixed for the whole load so five
-        /// sections cannot disagree about where the week ends. This is Blazor
-        /// Server, so <see cref="DateTime.Today"/> is the API host's own date.
+        /// sections cannot disagree about where the week ends.
+        /// <para>
+        /// UTC, not <see cref="DateTime.Today"/>. The API classifies overdue
+        /// against <c>UtcDateTime.Today</c>, and this is a separate process from
+        /// it — <see cref="DateTime.Today"/> is this host's *local* date whatever
+        /// the API's is. West of Greenwich the two disagree between local
+        /// midnight and UTC midnight, and the Overview's "clear the N late bills"
+        /// link could land on a page whose Overdue chip was lit and whose Late
+        /// section was empty. Index.razor.cs takes the server's own
+        /// <c>AsOf</c>; this page has no summary to read it from, so it reckons
+        /// the same way the server does instead.
+        /// </para>
         /// </summary>
-        private DateTime _today = DateTime.Today;
+        private DateTime _today = DateTime.UtcNow.Date;
 
         /// <summary>Bills mid-flight in <see cref="TogglePaidAsync"/>. Keyed by id
         /// rather than one bool so a slow row cannot freeze the whole page.</summary>
@@ -432,7 +442,7 @@ namespace BillsFrontEndBlazor.Pages
 
             _isLoading = true;
             _loadFailed = false;
-            _today = DateTime.Today;
+            _today = DateTime.UtcNow.Date;
             StateHasChanged();
 
             try
