@@ -220,6 +220,42 @@ namespace BillsFrontEndBlazor.Services
         public Task<BillWriteResult> DeleteBillAsync(long id, CancellationToken ct = default)
             => SendAsync(() => _http.DeleteAsync($"{Route}/{id}", ct));
 
+        /// <summary>
+        /// The server's reading of a line like "Verizon 89.20 fri". Nothing is
+        /// created — the caller shows the reading for confirmation and then posts
+        /// a real bill through <see cref="CreateBillAsync"/>.
+        /// </summary>
+        /// <returns>
+        /// Null when there is no reading to show: the server was unreachable, it
+        /// refused, or a newer keystroke cancelled this call. All three mean the
+        /// preview stays as it was.
+        /// </returns>
+        public async Task<ParsedBill?> ParseBillAsync(string text, CancellationToken ct = default)
+        {
+            await AuthorizeAsync();
+
+            try
+            {
+                using var response = await _http.PostAsJsonAsync(
+                    $"{Route}/parse", new ParseBillRequest { Text = text }, ct);
+
+                return response.IsSuccessStatusCode
+                    ? await response.Content.ReadFromJsonAsync<ParsedBill>(ct)
+                    : null;
+            }
+            catch (OperationCanceledException)
+            {
+                // The caller debounces typing, so a cancelled read is the normal
+                // case, not a fault. Rethrowing would surface every superseded
+                // keystroke as an unhandled exception and tear down the circuit.
+                return null;
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
         private async Task<BillWriteResult> SendAsync(
             Func<Task<HttpResponseMessage>> send)
         {

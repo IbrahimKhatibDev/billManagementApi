@@ -236,6 +236,8 @@ public static class Routes
     public const string Bills = "/restapi/BillDtos";
 
     public const string Summary = Bills + "/summary";
+
+    public const string Parse = Bills + "/parse";
 }
 
 /// <summary>
