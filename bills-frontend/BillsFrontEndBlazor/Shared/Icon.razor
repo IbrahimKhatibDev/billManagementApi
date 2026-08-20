@@ -1,0 +1,21 @@
+@* Phosphor is a font, so an icon is an <i> carrying two classes: the family and
+   the glyph. Wrapping that here means the convention lives in one file instead
+   of forty call sites — and the last icon-set swap had to touch all forty.
+
+   aria-hidden on every icon: each one in this app sits beside its own label, so
+   announcing it would just read the label twice. *@
+<i class="ph ph-@Name @Class" style="font-size: @(Size)px" aria-hidden="true"></i>
+
+@code {
+    /// <summary>Phosphor glyph name without the <c>ph-</c> prefix, e.g. "receipt".</summary>
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Rendered size in px. The design uses 16–20 inline with text.</summary>
+    [Parameter]
+    public int Size { get; set; } = 16;
+
+    /// <summary>Extra classes, for spacing utilities at the call site.</summary>
+    [Parameter]
+    public string? Class { get; set; }
+}

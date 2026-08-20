@@ -9,14 +9,14 @@
     <div class="d-flex flex-wrap gap-2 align-items-start justify-content-between mb-4">
         <div>
             <h2 class="fw-bold mb-1">
-                <i class="bi bi-graph-up-arrow me-2"></i> Reports
+                <i class="ph ph-chart-line-up me-2"></i> Reports
             </h2>
             <p class="text-muted mb-0">Where the money is, who it is owed to, and how late it is.</p>
         </div>
 
         <div class="d-flex gap-2">
             <button class="btn btn-primary" @onclick="LoadBillsAsync" disabled="@_isLoading">
-                <i class="bi bi-arrow-repeat me-1"></i> Refresh
+                <i class="ph ph-arrows-clockwise me-1"></i> Refresh
             </button>
 
             @* A plain link, not a JS-driven download: the endpoint returns the
@@ -25,7 +25,7 @@
                is also what stops Blazor's router from intercepting the click and
                trying to route to a page that does not exist. *@
             <a class="btn btn-outline-secondary" href="@CsvHref" download>
-                <i class="bi bi-download me-1"></i> Export CSV
+                <i class="ph ph-download-simple me-1"></i> Export CSV
             </a>
         </div>
     </div>
@@ -33,10 +33,10 @@
     @if (_loadFailed)
     {
         <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
-            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <i class="ph ph-warning-octagon fs-4"></i>
             <div class="flex-grow-1">Could not reach the API.</div>
             <button class="btn btn-sm btn-outline-danger" @onclick="LoadBillsAsync">
-                <i class="bi bi-arrow-repeat me-1"></i> Retry
+                <i class="ph ph-arrows-clockwise me-1"></i> Retry
             </button>
         </div>
     }
@@ -72,7 +72,7 @@
     {
         <div class="card shadow-sm border-0">
             <div class="card-body text-center text-muted py-5">
-                <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                <i class="ph ph-tray display-6 d-block mb-2"></i>
                 @if (HasNoBillsAtAll)
                 {
                     <span>No bills yet. Create one and this page fills itself in.</span>
@@ -271,7 +271,7 @@
                             @if (PriorityBills.Count == 0)
                             {
                                 <p class="text-muted mb-0">
-                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                    <i class="ph ph-check-circle text-success me-1"></i>
                                     Nothing outstanding in this range.
                                 </p>
                             }
@@ -312,23 +312,23 @@
                                 <tr>
                                     <th scope="col" class="sortable @PayeeSorted(PayeeSortColumn.Payee)"
                                         @onclick="() => SortPayeesBy(PayeeSortColumn.Payee)">
-                                        Payee <i class="bi @PayeeSortCaret(PayeeSortColumn.Payee) sort-caret"></i>
+                                        Payee <i class="ph @PayeeSortCaret(PayeeSortColumn.Payee) sort-caret"></i>
                                     </th>
                                     <th scope="col" class="text-end col-count sortable @PayeeSorted(PayeeSortColumn.Bills)"
                                         @onclick="() => SortPayeesBy(PayeeSortColumn.Bills)">
-                                        Bills <i class="bi @PayeeSortCaret(PayeeSortColumn.Bills) sort-caret"></i>
+                                        Bills <i class="ph @PayeeSortCaret(PayeeSortColumn.Bills) sort-caret"></i>
                                     </th>
                                     <th scope="col" class="text-end col-money sortable @PayeeSorted(PayeeSortColumn.Billed)"
                                         @onclick="() => SortPayeesBy(PayeeSortColumn.Billed)">
-                                        Billed <i class="bi @PayeeSortCaret(PayeeSortColumn.Billed) sort-caret"></i>
+                                        Billed <i class="ph @PayeeSortCaret(PayeeSortColumn.Billed) sort-caret"></i>
                                     </th>
                                     <th scope="col" class="text-end col-money sortable @PayeeSorted(PayeeSortColumn.Paid)"
                                         @onclick="() => SortPayeesBy(PayeeSortColumn.Paid)">
-                                        Paid <i class="bi @PayeeSortCaret(PayeeSortColumn.Paid) sort-caret"></i>
+                                        Paid <i class="ph @PayeeSortCaret(PayeeSortColumn.Paid) sort-caret"></i>
                                     </th>
                                     <th scope="col" class="text-end col-money sortable @PayeeSorted(PayeeSortColumn.Outstanding)"
                                         @onclick="() => SortPayeesBy(PayeeSortColumn.Outstanding)">
-                                        Outstanding <i class="bi @PayeeSortCaret(PayeeSortColumn.Outstanding) sort-caret"></i>
+                                        Outstanding <i class="ph @PayeeSortCaret(PayeeSortColumn.Outstanding) sort-caret"></i>
                                     </th>
                                 </tr>
                             </thead>
@@ -363,11 +363,11 @@
                                     @onclick="() => _showAllPayees = !_showAllPayees">
                                 @if (_showAllPayees)
                                 {
-                                    <span><i class="bi bi-chevron-up me-1"></i> Show top @PayeePreviewRows only</span>
+                                    <span><i class="ph ph-caret-up me-1"></i> Show top @PayeePreviewRows only</span>
                                 }
                                 else
                                 {
-                                    <span><i class="bi bi-chevron-down me-1"></i> Show all @_payees.Count payees</span>
+                                    <span><i class="ph ph-caret-down me-1"></i> Show all @_payees.Count payees</span>
                                 }
                             </button>
                         </div>

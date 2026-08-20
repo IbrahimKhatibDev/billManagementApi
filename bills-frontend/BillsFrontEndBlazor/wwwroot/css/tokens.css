@@ -1,3 +1,23 @@
+/* One variable font covers every weight this design uses, which is why there is
+   a single file here and not the six a static family would need.
+
+   Latin only. Anything outside that range falls through to the next family in
+   --font-sans, per-glyph, which is what unicode-range buys.
+
+   font-display: swap — text is readable in the fallback while the font loads
+   rather than invisible, and Inter and the system stack have close enough
+   metrics that the swap is not a jolt. */
+@font-face {
+    font-family: "Inter";
+    src: url("fonts/inter/inter-latin-wght-normal.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                   U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+                   U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ---------------------------------------------------------------------------
    Design tokens.
 

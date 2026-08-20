@@ -10,16 +10,16 @@
     <base href="~/" />
 
     @* Everything below is served from this app — there are no CDN or other
-       third-party requests. Bootstrap Icons is vendored under
-       wwwroot/css/bootstrap-icons/ rather than pulled from jsdelivr, so the
-       container stays self-contained and the UI renders with the network off. *@
+       third-party requests. Phosphor is vendored under wwwroot/css/phosphor/
+       rather than pulled from jsdelivr, so the container stays self-contained
+       and the UI renders with the network off. *@
     @* theme.js is blocking and first: it sets data-palette and data-mode before
        anything paints. The attributes are in the markup above as well, so the
        page is Nocturne dark rather than unthemed when scripting is off. *@
     <script src="js/theme.js"></script>
 
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/bootstrap-icons/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="css/phosphor/style.css" />
     <link href="css/tokens.css" rel="stylesheet" />
     <link href="css/site.css" rel="stylesheet" />
     <link href="BillsFrontEndBlazor.styles.css" rel="stylesheet" />

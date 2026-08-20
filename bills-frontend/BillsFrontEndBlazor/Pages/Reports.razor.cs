@@ -355,10 +355,10 @@ namespace BillsFrontEndBlazor.Pages
         {
             if (_payeeSort != column)
             {
-                return "bi-arrow-down-up";
+                return "ph-arrows-down-up";
             }
 
-            return _payeeSortDescending ? "bi-caret-down-fill" : "bi-caret-up-fill";
+            return _payeeSortDescending ? "ph-caret-down" : "ph-caret-up";
         }
 
         // -- Month by month --------------------------------------------------

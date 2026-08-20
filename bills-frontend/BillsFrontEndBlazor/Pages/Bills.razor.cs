@@ -260,10 +260,10 @@ namespace BillsFrontEndBlazor.Pages
         {
             if (_sortColumn != column)
             {
-                return "bi-arrow-down-up";
+                return "ph-arrows-down-up";
             }
 
-            return _sortDescending ? "bi-caret-down-fill" : "bi-caret-up-fill";
+            return _sortDescending ? "ph-caret-down" : "ph-caret-up";
         }
 
         /// <summary>
