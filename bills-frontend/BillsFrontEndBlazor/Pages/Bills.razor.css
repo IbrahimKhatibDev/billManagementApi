@@ -1,0 +1,139 @@
+.bills {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 0 auto;
+    max-width: 1200px;
+    padding: 1.5rem;
+}
+
+.page-head {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+}
+
+.page-head h1 {
+    color: var(--text);
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.lede {
+    color: var(--faint);
+    font-size: .82rem;
+    margin: .1rem 0 0;
+}
+
+.head-actions {
+    display: flex;
+    gap: .5rem;
+}
+
+.ghost,
+.primary {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    padding: .4rem .8rem;
+}
+
+/* Outline, not a flood fill: the accent is a line colour in this palette. */
+.primary {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.ghost:hover:not(:disabled) { color: var(--text); }
+
+.ghost:disabled,
+.primary:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.controls {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.chips {
+    display: flex;
+    gap: .35rem;
+}
+
+.chip {
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: .82rem;
+    padding: .25rem .75rem;
+}
+
+.chip.active {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.chip-badge {
+    color: var(--late);
+    margin-left: .3rem;
+}
+
+.search {
+    align-items: center;
+    display: flex;
+    gap: .5rem;
+    position: relative;
+}
+
+.search input {
+    background: var(--sunken);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: .4rem .7rem .4rem 2rem;
+    width: 16rem;
+}
+
+::deep .search-icon {
+    color: var(--faint);
+    left: .6rem;
+    pointer-events: none;
+    position: absolute;
+}
+
+.tally {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin: 0 0 0 auto;
+}
+
+.state,
+.capped {
+    color: var(--muted);
+    margin: 0;
+    padding: 1rem 0;
+}
+
+.groups {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: opacity .15s ease;
+}
+
+/* Dim rather than blank: the rows on screen are still the right rows, they are
+   just about to be replaced by fresher copies of themselves. */
+.groups.is-refreshing {
+    opacity: .55;
+}

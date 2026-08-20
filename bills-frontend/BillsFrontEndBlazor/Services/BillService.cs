@@ -37,6 +37,22 @@ namespace BillsFrontEndBlazor.Services
         };
     }
 
+    /// <summary>
+    /// Every bill matching a query — up to a cap — together with how many there
+    /// really are.
+    /// <para>
+    /// <see cref="TotalCount"/> is the server's answer, not
+    /// <c>Bills.Count</c>. Keeping both is what lets the page say "showing the
+    /// first 500 of 1,240" instead of quietly presenting 500 as the whole book.
+    /// </para>
+    /// </summary>
+    public sealed record BillBook(List<Bill> Bills, int TotalCount)
+    {
+        public static BillBook Empty { get; } = new(new List<Bill>(), 0);
+
+        public bool IsCapped => Bills.Count < TotalCount;
+    }
+
     public class BillService
     {
         private readonly HttpClient _http;
@@ -192,6 +208,65 @@ namespace BillsFrontEndBlazor.Services
 
                 page = result.Page + 1;
             }
+        }
+
+        /// <summary>
+        /// Walks the paged endpoint until the query is exhausted or
+        /// <paramref name="cap"/> rows are in hand.
+        /// <para>
+        /// The Bills page groups by due window, and a due window spans the whole
+        /// book — so it can no longer ask for one page at a time. This is the
+        /// same walk <see cref="GetAllInRangeAsync"/> does for CSV export, with
+        /// two differences: it carries the page's own filter, search and sort
+        /// rather than fetching everything, and it stops.
+        /// </para>
+        /// <para>
+        /// The cap is a real bound, not a formality. Without it a 20,000-row
+        /// account would render 20,000 rows into a Blazor Server circuit and send
+        /// the whole diff over the wire.
+        /// </para>
+        /// </summary>
+        /// <param name="seed">
+        /// The query to repeat. Its <c>Page</c> and <c>PageSize</c> are ignored —
+        /// the walk sets them.
+        /// </param>
+        public async Task<BillBook> GetBookAsync(
+            BillQuery seed,
+            int cap,
+            CancellationToken ct = default)
+        {
+            var all = new List<Bill>();
+            var page = 1;
+            var total = 0;
+
+            while (true)
+            {
+                var result = await GetBillsAsync(
+                    seed with { Page = page, PageSize = BillQuery.MaxPageSize },
+                    ct);
+
+                // Every page carries it, and it is the same number each time; the
+                // last one read is as good as the first.
+                total = result.TotalCount;
+                all.AddRange(result.Items);
+
+                if (all.Count >= cap || !result.HasNext)
+                {
+                    break;
+                }
+
+                page = result.Page + 1;
+            }
+
+            // A page is 100 rows, so a cap of 500 lands exactly — but the cap is a
+            // constant someone may change, and 501 rows under a cap of 450 would
+            // otherwise be handed to the page as if it had asked for them.
+            if (all.Count > cap)
+            {
+                all.RemoveRange(cap, all.Count - cap);
+            }
+
+            return new BillBook(all, total);
         }
 
         private static string SummaryQuery(DateTime? from, DateTime? to)

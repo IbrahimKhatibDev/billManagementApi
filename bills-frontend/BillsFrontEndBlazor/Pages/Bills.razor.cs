@@ -6,21 +6,27 @@ using Microsoft.AspNetCore.Components;
 namespace BillsFrontEndBlazor.Pages
 {
     /// <summary>
-    /// The bills table. Every question it asks — which rows, in what order, which
-    /// page — is answered by Postgres rather than by LINQ over a full copy of the
-    /// table, so the filter buttons, the column headers, the pager and the search
-    /// box are all round trips.
+    /// The bills page. It holds the whole book — filtered and searched by
+    /// Postgres, then partitioned into due windows here — rather than one page at
+    /// a time, because a due window spans the book and cannot be assembled from a
+    /// slice of it.
     /// <para>
-    /// <see cref="BillStatus"/> and <see cref="BillSort"/> come from the shared
-    /// contracts project rather than being declared here. They used to be a local
-    /// pair of enums with the same members, which was fine while the filtering
-    /// happened in this file and became a translation layer the moment it did
-    /// not.
+    /// The pager and the column sorts went with that change: the groups impose
+    /// their own order, and a book sorted by amount has no due windows in it.
     /// </para>
     /// </summary>
     public partial class Bills : IDisposable
     {
-        private static readonly int[] PageSizeOptions = { 10, 25, 50 };
+        /// <summary>
+        /// The most rows the page will hold at once.
+        /// <para>
+        /// Not a display limit — a real bound. Every row rendered into a Blazor
+        /// Server circuit is state the server keeps and diffs on every change, so
+        /// an unbounded book would make one large account slow for everybody
+        /// sharing the host. When it bites, the page says so.
+        /// </para>
+        /// </summary>
+        private const int RowCap = 500;
 
         /// <summary>
         /// How long the search box waits after the last keystroke. Long enough
@@ -28,6 +34,15 @@ namespace BillsFrontEndBlazor.Pages
         /// that it still feels like it is keeping up.
         /// </summary>
         private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(300);
+
+        /// <summary>The chips, in the order the design puts them.</summary>
+        private static readonly BillStatus[] FilterOrder =
+        {
+            BillStatus.All,
+            BillStatus.Unpaid,
+            BillStatus.Overdue,
+            BillStatus.Paid,
+        };
 
         [Inject]
         public BillService BillService { get; set; } = default!;
@@ -38,54 +53,63 @@ namespace BillsFrontEndBlazor.Pages
         [Inject]
         public ToastService Toasts { get; set; } = default!;
 
-        /// <summary>Set by the dashboard's "Add a Bill" tile, which links to
+        /// <summary>Set by the Overview's create link, which points at
         /// <c>bills?new=true</c>.</summary>
         [Parameter]
         [SupplyParameterFromQuery(Name = "new")]
         public bool OpenCreateForm { get; set; }
 
-        private PagedResult<Bill> _result = PagedResult<Bill>.Empty(1, BillQuery.DefaultPageSize);
+        /// <summary>
+        /// Set by the Overview's "Clear the N late bills" link, which points at
+        /// <c>bills?filter=overdue</c>. A string rather than a
+        /// <see cref="BillStatus"/> so an unrecognised value falls back to All
+        /// instead of failing to bind.
+        /// </summary>
+        [Parameter]
+        [SupplyParameterFromQuery(Name = "filter")]
+        public string? FilterName { get; set; }
+
+        private BillBook _book = BillBook.Empty;
         private bool _isLoading = true;
         private bool _loadFailed;
 
         private string _searchText = string.Empty;
         private BillStatus _filter = BillStatus.All;
 
-        /// <summary>Bills mid-flight in <see cref="TogglePaidAsync"/>. Keyed by
-        /// id rather than a single bool so one slow row cannot freeze the whole
-        /// table.</summary>
-        private readonly HashSet<long> _togglingIds = new();
-
-        private BillSort _sortColumn = BillSort.Id;
-        private bool _sortDescending;
-
-        private int _page = 1;
-        private int _pageSize = BillQuery.DefaultPageSize;
-
         /// <summary>
-        /// Overdue bills across the whole table, not just this page — the badge
-        /// on the filter button is a reason to click it, so counting only the
-        /// rows already on screen would defeat the point. Filled from a separate
-        /// count request rather than from the rows.
+        /// Overdue bills across the whole table, not just what is loaded — the
+        /// badge on the chip is a reason to click it, so counting only the rows on
+        /// screen would defeat the point.
         /// </summary>
         private int _overdueCount;
 
+        /// <summary>Every bill on the account, for the "N of M" tally.</summary>
+        private int _billCount;
+
         /// <summary>
-        /// Which load is the current one. A debounced keystroke, a filter click
-        /// and a background refresh from <see cref="BillEventService"/> are
-        /// routinely in flight together, and they do not come back in the order
-        /// they were sent; without this, a slow early response can land after a
-        /// fast later one and put the table back to what you already stopped
-        /// asking for.
+        /// The date the groups are cut against, fixed for the whole load so five
+        /// sections cannot disagree about where the week ends. This is Blazor
+        /// Server, so <see cref="DateTime.Today"/> is the API host's own date.
+        /// </summary>
+        private DateTime _today = DateTime.Today;
+
+        /// <summary>Bills mid-flight in <see cref="TogglePaidAsync"/>. Keyed by id
+        /// rather than one bool so a slow row cannot freeze the whole page.</summary>
+        private readonly HashSet<long> _busyIds = new();
+
+        /// <summary>
+        /// Which load is the current one. A debounced keystroke, a chip click and
+        /// a background refresh from <see cref="BillEventService"/> are routinely
+        /// in flight together and do not come back in the order they were sent;
+        /// without this a slow early response can land after a fast later one and
+        /// put the page back to what you already stopped asking for.
         /// </summary>
         private int _loadGeneration;
 
-        /// <summary>Cancels the pending debounce when another key is pressed.
-        /// Disposed in <see cref="Dispose"/> along with the event
-        /// subscription.</summary>
+        /// <summary>Cancels the pending debounce when another key is pressed.</summary>
         private CancellationTokenSource? _searchCts;
 
-        // Modal state. The three "modals" are plain conditional rendering with
+        // Modal state. The two "modals" are plain conditional rendering with
         // Bootstrap's classes — no bootstrap.bundle.js, no JS interop, which
         // matters because IJSRuntime is unusable during the prerender pass.
         private enum FormMode
@@ -102,61 +126,79 @@ namespace BillsFrontEndBlazor.Pages
 
         // -- What the markup binds ---------------------------------------------
 
-        private IReadOnlyList<Bill> PagedBills => _result.Items;
+        /// <summary>One due-window section, ready to render.</summary>
+        private sealed record BillSection(
+            DueWindow Window,
+            string Title,
+            string Tone,
+            List<Bill> Bills,
+            decimal Total);
 
-        private bool HasRows => _result.Items.Count > 0;
+        private IReadOnlyList<Bill> Rows => _book.Bills;
 
-        /// <summary>Total matching the current filter and search, which is what
-        /// the pager and the "showing 1–10 of 34" line describe.</summary>
-        private int FilteredCount => _result.TotalCount;
+        private bool HasRows => _book.Bills.Count > 0;
 
-        /// <summary>
-        /// Distinguishes "you have no bills" from "nothing matches what you
-        /// asked for" without a second request: a zero count while nothing is
-        /// filtered or searched can only be the former.
-        /// </summary>
-        private bool HasNoBillsAtAll =>
-            _result.TotalCount == 0 && _filter == BillStatus.All && !HasSearch;
+        /// <summary>How many match the chip and the search — which is not
+        /// <c>Rows.Count</c> once the cap bites.</summary>
+        private int MatchCount => _book.TotalCount;
 
-        private int TotalPages => _result.TotalPages;
-
-        private int CurrentPage => _result.Page;
-
-        private int FirstRowNumber => _result.FirstRowNumber;
-
-        private int LastRowNumber => _result.LastRowNumber;
-
-        private int PageSize => _pageSize;
+        private int BillCount => _billCount;
 
         private int OverdueCount => _overdueCount;
 
         private bool HasSearch => !string.IsNullOrEmpty(_searchText);
 
-        /// <summary>A window of at most five page numbers centred on the current
-        /// page, so 50 pages do not render 50 buttons.</summary>
-        private IEnumerable<int> PageWindow
+        /// <summary>
+        /// Distinguishes "you have no bills" from "nothing matches what you asked
+        /// for" without a second request: a zero count while nothing is filtered
+        /// or searched can only be the former.
+        /// </summary>
+        private bool HasNoBillsAtAll =>
+            _book.TotalCount == 0 && _filter == BillStatus.All && !HasSearch;
+
+        private decimal LoadedTotal => _book.Bills.Sum(b => b.PaymentDue);
+
+        /// <summary>
+        /// The five sections, empty ones dropped.
+        /// <para>
+        /// Computed per render rather than cached, so an optimistic paid toggle
+        /// moves its row into the Paid group immediately instead of waiting for
+        /// the reload. It is a partition of at most <see cref="RowCap"/> rows.
+        /// </para>
+        /// </summary>
+        private IEnumerable<BillSection> Sections =>
+            DueWindows.Order
+                .Select(window => (
+                    Window: window,
+                    Bills: _book.Bills
+                        .Where(b => DueWindows.Classify(b.Paid, b.DueDate, _today) == window)
+                        // Soonest first within a section, which is the order the
+                        // grouping exists to express. Id breaks ties so the list
+                        // does not reshuffle between renders.
+                        .OrderBy(b => b.DueDate ?? DateTime.MaxValue)
+                        .ThenBy(b => b.Id)
+                        .ToList()))
+                .Where(g => g.Bills.Count > 0)
+                .Select(g => new BillSection(
+                    g.Window,
+                    DueWindows.Title(g.Window),
+                    Tone(g.Window),
+                    g.Bills,
+                    g.Bills.Sum(b => b.PaymentDue)));
+
+        /// <summary>The dot colour per section. Tokens only — the component it is
+        /// handed to never names a palette.</summary>
+        private static string Tone(DueWindow window) => window switch
         {
-            get
-            {
-                const int Window = 5;
-
-                var start = Math.Max(1, CurrentPage - (Window / 2));
-                var end = Math.Min(TotalPages, start + Window - 1);
-                start = Math.Max(1, end - Window + 1);
-
-                return Enumerable.Range(start, end - start + 1);
-            }
-        }
+            DueWindow.Late => "var(--late)",
+            DueWindow.ThisWeek => "var(--accent)",
+            DueWindow.ThisMonth => "var(--text)",
+            DueWindow.Later => "var(--muted)",
+            _ => "var(--ok)",
+        };
 
         // -- Controls -----------------------------------------------------------
 
-        /// <summary>
-        /// Every control resets to page 1 before reloading. Narrowing a 25-row
-        /// result to 4 matches while standing on page 3 would otherwise ask the
-        /// server for a page that no longer exists — it clamps rather than
-        /// erroring, but landing on the bottom of results whose top you never saw
-        /// is its own kind of wrong.
-        /// </summary>
         private Task SetFilterAsync(BillStatus filter)
         {
             if (_filter == filter)
@@ -165,112 +207,13 @@ namespace BillsFrontEndBlazor.Pages
             }
 
             _filter = filter;
-            _page = 1;
 
             return LoadBillsAsync();
-        }
-
-        /// <summary>
-        /// Bound to the rows-per-page select. A plain <c>@bind</c> would need the
-        /// value round-tripped through a string anyway, and the page has to be
-        /// reset and the rows refetched either way.
-        /// </summary>
-        private Task OnPageSizeChangedAsync(ChangeEventArgs e)
-        {
-            if (!int.TryParse(e.Value?.ToString(), out var size) || size == _pageSize)
-            {
-                return Task.CompletedTask;
-            }
-
-            _pageSize = size;
-            _page = 1;
-
-            return LoadBillsAsync();
-        }
-
-        private Task GoToPageAsync(int page)
-        {
-            var next = Math.Clamp(page, 1, TotalPages);
-
-            if (next == _page)
-            {
-                return Task.CompletedTask;
-            }
-
-            _page = next;
-
-            return LoadBillsAsync();
-        }
-
-        private Task SortByAsync(BillSort column)
-        {
-            if (_sortColumn == column)
-            {
-                _sortDescending = !_sortDescending;
-            }
-            else
-            {
-                _sortColumn = column;
-                _sortDescending = false;
-            }
-
-            // Re-sorting reorders the entire result set, so page 3 now holds
-            // different bills than the ones being read a moment ago. Going back
-            // to the top is the only reading of "sort by amount" that makes
-            // sense.
-            _page = 1;
-
-            return LoadBillsAsync();
-        }
-
-        /// <summary>
-        /// Used by the mobile sort control, where the header row that normally
-        /// carries <see cref="SortByAsync"/> is hidden. Picking a column from a
-        /// dropdown must not flip the direction the way clicking a header does
-        /// — there is a separate button for that.
-        /// </summary>
-        private Task SetSortColumnAsync(ChangeEventArgs e)
-        {
-            if (!Enum.TryParse<BillSort>(e.Value?.ToString(), out var column)
-                || column == _sortColumn)
-            {
-                return Task.CompletedTask;
-            }
-
-            _sortColumn = column;
-            _page = 1;
-
-            return LoadBillsAsync();
-        }
-
-        private Task ToggleSortDirectionAsync()
-        {
-            _sortDescending = !_sortDescending;
-            _page = 1;
-
-            return LoadBillsAsync();
-        }
-
-        /// <summary>Marks the header the table is currently ordered by, so the
-        /// caret on that one column renders solid instead of ghosted.</summary>
-        private string? Sorted(BillSort column) =>
-            _sortColumn == column ? "sorted" : null;
-
-        private string SortCaret(BillSort column)
-        {
-            if (_sortColumn != column)
-            {
-                return "ph-arrows-down-up";
-            }
-
-            return _sortDescending ? "ph-caret-down" : "ph-caret-up";
         }
 
         /// <summary>
         /// Waits out <see cref="SearchDebounce"/> before asking the server, and
-        /// abandons the wait if another key arrives. Bound to <c>oninput</c>
-        /// rather than through <c>@bind</c>: two-way binding would fire a request
-        /// per keystroke, which is exactly what the debounce exists to prevent.
+        /// abandons the wait if another key arrives.
         /// </summary>
         private async Task OnSearchInputAsync(ChangeEventArgs e)
         {
@@ -282,7 +225,6 @@ namespace BillsFrontEndBlazor.Pages
             }
 
             _searchText = next;
-            _page = 1;
 
             // Cancel first, then dispose: Cancel runs the delay's registration
             // synchronously, so by the time it returns there is nothing left
@@ -317,7 +259,6 @@ namespace BillsFrontEndBlazor.Pages
             // not a keystroke on the way to one.
             _searchCts?.Cancel();
             _searchText = string.Empty;
-            _page = 1;
 
             return LoadBillsAsync();
         }
@@ -326,19 +267,35 @@ namespace BillsFrontEndBlazor.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            // The page only published this event before, so a bill created on
-            // the dashboard left this table stale until a manual reload.
             BillEventService.OnBillsChanged += OnBillsChanged;
 
             // Here rather than in OnParametersSet: this runs exactly once per
-            // component instance, so the form cannot pop open again on some
-            // later re-render while the user is part-way through dismissing it.
+            // component instance, so a deep link cannot re-apply its filter — or
+            // pop the form open again — on some later re-render while the user is
+            // part-way through changing it.
+            ApplyQueryFilter();
+
             if (OpenCreateForm)
             {
                 OpenCreateModal();
             }
 
             await LoadBillsAsync();
+        }
+
+        /// <summary>
+        /// Honours <c>?filter=overdue</c>. Case-insensitive because the link is
+        /// written in a URL, and validated because anyone can type anything into
+        /// one — an unrecognised value leaves the chip on All rather than
+        /// throwing.
+        /// </summary>
+        private void ApplyQueryFilter()
+        {
+            if (Enum.TryParse<BillStatus>(FilterName, ignoreCase: true, out var status)
+                && Enum.IsDefined(status))
+            {
+                _filter = status;
+            }
         }
 
         public void Dispose()
@@ -359,16 +316,19 @@ namespace BillsFrontEndBlazor.Pages
 
         /// <summary>
         /// Turns the current state of the page into one request. Deliberately the
-        /// only place that happens, so the pager, the header carets and the
-        /// search box cannot end up describing different queries.
+        /// only place that happens, so the chips, the search box and the tally
+        /// cannot end up describing different queries.
         /// </summary>
         private BillQuery BuildQuery() => new(
-            Page: _page,
-            PageSize: _pageSize,
+            Page: 1,
+            PageSize: BillQuery.MaxPageSize,
             Search: _searchText,
             Status: _filter,
-            Sort: _sortColumn,
-            Descending: _sortDescending,
+            // The groups re-sort within themselves anyway; asking the server for
+            // due-date order means the cap keeps the soonest bills rather than an
+            // arbitrary 500.
+            Sort: BillSort.DueDate,
+            Descending: false,
             From: null,
             To: null);
 
@@ -383,31 +343,29 @@ namespace BillsFrontEndBlazor.Pages
 
             _isLoading = true;
             _loadFailed = false;
+            _today = DateTime.Today;
             StateHasChanged();
 
             try
             {
-                // Concurrently: the badge count asks a different question from
-                // the rows (every overdue bill, regardless of what is filtered or
-                // searched), so it cannot be derived from them — but it need not
-                // wait for them either.
-                var rows = BillService.GetBillsAsync(BuildQuery());
+                // Concurrently: the two counts ask different questions from the
+                // rows — every overdue bill and every bill, regardless of what is
+                // filtered or searched — so neither can be derived from them, but
+                // neither need wait for them either.
+                var book = BillService.GetBookAsync(BuildQuery(), RowCap);
                 var overdue = BillService.CountAsync(BillStatus.Overdue);
+                var everything = BillService.CountAsync(BillStatus.All);
 
-                await Task.WhenAll(rows, overdue);
+                await Task.WhenAll(book, overdue, everything);
 
                 if (generation != _loadGeneration)
                 {
                     return;
                 }
 
-                _result = rows.Result;
+                _book = book.Result;
                 _overdueCount = overdue.Result;
-
-                // The server clamps a page past the end and tells us where we
-                // actually landed. Taking its answer is what keeps the pager
-                // honest after a delete empties the last page.
-                _page = _result.Page;
+                _billCount = everything.Result;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
@@ -419,15 +377,16 @@ namespace BillsFrontEndBlazor.Pages
                     return;
                 }
 
-                _result = PagedResult<Bill>.Empty(_page, _pageSize);
+                _book = BillBook.Empty;
                 _overdueCount = 0;
+                _billCount = 0;
                 _loadFailed = true;
                 Toasts.ShowError("Could not load bills. Is the API running?");
             }
             finally
             {
                 // A superseded load must not clear the spinner: the load that
-                // replaced it is still running, and the table would flash from
+                // replaced it is still running, and the page would flash from
                 // dimmed to crisp and back.
                 if (generation == _loadGeneration)
                 {
@@ -435,64 +394,6 @@ namespace BillsFrontEndBlazor.Pages
                     StateHasChanged();
                 }
             }
-        }
-
-        // -- Presentation -------------------------------------------------------
-
-        /// <summary>
-        /// Past its due date and still unpaid. Compared against
-        /// <see cref="DateTime.Today"/>, not <c>UtcNow</c>: the API stores due
-        /// dates as midnight UTC, so anything time-of-day aware would call a
-        /// bill due today overdue for part of the day in a western timezone.
-        /// </summary>
-        private static bool IsOverdue(Bill bill) =>
-            !bill.Paid && bill.DueDate is { } due && due.Date < DateTime.Today;
-
-        /// <summary>Three states from two booleans: an unpaid bill that is not
-        /// due yet is not a problem, so it stays grey and the red is saved for
-        /// the ones that are actually late.</summary>
-        private static string StatusClass(Bill bill) => bill switch
-        {
-            { Paid: true } => "bg-success",
-            _ when IsOverdue(bill) => "bg-danger",
-            _ => "bg-secondary",
-        };
-
-        private static string StatusText(Bill bill) => bill switch
-        {
-            { Paid: true } => "Paid",
-            _ when IsOverdue(bill) => "Overdue",
-            _ => "Unpaid",
-        };
-
-        /// <summary>The date itself. Spelled out rather than "6/2/2026", which
-        /// reads as either 6 February or June 2 depending on where you are
-        /// from.</summary>
-        private static string DueDateText(Bill bill) =>
-            bill.DueDate?.ToString("MMM d, yyyy") ?? "—";
-
-        /// <summary>
-        /// How far off the due date is, in plain words. Only rendered for
-        /// unpaid bills — once something is paid, how late it was is history.
-        /// </summary>
-        private static string? DueRelativeText(Bill bill)
-        {
-            if (bill.Paid || bill.DueDate is not { } due)
-            {
-                return null;
-            }
-
-            var days = (due.Date - DateTime.Today).Days;
-
-            return days switch
-            {
-                0 => "due today",
-                1 => "due tomorrow",
-                < 0 and > -2 => "1 day late",
-                < 0 => $"{-days} days late",
-                <= 7 => $"in {days} days",
-                _ => null,
-            };
         }
 
         // -- Writes -------------------------------------------------------------
@@ -505,8 +406,8 @@ namespace BillsFrontEndBlazor.Pages
 
         private void OpenEditModal(Bill bill)
         {
-            // A copy, not the table's instance: cancelling the form must not
-            // leave half-typed values rendered in the row behind it.
+            // A copy, not the page's instance: cancelling the form must not leave
+            // half-typed values rendered in the row behind it.
             _formBill = new Bill
             {
                 Id = bill.Id,
@@ -534,26 +435,23 @@ namespace BillsFrontEndBlazor.Pages
             _isSaving = false;
         }
 
-        private bool IsToggling(Bill bill) => _togglingIds.Contains(bill.Id);
-
         /// <summary>
-        /// Marks a bill paid or unpaid straight from the table. Ticking a
-        /// checkbox is the most common thing anyone does on this page, and
-        /// routing it through the edit modal meant opening a form, changing one
-        /// checkbox, and submitting five fields back.
+        /// Marks a bill paid or unpaid straight from its row. Ticking a box is the
+        /// most common thing anyone does on this page, and routing it through the
+        /// edit modal meant opening a form, changing one checkbox, and submitting
+        /// five fields back.
         /// </summary>
         private async Task TogglePaidAsync(Bill bill)
         {
             // Add returns false if the id is already in the set, which is what
             // stops a double-click sending two writes.
-            if (!_togglingIds.Add(bill.Id))
+            if (!_busyIds.Add(bill.Id))
             {
                 return;
             }
 
-            // Optimistic: flip now and put it back if the write fails. This
-            // table is read far more often than it is written, and waiting a
-            // round trip to tick a box makes the whole page feel remote.
+            // Optimistic: flip now and put it back if the write fails. Sections is
+            // computed per render, so the row moves to its new group immediately.
             bill.Paid = !bill.Paid;
 
             try
@@ -565,8 +463,8 @@ namespace BillsFrontEndBlazor.Pages
                     bill.Paid = !bill.Paid;
                     Toasts.ShowError(result.ToMessage("update"));
 
-                    // Our copy is stale (409) or the row is gone (404); either
-                    // way what is on screen is wrong, so resync.
+                    // Our copy is stale (409) or the row is gone (404); either way
+                    // what is on screen is wrong, so resync.
                     if (result.IsConflict || result.IsNotFound)
                     {
                         AfterWrite();
@@ -577,14 +475,14 @@ namespace BillsFrontEndBlazor.Pages
 
                 Toasts.ShowSuccess(bill.Paid ? "Marked as paid" : "Marked as unpaid");
 
-                // Not merely to refresh the dashboard: the API increments
-                // Version on every write, so the copy in this list is now stale
-                // and a second toggle would 409 against it.
+                // Not merely to refresh the Overview: the API increments Version
+                // on every write, so the copy in this list is now stale and a
+                // second toggle would 409 against it.
                 AfterWrite();
             }
             finally
             {
-                _togglingIds.Remove(bill.Id);
+                _busyIds.Remove(bill.Id);
             }
         }
 
@@ -609,10 +507,10 @@ namespace BillsFrontEndBlazor.Pages
                 {
                     Toasts.ShowError(result.ToMessage(creating ? "create" : "update"));
 
-                    // A 409 means someone else won the race and our copy is
-                    // stale, and a 404 means the row is gone — in both cases the
-                    // list on screen is wrong, so refresh it before the retry.
-                    // The form stays open with the user's values intact.
+                    // A 409 means someone else won the race and our copy is stale,
+                    // and a 404 means the row is gone — in both cases the list on
+                    // screen is wrong, so refresh it before the retry. The form
+                    // stays open with the user's values intact.
                     if (result.IsConflict || result.IsNotFound)
                     {
                         AfterWrite();
@@ -669,10 +567,10 @@ namespace BillsFrontEndBlazor.Pages
 
         private void AfterWrite()
         {
-            // Publishing is enough: this page subscribes too, so the dashboard
-            // recomputes its counters and charts and the table reloads from the
-            // one notification — no double fetch. Scoped per circuit, so it
-            // never reaches another connected browser.
+            // Publishing is enough: this page subscribes too, so the Overview
+            // recomputes and this list reloads from the one notification — no
+            // double fetch. Scoped per circuit, so it never reaches another
+            // connected browser.
             BillEventService.NotifyBillsChanged();
         }
     }

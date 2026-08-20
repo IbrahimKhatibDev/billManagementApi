@@ -1,0 +1,160 @@
+@using BillsFrontEndBlazor.Models
+
+@* Idea 5: one due-window section, with its own count and sum. The row markup
+   lives here rather than in Bills.razor so all five sections stay one source of
+   truth — the alternative was the same six cells written five times. *@
+<section class="group">
+
+    <header>
+        <span class="dot" style="background: @Tone"></span>
+        <h2 class="title">@Title</h2>
+        <span class="count">@Bills.Count @(Bills.Count == 1 ? "bill" : "bills")</span>
+        <span class="sum">@Total.ToString("C")</span>
+    </header>
+
+    <ul class="rows">
+        @foreach (var bill in Bills)
+        {
+            <li @key="bill.Id" class="@(IsOverdue(bill, Today) ? "overdue" : null)">
+
+                <span class="payee">@bill.PayeeName</span>
+
+                <span class="due">
+                    @DueDateText(bill)
+                    @if (DueRelativeText(bill, Today) is { } relative)
+                    {
+                        <span class="relative">@relative</span>
+                    }
+                </span>
+
+                @* ToString("C") renders "$1,234.56" only because Program.cs pins
+                   en-US; the container default is the invariant culture, which
+                   formats "C" as ¤. *@
+                <span class="amount">@bill.PaymentDue.ToString("C")</span>
+
+                @* A button rather than a badge with a click handler: this is the
+                   one control on the row that changes data, so it has to be
+                   reachable by keyboard and announce its state. aria-pressed is
+                   written out rather than bound to the bool because Blazor drops
+                   a false attribute entirely, and it needs the literal "false"
+                   to read as an unpressed toggle. *@
+                <button type="button"
+                        class="status @StatusClass(bill, Today)"
+                        title="@(bill.Paid ? "Mark as unpaid" : "Mark as paid")"
+                        aria-pressed="@(bill.Paid ? "true" : "false")"
+                        disabled="@BusyIds.Contains(bill.Id)"
+                        @onclick="@(() => OnTogglePaid.InvokeAsync(bill))">
+                    @if (BusyIds.Contains(bill.Id))
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    }
+                    else
+                    {
+                        @StatusText(bill, Today)
+                    }
+                </button>
+
+                <span class="actions">
+                    <button type="button" class="icon-button" title="Edit"
+                            aria-label="Edit @bill.PayeeName"
+                            @onclick="@(() => OnEdit.InvokeAsync(bill))">
+                        <Icon Name="pencil" Size="16" />
+                    </button>
+
+                    <button type="button" class="icon-button danger" title="Delete"
+                            aria-label="Delete @bill.PayeeName"
+                            @onclick="@(() => OnDelete.InvokeAsync(bill))">
+                        <Icon Name="trash" Size="16" />
+                    </button>
+                </span>
+
+            </li>
+        }
+    </ul>
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>A CSS colour for the section's dot — a `var(--token)` from the
+    /// caller, so this component never names a palette.</summary>
+    [Parameter]
+    public string Tone { get; set; } = "var(--text)";
+
+    [Parameter, EditorRequired]
+    public List<Bill> Bills { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public decimal Total { get; set; }
+
+    [Parameter, EditorRequired]
+    public DateTime Today { get; set; }
+
+    /// <summary>Bills with a write in flight. A set rather than one flag so a
+    /// slow row cannot freeze the whole section.</summary>
+    [Parameter]
+    public IReadOnlySet<long> BusyIds { get; set; } = new HashSet<long>();
+
+    [Parameter]
+    public EventCallback<Bill> OnTogglePaid { get; set; }
+
+    [Parameter]
+    public EventCallback<Bill> OnEdit { get; set; }
+
+    [Parameter]
+    public EventCallback<Bill> OnDelete { get; set; }
+
+    /// <summary>
+    /// Past its due date and still unpaid. A section can contain an overdue bill
+    /// even when it is not the Late section: toggling a paid bill back to unpaid
+    /// leaves it here until the reload lands.
+    /// </summary>
+    private static bool IsOverdue(Bill bill, DateTime today) =>
+        !bill.Paid && bill.DueDate is { } due && due.Date < today.Date;
+
+    /// <summary>Three states from two booleans: an unpaid bill that is not due
+    /// yet is not a problem, so the alarm colour is saved for the ones that
+    /// are.</summary>
+    private static string StatusClass(Bill bill, DateTime today) => bill switch
+    {
+        { Paid: true } => "is-paid",
+        _ when IsOverdue(bill, today) => "is-late",
+        _ => "is-unpaid",
+    };
+
+    private static string StatusText(Bill bill, DateTime today) => bill switch
+    {
+        { Paid: true } => "Paid",
+        _ when IsOverdue(bill, today) => "Overdue",
+        _ => "Unpaid",
+    };
+
+    /// <summary>The date itself. Spelled out rather than "6/2/2026", which reads
+    /// as either 6 February or June 2 depending on where you are from.</summary>
+    private static string DueDateText(Bill bill) =>
+        bill.DueDate?.ToString("MMM d, yyyy") ?? "—";
+
+    /// <summary>How far off the due date is, in plain words. Only for unpaid
+    /// bills — once something is paid, how late it was is history.</summary>
+    private static string? DueRelativeText(Bill bill, DateTime today)
+    {
+        if (bill.Paid || bill.DueDate is not { } due)
+        {
+            return null;
+        }
+
+        var days = (due.Date - today.Date).Days;
+
+        return days switch
+        {
+            0 => "due today",
+            1 => "due tomorrow",
+            < 0 and > -2 => "1 day late",
+            < 0 => $"{-days} days late",
+            <= 7 => $"in {days} days",
+            _ => null,
+        };
+    }
+}
