@@ -1,0 +1,117 @@
+.pareto {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 0;
+}
+
+/* The one sentence the section exists to deliver, so it gets the accent. */
+.headline {
+    color: var(--accent-text);
+    font-size: .9rem;
+    margin: .9rem 0 0;
+}
+
+.ranks {
+    border-collapse: collapse;
+    margin-top: 1rem;
+    table-layout: fixed;
+    width: 100%;
+}
+
+.ranks th,
+.ranks td {
+    padding: .55rem 0;
+    text-align: left;
+}
+
+.ranks thead th {
+    border-bottom: var(--border-width) solid var(--border);
+    color: var(--muted);
+    font-size: .69rem;
+    font-weight: 500;
+    letter-spacing: .07em;
+    padding-bottom: .4rem;
+    text-transform: uppercase;
+}
+
+.ranks tbody tr {
+    border-bottom: var(--border-width) solid var(--border);
+}
+
+.ranks tbody tr:last-child {
+    border-bottom: 0;
+}
+
+/* Payee takes what is left; the other three are fixed so the bars line up
+   down the column regardless of how long the names are. */
+.ranks th:nth-child(2),
+.ranks td:nth-child(2) { width: 7rem; }
+
+.ranks th:nth-child(3),
+.ranks td:nth-child(3) { width: 40%; }
+
+.ranks th:nth-child(4),
+.ranks td:nth-child(4) { width: 4rem; }
+
+.payee {
+    color: var(--text);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.num {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.ranks tbody .num:last-child {
+    color: var(--muted);
+}
+
+/* Padding between the bar and the numbers on either side of it. */
+.ranks td:nth-child(3) {
+    padding-left: .9rem;
+    padding-right: .9rem;
+}
+
+.bar {
+    background: var(--sunken);
+    border-radius: 4px;
+    display: block;
+    height: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.cum,
+.own {
+    bottom: 0;
+    left: 0;
+    position: absolute;
+    top: 0;
+}
+
+/* The running total is a token-derived tint of the accent rather than a
+   second hue: the accent is an outline colour in Nocturne, and mixing it into
+   the sunken background keeps this inside the palette without inventing one. */
+.cum { background: color-mix(in srgb, var(--accent) 28%, var(--sunken)); }
+
+.own { background: var(--accent); }
