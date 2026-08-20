@@ -122,6 +122,17 @@ header {
 .status.is-late { border-color: var(--late); color: var(--late); }
 .status.is-unpaid { color: var(--muted); }
 
+/* Armed. Last of the four so it wins on order rather than specificity — the
+   pill has stopped reporting a state and started asking a question, so it drops
+   the state colour entirely. --sunken is a surface, not a flood of the accent:
+   the outline rule still holds. */
+.status.is-armed {
+    background: var(--sunken);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 500;
+}
+
 .status:disabled {
     cursor: default;
     opacity: .5;

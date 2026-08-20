@@ -126,8 +126,10 @@
                            Today="@_today"
                            BusyIds="@_busyIds"
                            SelectedIds="@_selectedIds"
+                           ArmedId="@_armedPaidId"
                            OnToggleSelected="@ToggleSelected"
                            OnTogglePaid="@TogglePaidAsync"
+                           OnDisarmPaid="@DisarmPaid"
                            OnFieldEdited="@SaveEditAsync"
                            OnDelete="@OpenDeleteModal" />
             }

@@ -103,9 +103,20 @@ namespace BillsFrontEndBlazor.Pages
         /// </summary>
         private DateTime _today = DateTime.UtcNow.Date;
 
-        /// <summary>Bills mid-flight in <see cref="TogglePaidAsync"/>. Keyed by id
+        /// <summary>Bills mid-flight in <see cref="WritePaidAsync"/>. Keyed by id
         /// rather than one bool so a slow row cannot freeze the whole page.</summary>
         private readonly HashSet<long> _busyIds = new();
+
+        /// <summary>
+        /// The one row whose status pill is armed, or null. A pill commits on the
+        /// second click; see <see cref="TogglePaidAsync"/>.
+        /// <para>
+        /// Here rather than inside <c>BillGroup</c>, and a single id rather than a
+        /// set: arming a pill has to withdraw any other, and a field inside the
+        /// component could only ever see its own section's rows.
+        /// </para>
+        /// </summary>
+        private long? _armedPaidId;
 
         /// <summary>
         /// Ids of the checked rows.
@@ -443,6 +454,13 @@ namespace BillsFrontEndBlazor.Pages
             _isLoading = true;
             _loadFailed = false;
             _today = DateTime.UtcNow.Date;
+
+            // The rows underneath an armed pill are about to be replaced, so the
+            // question it is asking may no longer be about the bill it was asked
+            // of. A background refresh landing between someone's two clicks costs
+            // them a third; the alternative costs them the wrong bill.
+            _armedPaidId = null;
+
             StateHasChanged();
 
             try
@@ -530,12 +548,38 @@ namespace BillsFrontEndBlazor.Pages
         }
 
         /// <summary>
+        /// A click on a status pill. The first arms it, the second commits.
+        /// <para>
+        /// The pill shipped as a one-click toggle, which put an irreversible
+        /// change of data behind a single click on what reads, in a row of cells
+        /// that are all editable in place, like one more label. Nothing else on
+        /// the page writes without a confirmation.
+        /// </para>
+        /// </summary>
+        private Task TogglePaidAsync(Bill bill)
+        {
+            if (_armedPaidId != bill.Id)
+            {
+                _armedPaidId = bill.Id;
+                return Task.CompletedTask;
+            }
+
+            _armedPaidId = null;
+            return WritePaidAsync(bill);
+        }
+
+        /// <summary>
+        /// Withdraws the armed pill without writing — Escape, or focus leaving it.
+        /// </summary>
+        private void DisarmPaid() => _armedPaidId = null;
+
+        /// <summary>
         /// Marks a bill paid or unpaid straight from its row. Ticking a box is the
         /// most common thing anyone does on this page, and routing it through the
         /// edit modal meant opening a form, changing one checkbox, and submitting
         /// five fields back.
         /// </summary>
-        private async Task TogglePaidAsync(Bill bill)
+        private async Task WritePaidAsync(Bill bill)
         {
             // Add returns false if the id is already in the set, which is what
             // stops a double-click sending two writes.
@@ -582,7 +626,7 @@ namespace BillsFrontEndBlazor.Pages
 
         /// <summary>
         /// Saves one inline edit. The same optimistic shape as
-        /// <see cref="TogglePaidAsync"/>: apply it, write it, put it back if the
+        /// <see cref="WritePaidAsync"/>: apply it, write it, put it back if the
         /// server refuses.
         /// </summary>
         private async Task SaveEditAsync(BillEdit edit)

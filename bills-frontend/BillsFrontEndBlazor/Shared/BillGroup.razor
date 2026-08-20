@@ -70,16 +70,33 @@
                    reachable by keyboard and announce its state. aria-pressed is
                    written out rather than bound to the bool because Blazor drops
                    a false attribute entirely, and it needs the literal "false"
-                   to read as an unpressed toggle. *@
+                   to read as an unpressed toggle.
+
+                   It takes two clicks. The pill sits in a row of cells that are
+                   editable in place, so it reads as one more label — and a
+                   single click on a label that quietly changed whether a bill
+                   was paid was far too easy to fire by accident. The first click
+                   turns the label into a question; the second answers it.
+
+                   Escape and moving focus away both withdraw the question. In
+                   Safari a click does not focus a button, so blur cannot be the
+                   only way out — which is why the armed row is tracked by the
+                   page: arming any other pill disarms this one. *@
                 <button type="button"
-                        class="status @StatusClass(bill, Today)"
-                        title="@(bill.Paid ? "Mark as unpaid" : "Mark as paid")"
+                        class="status @StatusClass(bill, Today) @(ArmedId == bill.Id ? "is-armed" : null)"
+                        title="@PillTitle(bill)"
                         aria-pressed="@(bill.Paid ? "true" : "false")"
                         disabled="@BusyIds.Contains(bill.Id)"
-                        @onclick="@(() => OnTogglePaid.InvokeAsync(bill))">
+                        @onclick="@(() => OnTogglePaid.InvokeAsync(bill))"
+                        @onblur="@(() => OnDisarmPaid.InvokeAsync())"
+                        @onkeydown="@DisarmOnEscapeAsync">
                     @if (BusyIds.Contains(bill.Id))
                     {
                         <span class="spinner-border spinner-border-sm" role="status"></span>
+                    }
+                    else if (ArmedId == bill.Id)
+                    {
+                        @(bill.Paid ? "Unpaid?" : "Paid?")
                     }
                     else
                     {
@@ -129,11 +146,25 @@
     [Parameter]
     public IReadOnlySet<long> SelectedIds { get; set; } = new HashSet<long>();
 
+    /// <summary>The one row whose status pill is armed, page-wide, or null.
+    /// Owned by the page for the same reason the selection is: only the page can
+    /// see the other four sections, and arming a pill has to disarm any
+    /// other.</summary>
+    [Parameter]
+    public long? ArmedId { get; set; }
+
     [Parameter]
     public EventCallback<Bill> OnToggleSelected { get; set; }
 
+    /// <summary>Raised on every click of a status pill. The page decides whether
+    /// that click arms the pill or commits the write.</summary>
     [Parameter]
     public EventCallback<Bill> OnTogglePaid { get; set; }
+
+    /// <summary>Raised when the armed pill should be withdrawn without
+    /// writing.</summary>
+    [Parameter]
+    public EventCallback OnDisarmPaid { get; set; }
 
     /// <summary>Raised when a cell commits a new value. The page owns the write,
     /// because it owns the reload and the toast that follow it.</summary>
@@ -167,6 +198,22 @@
         _ when IsOverdue(bill, today) => "Overdue",
         _ => "Unpaid",
     };
+
+    /// <summary>The tooltip carries the sentence the pill has no room for — the
+    /// column is 5.5rem, which fits "Overdue" and not "Mark as paid".</summary>
+    private string PillTitle(Bill bill) => (ArmedId == bill.Id, bill.Paid) switch
+    {
+        (true, true) => "Click again to mark as unpaid",
+        (true, false) => "Click again to mark as paid",
+        (false, true) => "Mark as unpaid",
+        (false, false) => "Mark as paid",
+    };
+
+    /// <summary>Escape withdraws the question. Every other key falls through —
+    /// Enter and Space are the keyboard's click, and the two-step is the point.
+    /// </summary>
+    private Task DisarmOnEscapeAsync(KeyboardEventArgs e) =>
+        e.Key == "Escape" ? OnDisarmPaid.InvokeAsync() : Task.CompletedTask;
 
     /// <summary>The date itself. Spelled out rather than "6/2/2026", which reads
     /// as either 6 February or June 2 depending on where you are from.</summary>
