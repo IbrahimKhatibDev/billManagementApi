@@ -116,4 +116,54 @@ public sealed class BillTextParserTests
 
         Assert.Equal(DateTimeKind.Utc, parsed.DueDate!.Value.Kind);
     }
+
+    [Fact]
+    public void A_day_before_the_month_name_is_also_a_valid_date()
+    {
+        var parsed = BillTextParser.Parse("Verizon 89.20 21 aug", Today);
+
+        Assert.Equal("Verizon", parsed.Payee);
+        Assert.Equal(89.20m, parsed.Amount);
+        Assert.Equal(new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+        Assert.Equal(ParseConfidence.High, parsed.Confidence);
+    }
+
+    [Theory]
+    [InlineData("Verizon 89.20 8/21/26")]
+    [InlineData("Verizon 89.20 8/21/2026")]
+    public void A_two_digit_or_four_digit_year_resolves_to_the_same_date(string text)
+    {
+        var parsed = BillTextParser.Parse(text, Today);
+
+        Assert.Equal(new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+    }
+
+    [Fact]
+    public void An_explicit_past_year_is_kept_rather_than_rolled_forward()
+    {
+        // Only a year the caller did not type is eligible to roll into next
+        // year; "8/21/20" means 2020, not a typo for a future one.
+        var parsed = BillTextParser.Parse("Verizon 89.20 8/21/20", Today);
+
+        Assert.Equal(new DateTime(2020, 8, 21, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+    }
+
+    [Theory]
+    [InlineData("Verizon 89.20 friday", 2026, 8, 21)]
+    [InlineData("Verizon 89.20 tmrw", 2026, 8, 20)]
+    public void A_full_weekday_name_and_the_tmrw_alias_resolve_like_their_short_forms(
+        string text, int year, int month, int day)
+    {
+        var parsed = BillTextParser.Parse(text, Today);
+
+        Assert.Equal(new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+    }
+
+    [Fact]
+    public void A_trailing_period_after_the_month_name_is_optional()
+    {
+        var parsed = BillTextParser.Parse("Verizon 89.20 Aug. 21", Today);
+
+        Assert.Equal(new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+    }
 }

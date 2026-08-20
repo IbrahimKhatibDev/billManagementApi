@@ -174,26 +174,21 @@ public static partial class BillTextParser
                 out due);
         }
 
-        var monthFirst = MonthFirstPattern().Match(cleaned);
-        if (monthFirst.Success && Months.TryGetValue(monthFirst.Groups["name"].Value, out var month))
+        // "Aug 21" and "21 aug" are the same grammar with the month and day
+        // swapped, so one loop over both patterns replaces two copies of the
+        // same match-then-build logic. Month-first is tried before day-first.
+        foreach (var pattern in new[] { MonthFirstPattern(), DayFirstPattern() })
         {
-            return TryBuild(
-                month,
-                int.Parse(monthFirst.Groups["day"].Value, CultureInfo.InvariantCulture),
-                null,
-                today,
-                out due);
-        }
-
-        var dayFirst = DayFirstPattern().Match(cleaned);
-        if (dayFirst.Success && Months.TryGetValue(dayFirst.Groups["name"].Value, out month))
-        {
-            return TryBuild(
-                month,
-                int.Parse(dayFirst.Groups["day"].Value, CultureInfo.InvariantCulture),
-                null,
-                today,
-                out due);
+            var m = pattern.Match(cleaned);
+            if (m.Success && Months.TryGetValue(m.Groups["name"].Value, out var month))
+            {
+                return TryBuild(
+                    month,
+                    int.Parse(m.Groups["day"].Value, CultureInfo.InvariantCulture),
+                    null,
+                    today,
+                    out due);
+            }
         }
 
         return false;
