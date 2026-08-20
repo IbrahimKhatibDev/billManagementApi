@@ -29,6 +29,14 @@ public sealed class BillSummary
     /// </summary>
     public const int MaxWeeks = 260;
 
+    /// <summary>
+    /// How many late bills the triage list carries. A list you work through, not
+    /// a second bills table — and a bound on a response that would otherwise
+    /// grow with the size of the problem. The Overview reports
+    /// <see cref="OverdueCount"/> alongside it, so a truncated list says so.
+    /// </summary>
+    public const int LateCount = 200;
+
     public DateTime AsOf { get; set; }
 
     public DateTime? From { get; set; }
@@ -101,6 +109,23 @@ public sealed class BillSummary
     /// <summary>The unpaid bills to deal with first: latest first, then
     /// whatever is due soonest.</summary>
     public List<SummaryBill> Priority { get; set; } = new();
+
+    /// <summary>
+    /// Every unpaid bill already past due, oldest first — capped at
+    /// <see cref="LateCount"/>. Distinct from <see cref="Priority"/>, which is a
+    /// six-bill shortlist that also includes bills merely due soon.
+    /// </summary>
+    public List<SummaryBill> Late { get; set; } = new();
+
+    /// <summary>
+    /// How many days late the worst bill is, or 0 when nothing is late.
+    /// <para>
+    /// Derived rather than queried: <see cref="Late"/> is already ordered by due
+    /// date, so its first row is the oldest one. A second query could disagree
+    /// with the list it is printed next to.
+    /// </para>
+    /// </summary>
+    public int OldestDaysLate => Late.Count == 0 ? 0 : Late[0].DaysLate;
 }
 
 /// <summary>
