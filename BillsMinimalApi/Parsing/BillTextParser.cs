@@ -69,10 +69,19 @@ public static partial class BillTextParser
     [GeneratedRegex(@"^(?<m>\d{1,2})/(?<d>\d{1,2})(?:/(?<y>\d{2}|\d{4}))?$")]
     private static partial Regex NumericDatePattern();
 
-    [GeneratedRegex(@"^(?<name>[A-Za-z]+)\.?\s+(?<day>\d{1,2})$")]
+    // The year is optional and the comma before it is too, so "aug 18",
+    // "aug 18 2027" and "Aug 18, 2027" are all the same date grammar. Without
+    // the year group a spelled-out month could only ever mean this year or the
+    // next one, while the slashed form has taken a year since it was written —
+    // "aug 18 2027" simply came back dateless.
+    //
+    // \d{2}|\d{4} in that order is fine even though .NET alternation is
+    // ordered: "2027" matches \d{2} as "20", then fails the anchor and
+    // backtracks into \d{4}. NumericDatePattern above has always relied on it.
+    [GeneratedRegex(@"^(?<name>[A-Za-z]+)\.?\s+(?<day>\d{1,2}),?(?:\s+(?<year>\d{2}|\d{4}))?$")]
     private static partial Regex MonthFirstPattern();
 
-    [GeneratedRegex(@"^(?<day>\d{1,2})\s+(?<name>[A-Za-z]+)\.?$")]
+    [GeneratedRegex(@"^(?<day>\d{1,2})\s+(?<name>[A-Za-z]+)\.?,?(?:\s+(?<year>\d{2}|\d{4}))?$")]
     private static partial Regex DayFirstPattern();
 
     /// <param name="today">
@@ -210,10 +219,17 @@ public static partial class BillTextParser
             var m = pattern.Match(cleaned);
             if (m.Success && Months.TryGetValue(m.Groups["name"].Value, out var month))
             {
+                // Null when the user did not type one, which is what makes a
+                // month already gone roll into next year. A year they did type
+                // is theirs, past or not — the same rule the slashed form uses.
+                int? year = m.Groups["year"].Success
+                    ? NormalizeYear(int.Parse(m.Groups["year"].Value, CultureInfo.InvariantCulture))
+                    : null;
+
                 return TryBuild(
                     month,
                     int.Parse(m.Groups["day"].Value, CultureInfo.InvariantCulture),
-                    null,
+                    year,
                     today,
                     out due);
             }

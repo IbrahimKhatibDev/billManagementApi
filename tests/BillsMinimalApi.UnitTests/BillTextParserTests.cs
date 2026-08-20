@@ -159,6 +159,34 @@ public sealed class BillTextParserTests
         Assert.Equal(new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
     }
 
+    [Theory]
+    [InlineData("Verizon 89.20 aug 18 2027")]
+    [InlineData("Verizon 89.20 Aug 18, 2027")]
+    [InlineData("Verizon 89.20 18 aug 2027")]
+    [InlineData("Verizon 89.20 aug 18 27")]
+    public void A_spelled_out_month_takes_a_year_the_way_the_slashed_form_does(string text)
+    {
+        // "8/21/2027" has always worked and "aug 18 2027" came back with no date
+        // at all — the same information typed the way most people write it, read
+        // as unparseable. The comma is optional because a date written out long
+        // usually has one.
+        var parsed = BillTextParser.Parse(text, Today);
+
+        Assert.Equal(new DateTime(2027, 8, 18, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+        Assert.Equal(ParseConfidence.High, parsed.Confidence);
+    }
+
+    [Fact]
+    public void A_spelled_out_month_in_a_past_year_is_kept_rather_than_rolled_forward()
+    {
+        // Same rule the slashed form follows: only a year the caller left out is
+        // eligible to roll. Without it "aug 18 2020" would file as 2020 — which
+        // is already past, so the roll-forward would quietly make it 2021.
+        var parsed = BillTextParser.Parse("Verizon 89.20 aug 18 2020", Today);
+
+        Assert.Equal(new DateTime(2020, 8, 18, 0, 0, 0, DateTimeKind.Utc), parsed.DueDate);
+    }
+
     [Fact]
     public void A_trailing_period_after_the_month_name_is_optional()
     {
