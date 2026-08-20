@@ -22,6 +22,13 @@ public sealed class BillSummary
     /// shortlist, not a second bills page.</summary>
     public const int PriorityCount = 6;
 
+    /// <summary>
+    /// How long a run of weeks the cash-flow timeline will draw before it gives
+    /// up on being continuous. Five years of columns is already more than a
+    /// screen holds; past that the span is a typo, not a plan.
+    /// </summary>
+    public const int MaxWeeks = 260;
+
     public DateTime AsOf { get; set; }
 
     public DateTime? From { get; set; }
@@ -78,6 +85,14 @@ public sealed class BillSummary
     /// are the recent ones, and they should not be at the bottom of a
     /// scroll.</summary>
     public List<MonthTotals> Months { get; set; } = new();
+
+    /// <summary>
+    /// Every week the book touches, oldest first, with paid and unpaid kept
+    /// apart so the column can stack. Weeks with nothing in them are included:
+    /// same argument as <see cref="Aging"/> — a gap in the cash flow is what the
+    /// chart is for.
+    /// </summary>
+    public List<WeekTotals> Weeks { get; set; } = new();
 
     /// <summary>The five fixed size bands, same contract as
     /// <see cref="Aging"/>.</summary>
@@ -153,6 +168,24 @@ public sealed class MonthTotals
     public double PaidPercent => Billed == 0 ? 0 : (double)(Paid / Billed) * 100;
 
     public DateTime FirstDay => new(Year, Month, 1);
+}
+
+/// <summary>
+/// One column of the cash-flow timeline. Monday-start, because a week that
+/// begins on Sunday puts two of a month's paydays in the same column.
+/// </summary>
+public sealed class WeekTotals
+{
+    /// <summary>Monday of the week, midnight UTC.</summary>
+    public DateTime WeekStart { get; set; }
+
+    public int Bills { get; set; }
+
+    public decimal Paid { get; set; }
+
+    public decimal Unpaid { get; set; }
+
+    public decimal Total => Paid + Unpaid;
 }
 
 public sealed class SizeBand

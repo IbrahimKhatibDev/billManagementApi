@@ -68,6 +68,7 @@ public static class BillSummaryBuilder
         summary.SizeBands = await SizeBandsAsync(scoped, cancellationToken);
         summary.Payees = await PayeesAsync(scoped, cancellationToken);
         summary.Months = await MonthsAsync(scoped, cancellationToken);
+        summary.Weeks = await WeeksAsync(scoped, cancellationToken);
         summary.Priority = await PriorityAsync(scoped, today, cancellationToken);
 
         return summary;
@@ -354,6 +355,36 @@ public static class BillSummaryBuilder
                 Paid = r.Paid,
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// One row per week, paid and unpaid apart.
+    /// <para>
+    /// Grouped by due date in Postgres and folded into weeks in memory.
+    /// <c>date_trunc('week', …)</c> has no dependable Npgsql translation, and
+    /// grouping on the raw column needs none: due dates are stored at midnight
+    /// UTC, so one group is one day. The fold that follows is pure arithmetic
+    /// with a unit test of its own.
+    /// </para>
+    /// </summary>
+    private static async Task<List<WeekTotals>> WeeksAsync(
+        IQueryable<Bill> scoped,
+        CancellationToken cancellationToken)
+    {
+        var rows = await scoped
+            .GroupBy(b => b.DueDate)
+            .Select(g => new
+            {
+                Day = g.Key,
+                Bills = g.Count(),
+                Paid = g.Sum(b => b.Paid ? b.PaymentDue : 0m),
+                Unpaid = g.Sum(b => b.Paid ? 0m : b.PaymentDue),
+            })
+            .ToListAsync(cancellationToken);
+
+        return WeekBuckets.FromDays(
+            rows.Select(r => new WeekBuckets.DayTotals(r.Day, r.Bills, r.Paid, r.Unpaid)),
+            BillSummary.MaxWeeks);
     }
 
     /// <summary>
