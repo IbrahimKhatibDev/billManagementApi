@@ -1,0 +1,66 @@
+.aging {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 1rem;
+}
+
+.strip {
+    border-radius: var(--radius);
+    display: flex;
+    height: 14px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.band {
+    min-width: 2px;
+}
+
+.legend {
+    display: grid;
+    gap: .4rem 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+}
+
+.legend li {
+    align-items: center;
+    display: flex;
+    font-size: .8rem;
+    gap: .5rem;
+}
+
+.swatch {
+    border-radius: 3px;
+    display: inline-block;
+    flex: none;
+    height: 10px;
+    width: 10px;
+}
+
+.label {
+    color: var(--muted);
+}
+
+.figures {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+}

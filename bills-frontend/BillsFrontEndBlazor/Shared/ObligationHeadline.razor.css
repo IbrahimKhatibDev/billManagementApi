@@ -1,0 +1,56 @@
+.obligation {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.75rem 2rem;
+}
+
+.eyebrow {
+    color: var(--faint);
+    font-size: .7rem;
+    letter-spacing: .12em;
+    margin: 0 0 .5rem;
+}
+
+.total {
+    color: var(--text);
+    font-size: 3rem;
+    font-weight: 600;
+    line-height: 1.1;
+    margin: 0 0 .75rem;
+
+    /* Tabular figures: the total is the largest thing on the page and the
+       digits should not shuffle sideways when it changes. */
+    font-variant-numeric: tabular-nums;
+}
+
+.sentence {
+    color: var(--muted);
+    margin: 0 0 1.25rem;
+    max-width: 62ch;
+}
+
+.actions {
+    display: flex;
+    gap: .75rem;
+}
+
+.action {
+    align-items: center;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    display: inline-flex;
+    padding: .5rem .9rem;
+    text-decoration: none;
+}
+
+/* Outline, not fill. In Nocturne the accent is never a background. */
+.action-primary {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.action:hover {
+    color: var(--text);
+}

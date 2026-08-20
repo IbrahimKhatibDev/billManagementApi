@@ -1,0 +1,61 @@
+@using System.Globalization
+@using BillsMinimalApi.Contracts
+
+@* Idea 4: five rows of a table become one bar. The rows made every bucket look
+   equally important; the bar shows which one holds the money. *@
+<section class="aging">
+
+    <h2 class="title">How late it is</h2>
+    <p class="subtitle">Every unpaid bill, by age.</p>
+
+    @if (_segments.Count == 0 || _segments.All(s => s.Percent == 0))
+    {
+        <p class="empty">Nothing unpaid.</p>
+    }
+    else
+    {
+        @* flex-grow rather than width percentages: the browser divides the
+           remainder itself, so the bands always close flush on the right edge
+           instead of leaving a rounding sliver. *@
+        <div class="strip" role="img" aria-label="Unpaid bills by age">
+            @foreach (var (segment, index) in _segments.Select((s, i) => (s, i)))
+            {
+                @if (segment.Percent > 0)
+                {
+                    @* title attribute, not a <title> element — that one is SVG
+                       only, and this strip is divs. *@
+                    <div class="band"
+                         title="@($"{segment.Label}: {segment.Amount:C}")"
+                         style="flex-grow: @Grow(segment.Percent); background: var(--age-@(index + 1))">
+                    </div>
+                }
+            }
+        </div>
+
+        <ul class="legend">
+            @foreach (var (segment, index) in _segments.Select((s, i) => (s, i)))
+            {
+                <li>
+                    <span class="swatch" style="background: var(--age-@(index + 1))"></span>
+                    <span class="label">@segment.Label</span>
+                    <span class="figures">@segment.Count · @segment.Amount.ToString("C")</span>
+                </li>
+            }
+        </ul>
+    }
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<AgingBucket> Buckets { get; set; } = new();
+
+    private List<StripSegment> _segments = new();
+
+    protected override void OnParametersSet() => _segments = StackedStrip.FromAging(Buckets);
+
+    // Invariant, because this ends up inside a style attribute. A culture that
+    // writes 12,5 would produce CSS the browser silently drops.
+    private static string Grow(double percent) =>
+        percent.ToString("0.####", CultureInfo.InvariantCulture);
+}

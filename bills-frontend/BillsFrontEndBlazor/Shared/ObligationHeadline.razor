@@ -1,0 +1,36 @@
+@using BillsMinimalApi.Contracts
+
+@* Idea 1: one sentence in place of three counter cards and a marketing hero.
+   The cards made the reader do the arithmetic; this does it for them. *@
+<section class="obligation">
+
+    <p class="eyebrow">WHAT YOU OWE</p>
+
+    <p class="total">@Summary.OutstandingAmount.ToString("C")</p>
+
+    <p class="sentence">@ObligationSentence.Describe(Summary)</p>
+
+    <div class="actions">
+        @if (Summary.OverdueCount > 0)
+        {
+            @* Navigates, and deliberately does not mark anything paid — the
+               button that settles eight bills at once should be on the page
+               showing those eight bills, not on a summary. *@
+            <a class="action action-primary" href="bills?filter=overdue">
+                <Icon Name="warning-octagon" Size="18" Class="me-1" />
+                Clear the @Summary.OverdueCount late @(Summary.OverdueCount == 1 ? "bill" : "bills")
+            </a>
+        }
+
+        <a class="action" href="bills">
+            <Icon Name="receipt" Size="18" Class="me-1" />
+            All bills
+        </a>
+    </div>
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public BillSummary Summary { get; set; } = new();
+}
