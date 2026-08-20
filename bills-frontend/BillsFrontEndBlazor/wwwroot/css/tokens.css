@@ -1,0 +1,160 @@
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   The one file in this app allowed to contain a hex value. Everything else
+   refers to these names, which is what makes four palettes possible without
+   four copies of the stylesheet.
+
+   Two independent attributes, not one light/dark switch: Nocturne and Current
+   are separate brand directions and each has its own light and dark variant.
+   The attributes are written into the markup of both layouts, so the palette is
+   right with JavaScript disabled; wwwroot/js/theme.js only corrects them to
+   whatever the visitor last chose.
+   --------------------------------------------------------------------------- */
+
+:root {
+    /* Shared shape. A 1px border is the only elevation cue in this design —
+       there are no drop shadows anywhere, deliberately. */
+    --radius: 8px;
+    --radius-lg: 14px;
+    --border-width: 1px;
+
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+:root[data-palette="current"] {
+    --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* -- Nocturne, dark (the design's default) --------------------------------- */
+:root[data-palette="nocturne"][data-mode="dark"] {
+    --bg: #161826;
+    --surface: #232532;
+    --sunken: #1b1d2a;
+    --text: #e9e9ed;
+    --muted: #9397ab;
+    --faint: #75798c;
+    --border: #3f424d;
+
+    /* Outline only. Nothing in Nocturne is ever flooded with the accent. */
+    --accent: #9184d9;
+    --accent-text: #d2cefd;
+
+    --late: #b5abfc;
+    --ok: #75798c;
+
+    --age-1: #595d6c;
+    --age-2: #5d5294;
+    --age-3: #796cbf;
+    --age-4: #968ae0;
+    --age-5: #b5abfc;
+}
+
+/* -- Nocturne, light ------------------------------------------------------- */
+:root[data-palette="nocturne"][data-mode="light"] {
+    --bg: #f4f3f9;
+    --surface: #ffffff;
+    --sunken: #ece9f7;
+    --text: #1e1c2e;
+    --muted: #6b6880;
+
+    /* Not in the handoff. faint and border sit between muted and sunken on the
+       same violet cast; late is the dark end of this palette's own ramp, which
+       is the relationship Nocturne dark has between its late and its ramp. */
+    --faint: #8f8ba3;
+    --border: #dcd8ec;
+    --late: #4a3a9e;
+    --ok: #6b6880;
+
+    --accent: #7c6dd1;
+    --accent-text: #5b4bc4;
+
+    --age-1: #d9d5ec;
+    --age-2: #b8b0dd;
+    --age-3: #9184d9;
+    --age-4: #6a5cc2;
+    --age-5: #4a3a9e;
+}
+
+/* -- Current, light (today's app) ------------------------------------------ */
+:root[data-palette="current"][data-mode="light"] {
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+
+    /* Not in the handoff: Bootstrap 5's own greys, which is what makes this
+       palette match the app as it stands. */
+    --sunken: #e9ecef;
+    --text: #212529;
+    --muted: #6c757d;
+    --faint: #adb5bd;
+    --border: #dee2e6;
+    --accent-text: #0a58ca;
+
+    --accent: #0d6efd;
+    --late: #dc3545;
+    --ok: #198754;
+
+    --age-1: #adb5bd;
+    --age-2: #ffc107;
+    --age-3: #fd7e14;
+    --age-4: #dc3545;
+    --age-5: #842029;
+}
+
+/* -- Current, dark --------------------------------------------------------- */
+:root[data-palette="current"][data-mode="dark"] {
+    --bg: #17191c;
+    --surface: #1f2226;
+
+    /* Not in the handoff: Bootstrap 5's dark-mode greys, and a ramp that runs
+       from neutral to this palette's own late colour — brighter reads as worse
+       on a dark ground, which is the opposite of the light ramp. */
+    --sunken: #212529;
+    --text: #dee2e6;
+    --muted: #adb5bd;
+    --faint: #6c757d;
+    --border: #343a40;
+    --accent-text: #6ea8fe;
+
+    --accent: #3d8bfd;
+    --late: #ea868f;
+    --ok: #75b798;
+
+    --age-1: #495057;
+    --age-2: #997404;
+    --age-3: #ca6510;
+    --age-4: #dc3545;
+    --age-5: #ea868f;
+}
+
+/* ---------------------------------------------------------------------------
+   Bootstrap bridge.
+
+   Bootstrap 5.3 draws everything from its own custom properties, so pointing
+   those at the tokens re-themes every component this app never restyled —
+   modals, dropdowns, form controls, tables — instead of leaving them in the
+   default light theme against a Nocturne background.
+
+   The selector carries a data-palette so it outranks Bootstrap's own
+   [data-bs-theme=dark] block, which is one attribute where this is two.
+   --------------------------------------------------------------------------- */
+:root[data-palette] {
+    --bs-body-bg: var(--bg);
+    --bs-body-color: var(--text);
+    --bs-body-font-family: var(--font-sans);
+    --bs-secondary-color: var(--muted);
+    --bs-tertiary-color: var(--faint);
+    --bs-border-color: var(--border);
+    --bs-border-radius: var(--radius);
+    --bs-border-radius-lg: var(--radius-lg);
+    --bs-primary: var(--accent);
+    --bs-link-color: var(--accent-text);
+    --bs-link-hover-color: var(--accent);
+    --bs-emphasis-color: var(--text);
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+}

@@ -1,0 +1,67 @@
+@inject IJSRuntime JS
+
+@* Two independent controls, not one switch. Palette and mode are separate
+   choices in this design and collapsing them would make three of the four
+   combinations unreachable. *@
+<div class="theme-switcher">
+
+    <div class="theme-palette" role="group" aria-label="Palette">
+        <button type="button" class="theme-option @(_palette == "nocturne" ? "on" : null)"
+                @onclick="@(() => ChooseAsync("nocturne", _mode))">
+            Nocturne
+        </button>
+        <button type="button" class="theme-option @(_palette == "current" ? "on" : null)"
+                @onclick="@(() => ChooseAsync("current", _mode))">
+            Current
+        </button>
+    </div>
+
+    <button type="button" class="theme-mode" title="@ModeLabel" aria-label="@ModeLabel"
+            @onclick="ToggleModeAsync">
+        <i class="bi @(_mode == "dark" ? "bi-sun-fill" : "bi-moon-stars-fill")"></i>
+    </button>
+
+</div>
+
+@code {
+    // Seeded with the same defaults the markup and the boot script use, so the
+    // prerendered buttons are not briefly wrong for a visitor who never changed
+    // anything.
+    private string _palette = "nocturne";
+    private string _mode = "dark";
+
+    private string ModeLabel => _mode == "dark" ? "Switch to light mode" : "Switch to dark mode";
+
+    /// <summary>Shape of what <c>billsTheme.read()</c> hands back.</summary>
+    private sealed record ThemeChoice(string Palette, string Mode);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // The first moment interop is available — the app prerenders on the
+        // server, where IJSRuntime is not usable. The page is already wearing
+        // the right theme by now; this only catches the buttons up with it.
+        var chosen = await JS.InvokeAsync<ThemeChoice>("billsTheme.read");
+
+        _palette = chosen.Palette;
+        _mode = chosen.Mode;
+
+        StateHasChanged();
+    }
+
+    private async Task ChooseAsync(string palette, string mode)
+    {
+        _palette = palette;
+        _mode = mode;
+
+        // The script persists and applies in one call, so the keys stay in one
+        // place and the two can never drift apart.
+        await JS.InvokeVoidAsync("billsTheme.save", palette, mode);
+    }
+
+    private Task ToggleModeAsync() => ChooseAsync(_palette, _mode == "dark" ? "light" : "dark");
+}

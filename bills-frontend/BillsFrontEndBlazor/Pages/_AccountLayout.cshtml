@@ -5,7 +5,7 @@
    screen, doing nothing. Everything else here is the same stylesheet set, so the
    account pages and the app proper look like one product. *@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-palette="nocturne" data-mode="dark" data-bs-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,8 +13,15 @@
 
     <title>@ViewData["Title"] · Bills Manager</title>
 
+    @* The same boot script as _Layout. Without it the login screen is the one
+       page in the app that ignores the visitor's theme — and it is the first
+       page most of them see. There is no ThemeSwitcher here because there is no
+       Blazor here; the choice is made inside the app and read back out. *@
+    <script src="js/theme.js"></script>
+
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="css/bootstrap-icons/bootstrap-icons.min.css" />
+    <link href="css/tokens.css" rel="stylesheet" />
     <link href="css/site.css" rel="stylesheet" />
 </head>
 <body class="account-body">
