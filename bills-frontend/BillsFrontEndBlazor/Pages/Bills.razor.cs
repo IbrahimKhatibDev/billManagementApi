@@ -98,6 +98,18 @@ namespace BillsFrontEndBlazor.Pages
         private readonly HashSet<long> _busyIds = new();
 
         /// <summary>
+        /// Ids of the checked rows.
+        /// <para>
+        /// Ids rather than <see cref="Bill"/> instances: every load replaces the
+        /// list with fresh objects carrying fresh concurrency tokens, and a set
+        /// of stale references would quietly hold the old ones.
+        /// </para>
+        /// </summary>
+        private readonly HashSet<long> _selectedIds = new();
+
+        private bool _isBulkWriting;
+
+        /// <summary>
         /// Which load is the current one. A debounced keystroke, a chip click and
         /// a background refresh from <see cref="BillEventService"/> are routinely
         /// in flight together and do not come back in the order they were sent;
@@ -196,6 +208,85 @@ namespace BillsFrontEndBlazor.Pages
             DueWindow.Later => "var(--muted)",
             _ => "var(--ok)",
         };
+
+        private int SelectedCount => _selectedIds.Count;
+
+        /// <summary>
+        /// The selected bills, resolved against what is loaded. Safe to sum
+        /// because <see cref="LoadBillsAsync"/> prunes the selection to the rows
+        /// on screen — an id in the set is always an id in the list.
+        /// </summary>
+        private IEnumerable<Bill> SelectedBills =>
+            _book.Bills.Where(b => _selectedIds.Contains(b.Id));
+
+        private decimal SelectedTotal => SelectedBills.Sum(b => b.PaymentDue);
+
+        /// <summary>How many of the selection there is anything to do to.</summary>
+        private int PayableCount => SelectedBills.Count(b => !b.Paid);
+
+        private void ToggleSelected(Bill bill)
+        {
+            // Remove returns false when it was not there, which is the cheapest
+            // correct way to write "toggle".
+            if (!_selectedIds.Remove(bill.Id))
+            {
+                _selectedIds.Add(bill.Id);
+            }
+        }
+
+        private void ClearSelection() => _selectedIds.Clear();
+
+        /// <summary>
+        /// Marks every unpaid bill in the selection as paid. The point of the
+        /// whole idea: eight late bills in one gesture rather than eight clicks,
+        /// eight round trips and eight re-renders.
+        /// </summary>
+        private async Task MarkSelectedPaidAsync()
+        {
+            if (_isBulkWriting)
+            {
+                return;
+            }
+
+            // Materialised before the awaits: SelectedBills is a live query over
+            // state that the reload at the end of this method replaces.
+            var payable = SelectedBills.Where(b => !b.Paid).ToList();
+
+            if (payable.Count == 0)
+            {
+                return;
+            }
+
+            _isBulkWriting = true;
+
+            try
+            {
+                var result = await BillService.MarkManyPaidAsync(payable);
+
+                if (result.Success)
+                {
+                    Toasts.ShowSuccess(result.ToMessage());
+                }
+                else
+                {
+                    Toasts.ShowError(result.ToMessage());
+                }
+
+                // Cleared whatever happened. The successful writes are committed,
+                // so leaving the batch selected invites a second run at bills that
+                // are already paid — and the message has already said how many did
+                // not land.
+                _selectedIds.Clear();
+
+                // Not merely to refresh the Overview: every bill written now has a
+                // higher Version, so the copies in this list are stale.
+                AfterWrite();
+            }
+            finally
+            {
+                _isBulkWriting = false;
+            }
+        }
 
         // -- Controls -----------------------------------------------------------
 
@@ -366,6 +457,17 @@ namespace BillsFrontEndBlazor.Pages
                 _book = book.Result;
                 _overdueCount = overdue.Result;
                 _billCount = everything.Result;
+
+                // Drop anything that is no longer on screen — a different chip, a
+                // narrower search, a deleted bill, or a row past the cap. The bar
+                // reports a count and a total, and both would be lies if the set
+                // could hold bills the page cannot show.
+                //
+                // Pruning rather than clearing outright, which is what the design
+                // prototype did on every filter change: a selection that survives
+                // narrowing the list is the more useful of the two, and pruning is
+                // needed here anyway for deletes and the cap.
+                _selectedIds.IntersectWith(_book.Bills.Select(b => b.Id));
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
@@ -380,6 +482,7 @@ namespace BillsFrontEndBlazor.Pages
                 _book = BillBook.Empty;
                 _overdueCount = 0;
                 _billCount = 0;
+                _selectedIds.Clear();
                 _loadFailed = true;
                 Toasts.ShowError("Could not load bills. Is the API running?");
             }

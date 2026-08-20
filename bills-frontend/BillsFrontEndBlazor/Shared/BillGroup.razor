@@ -15,7 +15,19 @@
     <ul class="rows">
         @foreach (var bill in Bills)
         {
-            <li @key="bill.Id" class="@(IsOverdue(bill, Today) ? "overdue" : null)">
+            <li @key="bill.Id"
+                class="@(IsOverdue(bill, Today) ? "overdue" : null) @(SelectedIds.Contains(bill.Id) ? "selected" : null)">
+
+                @* One-way `checked` with @onchange rather than @bind, because
+                   the selection lives on the page and not here. Safe only
+                   because the handler always changes the set: were it ever a
+                   no-op, the browser would keep the box the user clicked and
+                   Blazor would see no state change to correct it with. *@
+                <input type="checkbox"
+                       class="pick"
+                       aria-label="Select @bill.PayeeName"
+                       checked="@SelectedIds.Contains(bill.Id)"
+                       @onchange="@(() => OnToggleSelected.InvokeAsync(bill))" />
 
                 <span class="payee">@bill.PayeeName</span>
 
@@ -96,6 +108,14 @@
     /// slow row cannot freeze the whole section.</summary>
     [Parameter]
     public IReadOnlySet<long> BusyIds { get; set; } = new HashSet<long>();
+
+    /// <summary>Ids of the checked rows. Owned by the page, because the action
+    /// bar it feeds is outside this component.</summary>
+    [Parameter]
+    public IReadOnlySet<long> SelectedIds { get; set; } = new HashSet<long>();
+
+    [Parameter]
+    public EventCallback<Bill> OnToggleSelected { get; set; }
 
     [Parameter]
     public EventCallback<Bill> OnTogglePaid { get; set; }

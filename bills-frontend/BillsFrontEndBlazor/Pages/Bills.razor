@@ -110,6 +110,8 @@
                            Total="@group.Total"
                            Today="@_today"
                            BusyIds="@_busyIds"
+                           SelectedIds="@_selectedIds"
+                           OnToggleSelected="@ToggleSelected"
                            OnTogglePaid="@TogglePaidAsync"
                            OnEdit="@OpenEditModal"
                            OnDelete="@OpenDeleteModal" />
@@ -124,6 +126,19 @@
                 sum above covers those @Rows.Count.
             </p>
         }
+    }
+
+    @* Outside the groups block on purpose: the selection is pruned to loaded
+       rows on every load, so if this is showing anything there are rows behind
+       it to show. *@
+    @if (SelectedCount > 0)
+    {
+        <BulkActionBar Count="@SelectedCount"
+                       Total="@SelectedTotal"
+                       PayableCount="@PayableCount"
+                       Busy="@_isBulkWriting"
+                       OnMarkPaid="@MarkSelectedPaidAsync"
+                       OnClear="@ClearSelection" />
     }
 
 </div>

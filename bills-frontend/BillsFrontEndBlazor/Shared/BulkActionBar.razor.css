@@ -1,0 +1,53 @@
+.bar {
+    align-items: center;
+    background: var(--surface);
+    border: var(--border-width) solid var(--accent);
+    border-radius: var(--radius-lg);
+    bottom: 1rem;
+    display: flex;
+    gap: .85rem;
+    padding: .7rem 1rem;
+    position: sticky;
+}
+
+.label {
+    color: var(--text);
+    font-size: .85rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Pushes both buttons to the right edge. */
+.total {
+    color: var(--muted);
+    font-size: .85rem;
+    font-variant-numeric: tabular-nums;
+    margin-right: auto;
+}
+
+.pay,
+.clear {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    flex: none;
+    font-size: .8rem;
+    padding: .35rem .75rem;
+    white-space: nowrap;
+}
+
+/* Outline only, in this palette as in every other. */
+.pay {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.pay:disabled {
+    border-color: var(--border);
+    color: var(--faint);
+    cursor: default;
+}

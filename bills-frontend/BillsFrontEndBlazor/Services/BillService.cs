@@ -38,6 +38,34 @@ namespace BillsFrontEndBlazor.Services
     }
 
     /// <summary>
+    /// Outcome of a batch of writes: the counts, plus the status of the first
+    /// one that failed — enough to say why without claiming every failure had
+    /// the same cause.
+    /// </summary>
+    public sealed record BulkPaidResult(BulkPaidOutcome Outcome, HttpStatusCode? FirstFailure)
+    {
+        public bool Success => Outcome.AllSucceeded;
+
+        public string ToMessage() => Outcome.Describe(Reason);
+
+        private string? Reason => Outcome.AllSucceeded
+            ? null
+            : FirstFailure switch
+            {
+                // The list is reloaded after every batch, so the fix is already
+                // done by the time this is read — saying so stops the reflex to
+                // hit refresh and try the whole thing again.
+                HttpStatusCode.Conflict =>
+                    "Another change landed first — the list has been refreshed.",
+                HttpStatusCode.NotFound =>
+                    "They were already gone — the list has been refreshed.",
+                HttpStatusCode.Unauthorized =>
+                    "Your session has expired. Reload the page to sign in again.",
+                _ => "Is the API running?",
+            };
+    }
+
+    /// <summary>
     /// Every bill matching a query — up to a cap — together with how many there
     /// really are.
     /// <para>
@@ -335,6 +363,76 @@ namespace BillsFrontEndBlazor.Services
             bill.Paid = true;
 
             return await UpdateBillAsync(bill, ct);
+        }
+
+        /// <summary>
+        /// Marks each of <paramref name="bills"/> paid, and reports how many
+        /// landed.
+        /// <para>
+        /// One request per bill, because the API has no batch endpoint and adding
+        /// one would mean inventing a partial-failure semantics on the server
+        /// too — a 207 nobody else consumes. The concurrency token on each row
+        /// still does its job this way: a bill someone else changed comes back
+        /// 409 and is counted as a failure rather than being silently overwritten.
+        /// </para>
+        /// <para>
+        /// Sequential rather than concurrent, deliberately. The API rate-limits
+        /// per client, so firing fifty writes at once is the one thing guaranteed
+        /// to turn a working batch into a wall of 429s — and a queue of one makes
+        /// the failure counts mean what they say.
+        /// </para>
+        /// <para>
+        /// Note that a batch is not a transaction. Writes that succeed before a
+        /// failure stay written, which is exactly why the result carries counts
+        /// instead of a bool.
+        /// </para>
+        /// </summary>
+        /// <param name="bills">
+        /// Bills to mark paid. Already-paid bills should be filtered out by the
+        /// caller — sending them would spend a request to write what is already
+        /// there.
+        /// </param>
+        public async Task<BulkPaidResult> MarkManyPaidAsync(
+            IReadOnlyList<Bill> bills,
+            CancellationToken ct = default)
+        {
+            var succeeded = 0;
+            var failed = 0;
+            HttpStatusCode? firstFailure = null;
+
+            foreach (var bill in bills)
+            {
+                // A copy, not the caller's instance. The page still has these
+                // rendered; flipping Paid here would move rows between groups
+                // one at a time as the batch ran, and leave them moved if the
+                // write was refused.
+                var payload = new Bill
+                {
+                    Id = bill.Id,
+                    PayeeName = bill.PayeeName,
+                    DueDate = bill.DueDate,
+                    PaymentDue = bill.PaymentDue,
+                    Paid = true,
+                    Version = bill.Version,
+                };
+
+                var result = await UpdateBillAsync(payload, ct);
+
+                if (result.Success)
+                {
+                    succeeded++;
+                    continue;
+                }
+
+                failed++;
+
+                // First, not last: the first refusal is the one that explains the
+                // batch — later ones are often knock-on effects of the same
+                // expired session or the same stale list.
+                firstFailure ??= result.Status;
+            }
+
+            return new BulkPaidResult(new BulkPaidOutcome(succeeded, failed), firstFailure);
         }
 
         /// <summary>

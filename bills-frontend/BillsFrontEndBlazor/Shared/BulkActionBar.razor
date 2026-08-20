@@ -1,0 +1,55 @@
+@* Idea 6. Sticky rather than fixed: it belongs to the list, so it rides at the
+   bottom of the viewport while the list is long and settles at the end of it
+   when the list is short. *@
+<div class="bar" role="status">
+
+    <span class="label">@Count @(Count == 1 ? "bill" : "bills") selected</span>
+
+    <span class="total">@Total.ToString("C")</span>
+
+    <button type="button"
+            class="pay"
+            disabled="@(Busy || PayableCount == 0)"
+            title="@(PayableCount == 0 ? "Every selected bill is already paid" : null)"
+            @onclick="OnMarkPaid">
+        @if (Busy)
+        {
+            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            <span>Marking…</span>
+        }
+        else
+        {
+            <span>Mark paid</span>
+        }
+    </button>
+
+    @* Not disabled while the batch runs: abandoning a selection you no longer
+       want is always safe, and the writes already in flight are unaffected. *@
+    <button type="button" class="clear" @onclick="OnClear">Clear</button>
+
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public int Count { get; set; }
+
+    [Parameter, EditorRequired]
+    public decimal Total { get; set; }
+
+    /// <summary>
+    /// How many of the selected bills are actually unpaid. Separate from
+    /// <see cref="Count"/> so the button can go dead rather than spend a round
+    /// trip writing Paid = true over Paid = true.
+    /// </summary>
+    [Parameter]
+    public int PayableCount { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback OnMarkPaid { get; set; }
+
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+}

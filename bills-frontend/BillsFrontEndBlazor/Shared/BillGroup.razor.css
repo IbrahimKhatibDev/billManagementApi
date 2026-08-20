@@ -42,16 +42,28 @@ header {
     padding: 0;
 }
 
-/* Five fixed columns and one flexible one, so the payee takes the slack and
-   every number below it stays in a line. Task 10 adds a checkbox column to the
-   front of this template. */
+/* Checkbox, then five fixed columns and one flexible one, so the payee takes
+   the slack and every number below it stays in a line. */
 .rows li {
     align-items: center;
     border-top: var(--border-width) solid var(--border);
     display: grid;
     gap: 1rem;
-    grid-template-columns: 1fr 11rem 7rem 5.5rem auto;
+    grid-template-columns: 1.1rem 1fr 11rem 7rem 5.5rem auto;
     padding: .5rem 0;
+}
+
+/* Bleeds past the card's padding so a selected row reads as a band across the
+   whole section rather than an indented stripe. */
+.rows li.selected {
+    background: var(--sunken);
+    box-shadow: -1.25rem 0 0 var(--sunken), 1.25rem 0 0 var(--sunken);
+}
+
+.pick {
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin: 0;
 }
 
 .rows li:first-child {
