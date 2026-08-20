@@ -1,0 +1,94 @@
+.late {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+}
+
+.head {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty,
+.capped {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 0;
+}
+
+.total {
+    color: var(--late);
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+}
+
+.rows {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+}
+
+/* A grid rather than a table: five fixed columns, so the payee takes the slack
+   and the numbers stay in line down the page. */
+.rows li {
+    align-items: center;
+    border-top: var(--border-width) solid var(--border);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr auto 5.5rem 6.5rem auto;
+    padding: .55rem 0;
+}
+
+.rows li:first-child {
+    border-top: 0;
+}
+
+.payee { color: var(--text); }
+
+.days { color: var(--late); font-size: .8rem; }
+
+.due,
+.amount {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.amount { color: var(--text); }
+
+.settle {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: .8rem;
+    gap: .35rem;
+    padding: .3rem .6rem;
+}
+
+.settle:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.settle:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.capped {
+    margin-top: .85rem;
+}

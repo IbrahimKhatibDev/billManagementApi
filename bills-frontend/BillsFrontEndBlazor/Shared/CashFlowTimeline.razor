@@ -1,0 +1,89 @@
+@using System.Globalization
+@using BillsMinimalApi.Contracts
+
+@* Idea 2: the six-month history bar chart becomes the whole book, by week.
+   Inline SVG rendered from C# — no interop, nothing fetched. *@
+<section class="timeline">
+
+    <div class="head">
+        <div>
+            <h2 class="title">Cash-flow timeline</h2>
+            <p class="subtitle">Every bill on the books, by the week it falls due.</p>
+        </div>
+
+        <ul class="legend">
+            <li><span class="swatch unpaid"></span>unpaid</li>
+            <li><span class="swatch paid"></span>paid</li>
+        </ul>
+    </div>
+
+    @if (_layout.Bars.Count == 0)
+    {
+        <p class="empty">No bills to plot yet.</p>
+    }
+    else
+    {
+        <svg class="plot" viewBox="0 0 1200 200" preserveAspectRatio="none"
+             role="img" aria-label="Amount due each week, paid and unpaid">
+
+            @foreach (var bar in _layout.Bars)
+            {
+                @* Wrapped in a <g> because a bare <text> at the top of a razor
+                   loop is parsed as razor's own <text> escape tag. *@
+                <g>
+                    <rect class="paid" x="@N(bar.X)" y="@N(bar.PaidY)"
+                          width="@N(bar.Width)" height="@N(bar.PaidHeight)">
+                        <title>@Tooltip(bar)</title>
+                    </rect>
+                    <rect class="unpaid" x="@N(bar.X)" y="@N(bar.UnpaidY)"
+                          width="@N(bar.Width)" height="@N(bar.UnpaidHeight)">
+                        <title>@Tooltip(bar)</title>
+                    </rect>
+                </g>
+            }
+
+            <line class="baseline" x1="@N(TimelineLayout.PlotLeft)" x2="@N(TimelineLayout.PlotRight)"
+                  y1="@N(TimelineLayout.Baseline)" y2="@N(TimelineLayout.Baseline)" />
+
+            @if (_layout.NowX is { } nowX)
+            {
+                <g>
+                    <line class="now" x1="@N(nowX)" x2="@N(nowX)"
+                          y1="@N(TimelineLayout.PlotTop)" y2="@N(TimelineLayout.Baseline + 6)" />
+                    <text class="now-label" x="@N(nowX)" y="@N(TimelineLayout.PlotTop - 2)"
+                          text-anchor="middle">now</text>
+                </g>
+            }
+
+            @foreach (var tick in _layout.Ticks)
+            {
+                <g>
+                    <text class="tick" x="@N(tick.X)" y="188" text-anchor="middle">@tick.Label</text>
+                </g>
+            }
+
+        </svg>
+    }
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<WeekTotals> Weeks { get; set; } = new();
+
+    /// <summary>The server's date, from <c>BillSummary.AsOf</c> — never this
+    /// machine's, or the marker could disagree with the bars beside it.</summary>
+    [Parameter, EditorRequired]
+    public DateTime Today { get; set; }
+
+    private TimelineLayout _layout = TimelineLayout.Build(Array.Empty<WeekTotals>(), DateTime.Today);
+
+    protected override void OnParametersSet() => _layout = TimelineLayout.Build(Weeks, Today);
+
+    private static string Tooltip(TimelineBar bar) =>
+        $"Week of {bar.WeekStart:MMM d}: {bar.Unpaid:C} unpaid, {bar.Paid:C} paid";
+
+    // Invariant: these land in SVG coordinate attributes, which are not
+    // culture-aware and would read "12,5" as two values.
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+}

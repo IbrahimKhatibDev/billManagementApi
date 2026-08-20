@@ -1,0 +1,80 @@
+.timeline {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+}
+
+.head {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 0;
+}
+
+.legend {
+    color: var(--muted);
+    display: flex;
+    font-size: .78rem;
+    gap: 1rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.legend li {
+    align-items: center;
+    display: flex;
+    gap: .35rem;
+}
+
+.swatch {
+    border-radius: 2px;
+    height: 9px;
+    width: 9px;
+}
+
+.swatch.unpaid { background: var(--accent); }
+.swatch.paid { background: var(--ok); }
+
+.plot {
+    display: block;
+    height: 200px;
+    margin-top: 1rem;
+    width: 100%;
+}
+
+/* ::deep, because these elements are inside a loop this component renders but
+   Blazor's scoped-CSS attribute is only stamped on the outermost markup. */
+::deep rect.unpaid { fill: var(--accent); }
+::deep rect.paid { fill: var(--ok); }
+::deep line.baseline { stroke: var(--border); stroke-width: 1; }
+
+::deep line.now {
+    stroke: var(--late);
+    stroke-dasharray: 3 3;
+    stroke-width: 1.5;
+}
+
+::deep text.now-label {
+    fill: var(--late);
+    font-size: 11px;
+}
+
+::deep text.tick {
+    fill: var(--faint);
+    font-size: 11px;
+}

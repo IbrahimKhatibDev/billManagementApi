@@ -221,6 +221,48 @@ namespace BillsFrontEndBlazor.Services
             => SendAsync(() => _http.DeleteAsync($"{Route}/{id}", ct));
 
         /// <summary>
+        /// Marks one bill paid given only its id.
+        /// <para>
+        /// Two round trips, and deliberately so. The Overview's late list is built
+        /// from <see cref="SummaryBill"/>, which carries no concurrency token —
+        /// that omission is the point of the type, since a report should not be
+        /// able to write. Fetching the real bill is how this gets a token, and it
+        /// means a bill someone else changed in the meantime comes back as a 409
+        /// rather than being silently overwritten.
+        /// </para>
+        /// <para>
+        /// The Bills page does not use this. It already holds every row with its
+        /// token, so it writes them directly.
+        /// </para>
+        /// </summary>
+        public async Task<BillWriteResult> MarkPaidAsync(long id, CancellationToken ct = default)
+        {
+            await AuthorizeAsync();
+
+            Bill? bill;
+
+            try
+            {
+                bill = await _http.GetFromJsonAsync<Bill>($"{Route}/{id}", ct);
+            }
+            catch (HttpRequestException ex)
+            {
+                // Same reason SendAsync catches it: an unhandled exception here
+                // tears down the Blazor circuit and the page goes blank.
+                return new BillWriteResult(false, ex.StatusCode);
+            }
+
+            if (bill is null)
+            {
+                return new BillWriteResult(false, HttpStatusCode.NotFound);
+            }
+
+            bill.Paid = true;
+
+            return await UpdateBillAsync(bill, ct);
+        }
+
+        /// <summary>
         /// The server's reading of a line like "Verizon 89.20 fri". Nothing is
         /// created — the caller shows the reading for confirmation and then posts
         /// a real bill through <see cref="CreateBillAsync"/>.
