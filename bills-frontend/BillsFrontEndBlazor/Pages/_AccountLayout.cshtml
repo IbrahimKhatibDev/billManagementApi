@@ -17,12 +17,13 @@
        page in the app that ignores the visitor's theme — and it is the first
        page most of them see. There is no ThemeSwitcher here because there is no
        Blazor here; the choice is made inside the app and read back out. *@
-    <script src="js/theme.js"></script>
+    @* Fingerprinted for the same reason as _Layout — see the note there. *@
+    <script src="js/theme.js" asp-append-version="true"></script>
 
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="css/phosphor/style.css" />
-    <link href="css/tokens.css" rel="stylesheet" />
-    <link href="css/site.css" rel="stylesheet" />
+    <link href="css/tokens.css" rel="stylesheet" asp-append-version="true" />
+    <link href="css/site.css" rel="stylesheet" asp-append-version="true" />
 </head>
 <body class="account-body">
     <main class="account-shell">

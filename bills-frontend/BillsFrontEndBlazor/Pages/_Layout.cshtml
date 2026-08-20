@@ -15,13 +15,22 @@
        and the UI renders with the network off. *@
     @* theme.js is blocking and first: it sets data-mode before anything paints.
        The attribute is in the markup above as well, so the page is Nocturne
-       dark rather than unthemed when scripting is off. *@
-    <script src="js/theme.js"></script>
+       dark rather than unthemed when scripting is off.
+
+       asp-append-version on the three files this app actually edits. Nothing
+       here sends Cache-Control, so a browser is free to keep its copy across a
+       deploy — and a stale theme.js is not a cosmetic problem: ThemeSwitcher
+       calls billsTheme.read() expecting a string, and an older build that
+       returned an object takes the whole circuit down with it. The hash in the
+       URL changes when the bytes do, so there is nothing stale to serve.
+       Bootstrap and Phosphor are vendored and frozen, so they keep plain
+       URLs. *@
+    <script src="js/theme.js" asp-append-version="true"></script>
 
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="css/phosphor/style.css" />
-    <link href="css/tokens.css" rel="stylesheet" />
-    <link href="css/site.css" rel="stylesheet" />
+    <link href="css/tokens.css" rel="stylesheet" asp-append-version="true" />
+    <link href="css/site.css" rel="stylesheet" asp-append-version="true" />
     <link href="BillsFrontEndBlazor.styles.css" rel="stylesheet" />
 
     <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />

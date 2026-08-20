@@ -30,7 +30,19 @@
         // The first moment interop is available — the app prerenders on the
         // server, where IJSRuntime is not usable. The page is already wearing
         // the right theme by now; this only catches the button up with it.
-        _mode = await JS.InvokeAsync<string>("billsTheme.read");
+        //
+        // Guarded because the answer comes from a file the browser caches. The
+        // script tag is fingerprinted so a stale copy should not be reachable,
+        // but the failure if one ever is would be a dead circuit and a blank
+        // app — far too steep a price for a sun icon that points the wrong way.
+        try
+        {
+            _mode = await JS.InvokeAsync<string>("billsTheme.read");
+        }
+        catch (JSException)
+        {
+            return;
+        }
 
         StateHasChanged();
     }
