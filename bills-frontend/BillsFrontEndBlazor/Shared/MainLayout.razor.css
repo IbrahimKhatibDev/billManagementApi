@@ -51,12 +51,22 @@ main {
 }
 
 .content {
-    /* Horizontal only. The box has no height constraint, so overflow-y being
-       forced to `auto` alongside it can never produce a second scrollbar — the
-       element just grows and the document scrolls. Without this a wide child
-       (the bills table at a narrow width) drags the whole document sideways
-       rather than scrolling inside its own .table-responsive wrapper. */
-    overflow-x: hidden;
+    /* `clip` and not `hidden`, which is the difference between clipping a box
+       and making it a scroller.
+
+       `overflow-x: hidden` forces the other axis from `visible` to `auto`, and
+       that quietly wrapped the whole app in a scroll container. It never
+       scrolled — the box has no height constraint, so it just grew and the
+       document scrolled instead, which is why it looked fine. But `position:
+       sticky` is measured against the nearest scrollport, and every page's
+       content had one that was exactly as tall as the page: the bulk action bar
+       was sticky against a box that never moved, so it scrolled away with the
+       rows it was meant to stay above.
+
+       `clip` has no such side effect. It is not a scroll container, so the
+       viewport goes back to being the scrollport for everything inside it, and
+       the horizontal clamp this rule is here for is unchanged. */
+    overflow-x: clip;
 }
 
 /* Both of these only ever appear under the mobile breakpoint. They are declared
