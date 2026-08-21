@@ -4,13 +4,9 @@
 # everything not needed to compile those two projects is excluded here — most
 # importantly the host's bin/obj, which would otherwise be copied over the
 # container's own output, and .git, which is the largest thing in the tree.
-#
-# The react service keeps its own .dockerignore: its context is still its own
-# directory.
 
 **/bin/
 **/obj/
-**/node_modules/
 
 .git/
 .github/
@@ -26,9 +22,6 @@ docs/
 # Integration tests. They run in CI and on a developer machine, never in the
 # image being shipped.
 tests/
-
-# The React client, which builds from its own context.
-bills-frontend/FrontEndReact/
 
 **/*.sln
 **/*.user

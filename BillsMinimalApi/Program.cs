@@ -59,7 +59,11 @@ builder.Services.AddAppHealthChecks();
 // probe keeps to itself. See RateLimitSetup.
 builder.Services.AddAppRateLimiter(builder.Configuration);
 
-// Register CORS policy
+// CORS for browser callers on another origin. The Blazor app in this repo is
+// not one of them — it is Blazor Server, so its HTTP calls originate inside the
+// container and never meet a preflight. This is here for the clients that are
+// not in this repo: a page on another host, a fetch() from a notebook, Swagger
+// UI running somewhere else.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -68,7 +72,7 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               // AllowAnyHeader is about the request. A cross-origin caller can
               // read only a handful of response headers unless the server names
-              // the rest, so without this the React client gets a 429 whose
+              // the rest, so without this a browser client gets a 429 whose
               // Retry-After it cannot see and a correlation id it cannot quote
               // in a bug report — both present on the wire, both absent from
               // fetch(). Named rather than wildcarded: "*" is ignored by

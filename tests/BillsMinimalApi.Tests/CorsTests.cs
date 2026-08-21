@@ -7,9 +7,10 @@ namespace BillsMinimalApi.Tests;
 /// <summary>
 /// What a browser is allowed to do with a response from this API.
 /// <para>
-/// The React client is served from a different origin than the API — static
-/// files on :5173 calling :5131 — so everything here is load-bearing for it and
-/// invisible to every other caller. `curl` and Swagger see these headers whether
+/// None of this is exercised by the Blazor app in this repo, which is Blazor
+/// Server and calls the API from inside a container rather than from a page. It
+/// is load-bearing for every browser client that is not in this repo, and
+/// invisible to every other caller: `curl` and Swagger see these headers whether
 /// the policy names them or not, which is exactly why the omission this class
 /// guards against is the sort that ships.
 /// </para>
@@ -51,8 +52,8 @@ public sealed class CorsTests : ApiTestBase
         // no Authorization header — the spec forbids it — so once the fallback
         // policy gets to it the answer is 401, and the browser refuses the real
         // request that was going to carry a perfectly good token. Reordering that
-        // pair breaks the React client and nothing else, which is a bad way to
-        // find out.
+        // pair breaks browser clients and nothing else — so nothing in this repo
+        // would notice, which is a bad way to find out.
         using var request = new HttpRequestMessage(HttpMethod.Options, Routes.Bills);
         request.Headers.Add(HeaderNames.Origin, Origin);
         request.Headers.Add(HeaderNames.AccessControlRequestMethod, "GET");
