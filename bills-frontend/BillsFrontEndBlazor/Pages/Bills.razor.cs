@@ -582,7 +582,15 @@ namespace BillsFrontEndBlazor.Pages
 
         private void OpenCreateModal()
         {
-            _formBill = new Bill { DueDate = DateTime.Today };
+            // _today, not DateTime.Today: this is the date a reader is most
+            // likely to submit untouched, and it goes to the API as it stands.
+            // DateTime.Today is midnight *Local*, and UtcDateTime.Normalize
+            // converts a Local kind rather than relabelling it — so on a host at
+            // UTC+10 midnight local is 14:00 the day before, and a bill filed as
+            // due today is stored as due yesterday. _today is already midnight
+            // UTC, which Normalize hands straight back, and it is the same date
+            // this page cuts its sections on. See the field for why it is UTC.
+            _formBill = new Bill { DueDate = _today };
             _isCreating = true;
         }
 
