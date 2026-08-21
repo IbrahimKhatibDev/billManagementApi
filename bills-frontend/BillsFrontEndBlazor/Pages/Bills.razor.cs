@@ -269,14 +269,38 @@ namespace BillsFrontEndBlazor.Pages
 
             // Materialised before the awaits: SelectedBills is a live query over
             // state that the reload at the end of this method replaces.
-            var payable = SelectedBills.Where(b => !b.Paid).ToList();
+            var selected = SelectedBills.Where(b => !b.Paid).ToList();
+
+            // A row whose pill or inline edit is still in flight already has a
+            // write out against the Version we are holding, and the API bumps
+            // Version on every write — so a second PUT from here would 409
+            // against our own first one and come back as "1 could not be
+            // updated", blaming the server for a collision this page caused.
+            // _isBulkWriting only ever guarded a second bulk run; this is the
+            // other half of the same guard, and _busyIds is where the row-level
+            // writes already state their claim.
+            var payable = selected.Where(b => !_busyIds.Contains(b.Id)).ToList();
+            var held = selected.Count - payable.Count;
 
             if (payable.Count == 0)
             {
+                if (held > 0)
+                {
+                    Toasts.ShowInfo(Held(held));
+                }
+
                 return;
             }
 
             _isBulkWriting = true;
+
+            // Claimed for the length of the batch, so the guard runs both ways:
+            // while these are out, a pill click on one of the same rows takes
+            // the early return in WritePaidAsync instead of racing it.
+            foreach (var bill in payable)
+            {
+                _busyIds.Add(bill.Id);
+            }
 
             try
             {
@@ -291,11 +315,25 @@ namespace BillsFrontEndBlazor.Pages
                     Toasts.ShowError(result.ToMessage());
                 }
 
+                if (held > 0)
+                {
+                    Toasts.ShowInfo(Held(held));
+                }
+
                 // Cleared whatever happened. The successful writes are committed,
                 // so leaving the batch selected invites a second run at bills that
                 // are already paid — and the message has already said how many did
                 // not land.
-                _selectedIds.Clear();
+                //
+                // The ones we wrote, not the whole selection: a row left out
+                // because it was mid-write stays checked, so the second click the
+                // message asks for picks it up once its own write has landed.
+                // Clearing it would drop a bill the reader had selected and say
+                // nothing about it.
+                foreach (var bill in payable)
+                {
+                    _selectedIds.Remove(bill.Id);
+                }
 
                 // Not merely to refresh the Overview: every bill written now has a
                 // higher Version, so the copies in this list are stale.
@@ -303,9 +341,24 @@ namespace BillsFrontEndBlazor.Pages
             }
             finally
             {
+                foreach (var bill in payable)
+                {
+                    _busyIds.Remove(bill.Id);
+                }
+
                 _isBulkWriting = false;
             }
         }
+
+        /// <summary>
+        /// What to say about the rows a batch left alone because they were already
+        /// being written. Phrased as a wait rather than a failure: nothing has gone
+        /// wrong, and they are still selected.
+        /// </summary>
+        private static string Held(int count) =>
+            count == 1
+                ? "1 bill was still saving and was left selected — try it again in a moment."
+                : $"{count} bills were still saving and were left selected — try them again in a moment.";
 
         // -- Controls -----------------------------------------------------------
 
