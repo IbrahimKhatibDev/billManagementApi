@@ -315,13 +315,13 @@ namespace BillsFrontEndBlazor.Services
         }
 
         public Task<BillWriteResult> CreateBillAsync(Bill bill, CancellationToken ct = default)
-            => SendAsync(() => _http.PostAsJsonAsync(Route, bill, ct));
+            => SendAsync(() => _http.PostAsJsonAsync(Route, bill, ct), ct);
 
         public Task<BillWriteResult> UpdateBillAsync(Bill bill, CancellationToken ct = default)
-            => SendAsync(() => _http.PutAsJsonAsync($"{Route}/{bill.Id}", bill, ct));
+            => SendAsync(() => _http.PutAsJsonAsync($"{Route}/{bill.Id}", bill, ct), ct);
 
         public Task<BillWriteResult> DeleteBillAsync(long id, CancellationToken ct = default)
-            => SendAsync(() => _http.DeleteAsync($"{Route}/{id}", ct));
+            => SendAsync(() => _http.DeleteAsync($"{Route}/{id}", ct), ct);
 
         /// <summary>
         /// Marks one bill paid given only its id.
@@ -353,6 +353,14 @@ namespace BillsFrontEndBlazor.Services
                 // Same reason SendAsync catches it: an unhandled exception here
                 // tears down the Blazor circuit and the page goes blank.
                 return new BillWriteResult(false, ex.StatusCode);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // The timeout on the read half of the two round trips. See
+                // SendAsync, which covers the write half the same way — this
+                // method is only safe to call from an event handler if both are
+                // caught, and a hung API times out here first.
+                return new BillWriteResult(false, null);
             }
 
             if (bill is null)
@@ -472,7 +480,8 @@ namespace BillsFrontEndBlazor.Services
         }
 
         private async Task<BillWriteResult> SendAsync(
-            Func<Task<HttpResponseMessage>> send)
+            Func<Task<HttpResponseMessage>> send,
+            CancellationToken ct)
         {
             await AuthorizeAsync();
 
@@ -486,6 +495,19 @@ namespace BillsFrontEndBlazor.Services
                 // The API is unreachable. Surfaced as a failed result rather than
                 // rethrown: in Blazor Server an unhandled exception tears down
                 // the circuit and replaces the page with the yellow error bar.
+                return new BillWriteResult(false, null);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // The HttpClient timeout, which does not raise
+                // HttpRequestException — it raises TaskCanceledException, and
+                // without this the catch above misses the case it exists for.
+                // An API that hangs rather than refusing is the likelier fault
+                // of the two, and it took the whole page down with it.
+                //
+                // Filtered on the token so this only ever swallows the timeout.
+                // A caller that cancels its own write is not reporting a failed
+                // one, and gets its OperationCanceledException back.
                 return new BillWriteResult(false, null);
             }
         }
