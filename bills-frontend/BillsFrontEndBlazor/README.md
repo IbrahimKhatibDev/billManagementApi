@@ -1,38 +1,40 @@
-# Bills Manager — Blazor Server + Bootstrap 5
+# Bills Manager — Blazor Server
 
-A modern, fully featured billing management system built with **Blazor Server**,
-**ASP.NET Core Minimal API**, and **Bootstrap 5**. Three pages — a live dashboard,
-a CRUD bills table, and a reports page with CSV export — behind a collapsible
-admin sidebar, and behind a sign-in page: bills belong to the account that
-created them, so there is nothing to show until you are somebody.
+A bill tracking UI built with **Blazor Server** over an **ASP.NET Core Minimal
+API**. Three pages — an overview that opens on what you owe, a grouped bills list
+you edit in place, and a reports page with CSV export — behind a collapsible
+sidebar, and behind a sign-in page: bills belong to the account that created
+them, so there is nothing to show until you are somebody.
 
-**Zero external dependencies at runtime.** Bootstrap 5.1 and Bootstrap Icons 1.11
-are vendored under `wwwroot/css/`, so the project carries no NuGet
+**Zero external dependencies at runtime.** Bootstrap 5.3 and the Phosphor icon
+font are vendored under `wwwroot/css/`, so the project carries no NuGet
 `PackageReference` at all and the browser loads nothing from a CDN — check the
-Network tab and you will see no third-party requests. That is what lets the
-container run fully self-contained.
+Network tab and you will see no third-party requests. The UI renders with the
+network off, which is what lets the container run fully self-contained.
 
-There is also no `bootstrap.bundle.js`, and no JavaScript of our own anywhere.
-Modals are conditional Blazor markup (`modal fade show d-block` plus a backdrop
-colour) and toasts work because Bootstrap hides `.toast` unless it also carries
-`.show` — both are driven by component state instead of JavaScript. The charts
-are hand-rolled inline SVG, and even the CSV download is a plain `<a href>`
-rather than a JS-built blob.
+There is no `bootstrap.bundle.js` and no npm. Modals are conditional Blazor
+markup (`modal fade show d-block` plus a backdrop colour) and toasts work because
+Bootstrap hides `.toast` unless it also carries `.show` — both are driven by
+component state instead of JavaScript. The charts are hand-rolled inline SVG, the
+counting animation is CSS and a `Timer`, and the CSV download is a plain
+`<a href>` rather than a JS-built blob.
 
-That is not incidental. `_Host.cshtml` uses `render-mode="ServerPrerendered"`,
-where `IJSRuntime` is unusable during the first render — so anything that needed
-JS interop would have to special-case the prerender pass. Nothing here does.
+There is exactly one script of our own, `wwwroot/js/theme.js`, and it is there
+because it is the one thing Blazor cannot do. `_Host.cshtml` renders
+`ServerPrerendered`, where `IJSRuntime` is unusable until `OnAfterRenderAsync` —
+by which time the page has painted. Setting `data-mode` from a component would
+therefore flash the wrong theme on every load, so a blocking `<script>` in
+`<head>` reads the stored choice and applies it before first paint. Nothing else
+here needs interop.
 
----
+### Colour
 
-## 🧭 Frontend options
-
-This project's frontend is the **Blazor Server** app documented here: a
-component-driven C# web UI, and the one wired into `docker-compose.yml`.
-
-An earlier **React** client also lives in the repo, against the same backend:
-
-- [FrontEndReact README](../FrontEndReact/README.md)
+Every colour in the app is a token in `wwwroot/css/tokens.css`, defined twice —
+once under `:root[data-mode="dark"]` and once under `:root[data-mode="light"]`.
+That file is the only place a hex value is allowed to appear; components ask for
+`var(--late)` or `var(--surface)` and get whichever mode is current. Light and
+dark are therefore the same page rather than two designs to keep in step, and the
+Light/Dark switch in the header changes one attribute on `<html>`.
 
 ## 🚀 Setup & run
 
@@ -157,10 +159,9 @@ its own, so a handler injecting a scoped circuit service gets a different scope
 than the circuit it is serving. Constructor injection into `BillService` resolves
 correctly, because the typed client is activated from the calling scope.
 
-`ApiAuthClient` is separate from `BillService` and has its own `HttpClient`, for
-the same reason the React client uses bare axios for sign-in: it is the one
-caller that must send requests *without* a token, since it is how the token is
-obtained.
+`ApiAuthClient` is separate from `BillService` and has its own `HttpClient`,
+because it is the one caller that must send requests *without* a token: it is how
+the token is obtained.
 
 ### What is actually closed
 
@@ -190,75 +191,92 @@ render "nothing at this address" without ever asking the server.
 
 ## 🚀 Features
 
-### 🖥️ Dashboard (`/`)
+### 🖥️ Overview (`/`)
 
-![The dashboard: a gradient hero, three counter cards, a paid-vs-unpaid donut, and six months of totals as bars](../../docs/screenshots/dashboard.png)
+![The Overview: what you owe as a headline figure, an aging breakdown, a cash-flow timeline, and the late bills listed oldest first](../../docs/screenshots/dashboard.png)
 
-- Live-updating analytics (no timers, event-driven)
-- Total bills count, paid bills count, and a currency-formatted outstanding
-  amount
-- **Animated counters** that ease into their value on load and after any change
-- **Paid vs Unpaid donut chart** and a **monthly totals bar chart** over the last
-  six months
-- **The whole dashboard replays on every load** — counters count up from zero and
-  the charts grow in from collapsed, so pressing Refresh visibly does something
-  even when nothing changed
-- A gradient hero banner, an equal-height Bootstrap card grid, and quick-action
-  tiles linking to Bills, Reports, and straight into the create form
-  (`bills?new=true`)
+The page answers one question and then explains its own answer:
 
-Both charts are hand-rolled inline SVG rendered from C# — the donut from a
-`stroke-dasharray` arc, the bars from a computed scale in a fixed `viewBox` — so
-there is no JS interop, no npm, and nothing fetched over the network. The bar
-axis rounds up to 1, 2 or 5 times a power of ten, the same ladder charting
-libraries use, so the gridline labels read as money at any data scale.
+- **What you owe** — one figure, counted up on load by `AnimatedCounter`, and
+  under it a sentence built by `ObligationSentence`: how much is already late,
+  across how many bills, how old the oldest is, and what falls due in the next 30
+  days. The late clause is coloured, because it is the part that needs doing
+  something about
+- **Two links, not a menu** — straight into the overdue filter on Bills, or the
+  whole list
+- **How late it is** — every unpaid bill bucketed by age (not yet due, 1–30,
+  31–60, 61–90, over 90 days) as a single stacked strip with a legend carrying
+  counts and totals
+- **Cash-flow timeline** — every bill on the books as weekly stacked bars, paid on
+  the baseline and unpaid riding on top, with a marker for today and one label per
+  month
+- **Late — oldest first** — the late bills as a list you can clear from, each row
+  carrying its own *Mark paid*
 
-Replaying is fiddlier than it looks: a CSS transition only fires if the browser
-paints the collapsed state first, so the charts are drawn at zero, given a frame,
-then redrawn at their real values.
+Everything on the page is cut from one "today", read once per render, so no two
+sections can disagree about where the boundary falls.
 
-### 📄 Bills management page (`/bills`)
+The charts are hand-rolled inline SVG rendered from C#, so there is no JS interop
+and nothing fetched over the network. Their geometry is not computed here, though:
+`TimelineLayout`, `StackedStrip` and `WeekBuckets` live in
+`BillsMinimalApi.Contracts` — the one assembly this app and the unit test project
+share — precisely so the arithmetic can be tested away from the renderer. A bar
+drawn past its baseline or a "now" marker in the wrong week looks like a
+rendering quirk rather than a bug, which is exactly how that class of error
+ships. The axis rounds up to 1, 2 or 5 times a power of ten, the same ladder
+charting libraries use, so the labels read as money at any data scale.
 
-![The bills table: filter pills with an overdue count badge, search, sortable headers, status badges, and a windowed pager](../../docs/screenshots/bills.png)
+Light mode is the same page — the tokens change, nothing else does:
 
-A complete CRUD interface built on a styled Bootstrap table:
+![The Overview in light mode](../../docs/screenshots/dashboard-light.png)
 
-- Create / Edit through a shared modal form with validation
-- Delete with a confirmation modal
-- Inline validation messages
-- **Sorting** on ID, Payee, Due Date, Amount, and Status
-- **Pagination** with a 10 / 25 / 50 page-size selector, a result count, and a
-  windowed pager that shows at most five page numbers
-- **All / Paid / Unpaid / Overdue filter**, combined with free-text search on ID
-  or Payee. The Overdue button carries a red count badge when there are any
-- **Inline paid toggle** — the status badge is a real button, so marking a bill
-  paid is one click rather than a trip through the edit modal. The flip is
-  optimistic and reverts if the write fails
-- **Overdue is a first-class state**: unpaid and past due renders red, with a
-  tinted row and a relative note ("3 days late", "due tomorrow"). An unpaid bill
-  that is not due yet stays grey — the red is saved for bills that are actually
-  late
-- **Toast notifications** for create, edit, delete, and the inline toggle
-- **Loading indicators** during every API call, and a reload that dims the table
-  rather than blanking it
-- Empty-state message when a filter matches nothing
-- Errors are caught and surfaced as a toast plus an inline retry, rather than
-  tearing down the circuit
+### 📄 Bills (`/bills`)
 
-All of that is a server round trip now. Sorting, filtering, searching and paging
-used to happen in memory over the full table this page had fetched; they are
-query-string parameters on `GET /restapi/BillDtos` today, and Postgres does the
-work. Two things follow from the change:
+![The bills list grouped into Late, Later and Paid, with a natural-language add box at the top](../../docs/screenshots/bills.png)
 
-- **The search box is debounced by 300 ms**, and typing returns to page 1. Every
-  keystroke is a database query otherwise.
-- **Responses can arrive out of order.** A slow page 2 landing after a fast
-  page 3 would put the wrong rows on screen, so each load takes a generation
-  number and a response that is not the newest is dropped.
+The list is **grouped by when a bill falls due** — Late, Later, Paid — rather than
+paged, each group carrying its own count and total. There is no pager and there
+are no sortable headers: the page asks the server for one page at
+`BillQuery.MaxPageSize` in due-date order and groups what comes back, because the
+grouping *is* the sort and a second ordering control would only let the two
+disagree.
 
-Filtered to Overdue, with the tinted rows and relative captions the state earns:
+- **Add a bill in words** — `Verizon 89.20 fri` goes to
+  `POST /restapi/BillDtos/parse`, which reads the line back to you *without*
+  creating anything. You correct the reading, and the bill is created through the
+  ordinary `POST` — so a misread costs a keystroke rather than a row to hunt down
+- **Edit in place** — payee, due date and amount are `InlineEdit` fields: click
+  one, type, and the row saves itself. The create modal survives only for a bill
+  you are entering from scratch
+- **The status pill asks first** — it flips a bill between paid and unpaid, which
+  is a write sitting where the cursor lands by accident, so the first click arms
+  it and the second commits
+- **Bulk actions** — select rows and a bar appears *above* the list, showing the
+  count and total and marking the lot paid in one call. It sits above rather than
+  below because it acts on what is under it
+- **All / Unpaid / Overdue / Paid filters** with a live overdue count, plus
+  free-text search on payee
+- **Toasts** for every write, **loading indicators** during every API call, and a
+  reload that dims the list rather than blanking it
+- Errors surface as a toast plus an inline retry rather than tearing down the
+  circuit
 
-![The bills table filtered to overdue: every row tinted red with a left border, an Overdue badge, and a days-late caption under the due date](../../docs/screenshots/bills-overdue.png)
+Filtering, searching and the due-date ordering are query-string parameters on
+`GET /restapi/BillDtos`, so Postgres does that work rather than this page. Two
+things follow:
+
+- **The search box is debounced by 300 ms.** Every keystroke is a database query
+  otherwise.
+- **Responses can arrive out of order.** A slow request landing after a fast one
+  would put the wrong rows on screen, so each load takes a generation number and
+  a response that is not the newest is dropped.
+
+Selecting rows, with the bulk bar above them:
+
+![The list filtered to overdue bills, with two selected and the bulk action bar above them](../../docs/screenshots/bills-overdue.png)
+
+Concurrent writes are kept off each other: a bill already being written by its own
+row is excluded from the bulk call, so the two paths cannot race on the same row.
 
 ### 📊 Reports page (`/reports`)
 
@@ -267,23 +285,21 @@ time, This year, Last 6 months, Last 3 months, Next 3 months — with a caption
 spelling out the exact dates, because "Last 6 months" alone does not say whether
 today is in it.
 
-![The reports page: range presets, eight headline figures, an overdue aging table with bars, and a what-to-pay-next list](../../docs/screenshots/reports.png)
+![The reports page: range presets, four headline figures, the typical bill, paid rate by month, and a ranked payee breakdown](../../docs/screenshots/reports.png)
 
-- **Eight headline figures**: total billed, paid, outstanding, overdue, largest
-  bill, average, median, and due-in-30-days. They count up on load and replay
-  whenever the range changes
-- **Overdue aging** — unpaid bills bucketed by how late they are (not yet due,
-  1–30, 31–60, 61–90, over 90 days), with bars scaled against the biggest bucket
-- **What to pay next** — a shortlist of the six most urgent unpaid bills, latest
-  first
-- **Payee breakdown** — every payee in range, sortable on any column, opening on
-  who is owed the most, collapsed to the top ten with a show-all toggle
-- **Month by month** — billed, paid, outstanding, and a paid-rate bar per month
-- **Bill sizes** — how many bills fall in each amount band, scaled on count
-  rather than money so one large bill does not outweigh twenty small ones
+- **Four headline figures**: total billed, paid, outstanding and overdue, each
+  with a note underneath saying what it is made of. They count up on load and
+  replay whenever the range changes
+- **The typical bill** — median, mean, and the largest with its payee. Median
+  first, because a single large bill drags the mean somewhere no bill actually is
+- **Bill sizes as a sentence** — "Fifteen of 23 bills sit between $250 and $499 —
+  that band is 86% of the money." A chart of the bands was a lot of ink for one
+  fact
+- **Paid rate by month** — the share of each month's money that has actually been
+  paid, one block per month with the month's total underneath
+- **Who you owe** — every payee ranked by outstanding, with a running share of
+  the total and a sentence naming how few payees account for most of it
 - **CSV export** of the current range
-
-![Further down the reports page: month-by-month billed/paid/outstanding with paid-rate bars, and bill-size bands](../../docs/screenshots/reports-charts.png)
 
 Bills with no due date cannot be placed on a timeline, so any bounded window
 drops them — and the page says how many it left out rather than quietly
@@ -312,44 +328,35 @@ a spreadsheet parses and sums them instead of treating `$1,234.56` as text. Paye
 names are quoted when they need to be; "Sanford, Turcotte and Farrell" unquoted
 would silently shift every later column of that row by one.
 
-### 📱 Mobile layout
+### 📱 Narrow widths
 
-At tablet widths the table scrolls inside its own `.table-responsive` container
-so the page never scrolls sideways. **Below 768px the rows become cards**
-instead: horizontal scrolling used to leave Status and Actions entirely
-off-screen on a phone with nothing to say they were there. The cards are the same
-markup — each cell renders its own label from a `data-label` attribute via CSS,
-so there is one source of truth per row rather than two layouts to keep in sync.
+The shell handles them. Below 641px the sidebar becomes an overlay drawer, the
+bulk action bar stacks, and the timeline drops to a shorter aspect; the Overview
+collapses to a single column below 900px.
 
-Sorting normally lives in the table header, which the card layout hides, so the
-action bar grows a sort dropdown and a direction button below that breakpoint.
-Modals go full-width.
-
-<img src="../../docs/screenshots/bills-mobile.png" width="380" alt="The bills list at phone width: a hamburger top bar, filter pills, a sort dropdown, and each bill as a labelled card">
-
+**The bills rows do not, and this is a known gap.** `BillGroup.razor.css` lays a
+row out as `grid-template-columns: 1.1rem 1fr 11rem 7rem 5.5rem auto`, and there
+is no media query for it. Below roughly 430px the fixed columns consume the whole
+row, the payee's `1fr` collapses to a sliver, and the status pill and delete
+button end up outside the card. The card layout the old Bootstrap table used at
+phone widths was not carried across when the table was replaced by this grid.
 
 ### 🧭 Sidebar navigation
 
-A gradient sidebar with two independent behaviours, because the sensible defaults
-at the two breakpoints disagree:
+Two independent behaviours, because the sensible defaults at the two breakpoints
+disagree:
 
-- **Desktop** — always on screen, collapsible to an icon rail. Collapsed, each
+- **Wide** — always on screen, collapsible to an icon rail. Collapsed, each
   icon's `title` names its destination
-- **Mobile** — an overlay drawer that starts closed, opens from a hamburger in
+- **Narrow** — an overlay drawer that starts closed, opens from a hamburger in
   the top bar, and closes on navigation or on a tap outside
 
 ### 🔄 Real-time UI updates
 
-A custom **BillEventService** notifies pages when bills change:
-
-- Live dashboard updates
-- Reactive UI
-- No polling or timers
-- Clean architecture
-
-Every page subscribes, so a bill created on one page updates the others without a
-manual reload — and publishing once is enough, because the publishing page is a
-subscriber too.
+A custom **BillEventService** notifies pages when bills change — event-driven, no
+polling and no timers. Every page subscribes, so a bill created on one page
+updates the others without a manual reload, and publishing once is enough because
+the publishing page is a subscriber too.
 
 ### 🏗️ Backend API
 
@@ -372,10 +379,16 @@ refresh, because whatever is on screen is now wrong.
 ### Frontend
 
 - **Blazor Server (.NET 10)**
-- **Bootstrap 5.1 + Bootstrap Icons 1.11**, vendored locally — no NuGet packages
+- **Bootstrap 5.3.8**, the **Phosphor** icon font and **Inter**, all vendored
+  under `wwwroot/` — no NuGet packages, no CDN, no npm
+- **Design tokens** in `wwwroot/css/tokens.css`; component styles are scoped
+  `.razor.css` files
 - **Blazor `EditForm` validation**
 - **Event-driven updates using a pub/sub service**
-- No CDN, no npm, no JavaScript of our own
+- **One script of our own**: `wwwroot/js/theme.js`, and only because the theme
+  has to be on the `<html>` element before first paint
+- Charts are hand-rolled inline SVG — no charting library, and no JS interop
+  anywhere else
 
 ### Backend
 
@@ -413,30 +426,35 @@ pages. Toasts dismiss themselves after four seconds.
 
 ---
 
-## ✅ Frontend feature roadmap
+## ✅ What is here
 
-All shipped:
-
-- [x] Add table sorting (ID, Payee, Amount, Due Date)
-- [x] Add pagination for large bill lists
-- [x] Add filters (Paid / Unpaid)
-- [x] Add toast notifications for Create/Edit/Delete
-- [x] Add animated dashboard counters
-- [x] Add charts to the dashboard (Paid vs Unpaid, Monthly totals)
-- [x] Improve mobile layout for modals and tables
-- [x] Add sidebar navigation for a full admin feel
-- [x] Add currency formatting to the Amount field
-- [x] Add loading indicators during API calls
-
-Since:
-
-- [x] Overdue as a first-class state — filter, count badge, red rows, relative
-      due dates
-- [x] Inline paid toggle straight from the table
-- [x] Card layout for the bills table on phones
-- [x] Collapsible desktop sidebar rail
-- [x] Dashboard animations replay on every refresh
-- [x] Reports page — aging, payee breakdown, month-by-month, size bands
-- [x] CSV export of the selected report range
 - [x] Sign in, register and sign out — cookie auth carrying the API's bearer
       token, with every page and the CSV endpoint closed to anonymous visitors
+- [x] Overview built around one sentence: what you owe, how much of it is late,
+      how old the oldest is, what lands in the next 30 days
+- [x] Overdue as a derived first-class state — filter, count, aging strip,
+      relative due dates
+- [x] Bills grouped by when they fall due, with per-group counts and totals
+- [x] Inline editing of payee, due date and amount
+- [x] A status pill that arms before it commits, so a stray click cannot flip a
+      bill
+- [x] Natural-language add box, parsed server-side and shown back before anything
+      is created
+- [x] Multi-select with a bulk action bar above the list
+- [x] Reports — headline figures, the typical bill, size bands, paid rate by
+      month, and who you owe
+- [x] CSV export of the selected report range
+- [x] Light and dark, chosen at the top of every page and applied before first
+      paint
+- [x] Counting animation on the Overview figure, replayed on every refresh
+- [x] Toasts for every write, and loading indicators during API calls
+- [x] Collapsible sidebar rail, and an overlay drawer at narrow widths
+
+**Removed by the redesign**, so that a reader coming from an older revision is
+not looking for them: sortable table headers, the pager, the sort dropdown, the
+paid-vs-unpaid donut, and the phone card layout for the bills table. Sorting and
+paging still exist in the API — see `BillQuery` — the list page simply asks for
+one full page ordered by due date and groups it.
+
+**Known gap**: the bills rows have no narrow-width handling. See
+[Narrow widths](#-narrow-widths).

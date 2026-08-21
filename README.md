@@ -3,9 +3,10 @@
 [![CI](https://github.com/IbrahimKhatibDev/billManagementApi/actions/workflows/ci.yml/badge.svg)](https://github.com/IbrahimKhatibDev/billManagementApi/actions/workflows/ci.yml)
 
 A bill tracking app: an ASP.NET Core Minimal API over PostgreSQL, a Blazor Server
-admin UI built on Bootstrap 5 — dashboard, bills table, and a reports page with
-CSV export — and an integration test suite that runs against a real database.
-Everything runs in Docker, on Apple Silicon and x86 alike, with no emulation.
+UI — an overview that opens on what you owe, a grouped bills list you edit in
+place, and a reports page with CSV export — and an integration test suite that
+runs against a real database. Everything runs in Docker, on Apple Silicon and x86
+alike, with no emulation.
 
 Accounts are per-user: you sign in, and every bill you see, edit or export is
 one of yours. That is enforced by an EF Core global query filter rather than by
@@ -19,53 +20,39 @@ before you have created anything. It holds nothing but fake data.
 ## Architecture
 
 ```
-browser ──▶ blazor :8080 ─┐
-                          ├─▶ api :8080 ──▶ db :5432
-browser ──▶ react  :80 ───┘   (Minimal API)  (PostgreSQL 16)
+browser ──▶ blazor :8080 ──▶ api :8080 ──▶ db :5432
+                             (Minimal API)  (PostgreSQL 16)
 ```
 
 | Service | Container port | Host port | What it is |
 |---|---|---|---|
-| `blazor` | 8080 | **5254** | Blazor Server UI (Bootstrap 5) — the maintained frontend |
-| `react` | 80 | **5173** | Earlier React client, built to static files and served by nginx |
+| `blazor` | 8080 | **5254** | Blazor Server UI — the frontend |
 | `api` | 8080 | **5131** | Minimal API + Swagger |
 | `db` | 5432 | **5432** | PostgreSQL 16 |
 
-The two frontends reach the API from opposite sides, which is the one thing worth
-understanding about this diagram:
+The one thing worth understanding about that diagram is that the browser never
+talks to the API. This is Blazor *Server*: every `BillService` call originates
+**inside** the blazor container and travels the Compose network to
+`http://api:8080/`, while the browser holds a SignalR circuit to that container
+and nothing else. The API's published port is there for Swagger, for `curl`, and
+for anything you write against it yourself.
 
-- **Blazor** is Blazor *Server*, so every `BillService` call originates **inside**
-  the blazor container and travels the Compose network to `http://api:8080/`. The
-  browser holds a SignalR circuit to that container and never talks to the API.
-- **React** compiles to static files, so its calls originate **in the browser** and
-  have to go to the API's published host port, `http://localhost:5131/`. That is a
-  cross-origin request; the API's `AllowAnyOrigin` policy is what lets it through.
-
-So the API's published port is not only for Swagger and `curl` — the React client
-depends on it.
-
-Both clients authenticate the same way at the API — a bearer token from
-`POST /auth/login` — but they hold it differently, for the same reason the arrows
-above point in opposite directions:
-
-- **Blazor** signs you in with a cookie and keeps the API token in a claim inside
-  it, because the browser never speaks to the API and so has no use for the token
-  itself. `BillService` reads it back out of the circuit's identity on each call.
-- **React** stores the token in `localStorage` and an axios interceptor attaches
-  it, because the browser *is* the client. A 401 clears it and drops you back to
-  the sign-in form.
+That shapes how the token is held. The Blazor app signs you in with a cookie and
+keeps the API's bearer token in a claim inside it, because the browser has no use
+for a token it never sends; `BillService` reads it back out of the circuit's
+identity on each call.
 
 Getting that token is rate limited to ten attempts a minute per IP and an account
-stops answering after five wrong passwords, so both clients can also meet a
-**429** on the sign-in form. The demo account is the one exception to the
-lockout: its password is printed above, so there is nothing to guess and the
-lockout could only serve as a fifteen-minute kill switch for any passer-by. See
+stops answering after five wrong passwords, so the sign-in form can also meet a
+**429**. The demo account is the one exception to the lockout: its password is
+printed above, so there is nothing to guess and the lockout could only serve as a
+fifteen-minute kill switch for any passer-by. See
 [Rate limiting](./BillsMinimalApi/README.md#rate-limiting).
 
-The host ports match the original `launchSettings.json` and Vite defaults, so the
-same URLs work whether you are running in Docker or on the host.
+The host ports match the original `launchSettings.json`, so the same URLs work
+whether you are running in Docker or on the host.
 
-Both clients ask the database for what they need rather than for everything:
+The UI asks the database for what it needs rather than for everything:
 `GET /restapi/BillDtos` takes `page`, `pageSize`, `search`, `status`, `sort`,
 `dir` and a due-date window and returns one page plus a total count, and
 `GET /restapi/BillDtos/summary` computes the reports page's figures with EF
@@ -75,51 +62,73 @@ with the same type the server parses it into.
 
 ## The UI
 
-The Blazor app: three pages behind a sidebar that collapses to an icon rail on
-desktop and to a drawer on mobile — and, in front of all three, a sign-in page.
+The Blazor app: three pages behind a sidebar that collapses to an icon rail — and,
+in front of all three, a sign-in page. Every page carries the same header: the
+date it is reasoning from, a Refresh button, and a Light/Dark switch.
 
 | Page | Route | What it does |
 |---|---|---|
 | Sign in | `/Account/Login` | Email and password, or register a new account — the only pages an anonymous visitor can reach |
-| Dashboard | `/` | Counters, a paid-vs-unpaid donut, and six months of totals as bars — all hand-rolled inline SVG, all replayed on every load |
-| Bills | `/bills` | The CRUD table: sort, filter, search, paginate, toggle paid inline, and create/edit/delete through modals |
-| Reports | `/reports` | Headline figures, overdue aging, a payee breakdown, month-by-month totals, and bill-size bands — all scoped to a date preset |
+| Overview | `/` | What you owe, said in a sentence; how late it is; a cash-flow timeline; and the late bills in a list you can clear from |
+| Bills | `/bills` | Every bill, grouped by when it falls due, edited in place |
+| Reports | `/reports` | Headline figures, paid rate by month, and who you owe — all scoped to a date preset, and exportable as CSV |
 
-### Dashboard
+### Sign in
 
-![The dashboard: counters, a paid-vs-unpaid donut, and six months of totals as bars](docs/screenshots/dashboard.png)
+<img src="docs/screenshots/login.png" width="520" alt="The sign-in card: email, password, and the demo credentials printed underneath">
+
+### Overview
+
+![The Overview: what you owe as a headline figure, an aging breakdown, a cash-flow timeline, and the late bills listed oldest first](docs/screenshots/dashboard.png)
+
+The page opens on one number and then explains it in a sentence — how much of the
+total is already late, across how many bills, how old the oldest is, and what
+falls due in the next 30 days. The figure counts up on load, and the late clause
+is coloured because it is the part that needs doing something about.
+
+Overdue is derived rather than stored — a bill is overdue when it is unpaid *and*
+its due date has passed — so the headline, the aging strip, the "days late"
+captions and the count on the Bills page's filter all fall out of one rule. Every
+window on the page is cut from the same "today", read once per render.
+
+Light mode is the same page, not a second design:
+
+![The Overview in light mode](docs/screenshots/dashboard-light.png)
 
 ### Bills
 
-![The bills table with sort, filter, search, and pagination](docs/screenshots/bills.png)
+![The bills list grouped into Late, Later and Paid, with a natural-language add box at the top](docs/screenshots/bills.png)
 
-Overdue is derived rather than stored — a bill is overdue when it is unpaid *and*
-its due date has passed — so the red rows, the "days late" captions, and the count
-on the filter button all fall out of one rule.
+The list is grouped by when a bill falls due — **Late**, **Later**, **Paid** —
+rather than paged, and each group carries its own count and total. Payee, due date
+and amount are edited where they sit: click one, type, and the row saves itself.
+The status pill asks before it flips a bill between paid and unpaid, because it is
+a write that sits under the cursor by accident.
 
-![The same table filtered to overdue bills, each row tinted red with a days-late caption](docs/screenshots/bills-overdue.png)
+The box at the top takes a bill as a line of text — `Verizon 89.20 fri` — and
+`POST /restapi/BillDtos/parse` reads it back to you before anything is created, so
+a misread costs a keystroke rather than a row to hunt down. The modal survives
+only for a bill you are entering from scratch.
 
-Below 768px each row becomes a card instead. The headings are carried across as
-`data-label` attributes on the same `<td>` elements, so there is one markup source
-for both layouts and they cannot drift apart. The column-header sort control is
-replaced by a dropdown, since there are no headers left to click.
+Selecting rows raises a bulk bar above the list, which marks the lot paid in one
+call:
 
-<img src="docs/screenshots/bills-mobile.png" width="380" alt="The bills list on a phone: each bill is a labelled card">
+![The list filtered to overdue bills, with two selected and the bulk action bar above them](docs/screenshots/bills-overdue.png)
 
 ### Reports
 
-![The reports page: eight headline figures, overdue aging, and what to pay next](docs/screenshots/reports.png)
-
-![The rest of the reports page: month-by-month totals with paid rates, and bill-size bands](docs/screenshots/reports-charts.png)
+![The reports page: four headline figures, the typical bill, paid rate by month, and a ranked payee breakdown](docs/screenshots/reports.png)
 
 Reports also exports the current range as CSV. The download is served by the
 Blazor app itself at `/reports/bills.csv?range=<slug>`, which re-applies the same
 window the page is showing, so an export can never cover a different set of bills
 than what you were looking at.
 
-There is no JavaScript of our own anywhere in the Blazor UI — no
-`bootstrap.bundle.js`, no charting library, no JS interop. Modals, toasts, charts
-and the CSV download are all either component state or plain HTML.
+There is no JavaScript of our own anywhere in the Blazor UI — no charting library,
+no JS interop, no npm. The charts are hand-rolled inline SVG whose geometry is
+computed in `BillsMinimalApi.Contracts` and unit tested away from the renderer;
+the modals, toasts, counting animation and CSV download are component state, CSS
+and plain HTML.
 
 ## Prerequisites
 
@@ -136,9 +145,8 @@ Then open:
 
 - **UI** — <http://localhost:5254>
 - **Swagger** — <http://localhost:5131/swagger>
-- **React client** — <http://localhost:5173>
 
-Sign in to any of them with **`demo@billsapp.dev` / `Demo12345`**, or register
+Sign in to either of them with **`demo@billsapp.dev` / `Demo12345`**, or register
 your own account — a new one starts with no bills, which is correct but makes for
 a duller first look.
 
@@ -184,15 +192,10 @@ dotnet run --project BillsMinimalApi
 
 # terminal 2
 dotnet run --project bills-frontend/BillsFrontEndBlazor
-
-# terminal 3 — optional, only if you want the React client too
-cd bills-frontend/FrontEndReact && npm install && npm run dev
 ```
 
-Same URLs as above. Both .NET projects default to their `http` launch profile, so
-you do not need `dotnet dev-certs https --trust`. The React client needs no
-configuration either — it already defaults to `http://localhost:5131`, which is
-where the API listens under both `dotnet run` and Docker.
+Same URLs as above. Both projects default to their `http` launch profile, so you
+do not need `dotnet dev-certs https --trust`.
 
 There is no token signing key to set up either: in Development the API invents a
 throwaway one at startup if `Jwt__SigningKey` is unset. The cost is that
@@ -211,21 +214,24 @@ alternative is an app that signs tokens with a secret nobody chose.
 dotnet test BillsMinimalApi/BillsMinimalApi.sln
 ```
 
-207 tests in two projects, split by what they need to run:
+398 tests in two projects, split by what they need to run:
 
-**142 integration tests** covering the full API surface — CRUD, optimistic
+**156 integration tests** covering the full API surface — CRUD, optimistic
 concurrency, validation, UTC round-tripping, the paged list endpoint's paging,
-filtering, searching and sorting, the report aggregates, the health probes, the
-correlation-ID header, the rate limiter and the account lockout, and the auth
-rules: registration and login, 401 without a token, and one user getting **404**
-rather than 403 on another user's bill for GET, PUT and DELETE alike. 403 would
-confirm the bill exists, which is a thing user B should not be able to learn.
+filtering, searching and sorting, the bulk paid endpoint, the text parser, the
+report aggregates, the health probes, the correlation-ID header, CORS, the rate
+limiter and the account lockout, and the auth rules: registration and login, 401
+without a token, and one user getting **404** rather than 403 on another user's
+bill for GET, PUT and DELETE alike. 403 would confirm the bill exists, which is a
+thing user B should not be able to learn.
 
-**65 unit tests** over the arithmetic underneath it: the report date presets, the
-pager's row numbers, the reports page's derived figures, the query-string writer,
-and the UTC normalisation rule. These are the parts an integration test cannot
-see — computed properties that never cross the wire, and a `DateTimeKind` branch
-whose two halves agree with each other on a machine set to UTC.
+**242 unit tests** over the arithmetic underneath it: the report date presets, the
+reports page's derived figures, the query-string writer, the UTC normalisation
+rule, the natural-language bill parser, and the geometry behind every chart — bar
+heights, the timeline's "now" marker, which month labels survive a crowded axis.
+These are the parts an integration test cannot see, and the parts that fail
+silently: a bar drawn past its baseline looks like a rendering quirk rather than a
+bug.
 
 ```bash
 dotnet test tests/BillsMinimalApi.UnitTests   # no Docker, ~20ms
@@ -247,25 +253,24 @@ first — but there is no conflict if it is already running.
 | Path | What |
 |---|---|
 | `BillsMinimalApi/` | Minimal API, EF Core, migrations, Identity + JWT, seeder |
-| `BillsMinimalApi.Contracts/` | Query and response shapes shared by the API and the Blazor app |
-| `bills-frontend/BillsFrontEndBlazor/` | Blazor Server UI (Bootstrap 5) — the maintained frontend |
-| `bills-frontend/FrontEndReact/` | Earlier React frontend |
+| `BillsMinimalApi.Contracts/` | Query and response shapes — and chart geometry — shared by the API, the Blazor app and the unit tests |
+| `bills-frontend/BillsFrontEndBlazor/` | Blazor Server UI |
 | `tests/BillsMinimalApi.Tests/` | Integration tests — a real host over a real PostgreSQL |
 | `tests/BillsMinimalApi.UnitTests/` | Unit tests — the arithmetic, with no I/O and no Docker |
 | `docs/screenshots/` | Images used by these READMEs |
 | `.github/workflows/ci.yml` | Build and test on every push and PR |
 
-Both frontends are in the Compose stack, but only the Blazor one has kept pace
-with the API — it is where the dashboard, the reports page, and the CSV export
-live. The React app is a working plain-CRUD client and a snapshot of an earlier
-stage of this project, kept so the repo shows both approaches against the same
-backend rather than because it is a second maintained frontend.
+An earlier React client lived under `bills-frontend/FrontEndReact/` and has been
+removed. It only ever covered sign-in and a plain CRUD table, it had stopped
+keeping pace with the API, and a second frontend that nobody was updating was
+worth less than the confusion it cost. The API's CORS policy stayed: it was never
+only for that client, and it is what lets anything browser-based call this API
+from another origin.
 
 ## Additional documentation
 
 - [BillsMinimalApi README](./BillsMinimalApi/README.md) — endpoints, database, migrations
 - [BillsFrontEndBlazor README](./bills-frontend/BillsFrontEndBlazor/README.md) — UI features, configuration
-- [FrontEndReact README](./bills-frontend/FrontEndReact/README.md) — the older React client
 
 ## License
 
