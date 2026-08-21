@@ -13,6 +13,11 @@
 .page-head {
     align-items: flex-start;
     display: flex;
+    /* Only ever seen when the two sides are shrinking against each other, which
+       is the state the flex-shrink below leaves them in: space-between hands out
+       free space, and by then there is none. It is what stops the lede from
+       running into the Refresh button. */
+    gap: 1rem;
     justify-content: space-between;
 }
 
@@ -42,6 +47,19 @@
     align-items: center;
     display: flex;
     flex-wrap: wrap;
+    /* The heading gives up its width first. Both sides of the head start at
+       their content width and neither fits, so by default they shrink in
+       proportion — and the actions, being the only side that cannot reflow, wrap
+       instead, dropping the colour mode onto a line of its own. That happened at
+       every width from where the head becomes a row up to about 1070px of
+       window, which is a laptop rather than an edge case.
+
+       Shrinking one prose block and shrinking a row of buttons are not the same
+       operation: the lede takes another line and reads the same, while the
+       buttons break their row. So the buttons keep their width and the sentence
+       takes the squeeze. Only this page needs it — the Overview and the Bills
+       page have one header control fewer and never run out of room. */
+    flex-shrink: 0;
     gap: .5rem;
 }
 
@@ -211,6 +229,36 @@
     .page-head {
         flex-direction: column;
         gap: .75rem;
+    }
+}
+
+/* Export CSV wraps, not the colour mode.
+
+   This is the only page with three header controls, and Refresh, Export CSV and
+   the Light/Dark pair come to 382px of buttons — more than the 342 a 390px phone
+   leaves this column. Something has to go to a second line, and left to itself it
+   is whatever is last in the markup: the two-tab switcher ended up alone under
+   the buttons, where it read as a stray control that had come loose rather than
+   as part of the header.
+
+   Sending the Export link down instead leaves Refresh beside the colour mode,
+   which is exactly what the Overview and the Bills page show at this width. One
+   header shape across all three, and the thing that wraps is a plain button that
+   looks no different for being on its own line.
+
+   24rem is where the three stop fitting side by side, in rem rather than pixels
+   so the threshold grows with the reader's text the same way the row it is
+   measuring does. Refresh and the switcher are 240px together, so they still
+   share a line at 320px — the narrowest width this page is built for.
+
+   The cost is that focus order stops matching the eye: tab visits Refresh,
+   Export CSV, Light, Dark, while the page reads Refresh, Light, Dark, Export
+   CSV. These are four independent controls that can be used in any order, so
+   there is no sequence here to lose the meaning of — what it costs a keyboard is
+   one focus ring that steps down a line and back up again. */
+@container (max-width: 24rem) {
+    .head-actions a.ghost {
+        order: 1;
     }
 }
 
