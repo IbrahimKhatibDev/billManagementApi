@@ -21,25 +21,69 @@ public sealed class ObligationSentenceTests
     private static string Describe(BillSummary summary) =>
         ObligationSentence.Describe(summary, Money);
 
+    private static ObligationParts Parts(BillSummary summary) =>
+        ObligationSentence.DescribeParts(summary, Money);
+
+    /// <summary>The figures from the design handoff, reused by the split tests
+    /// below so they are asserting against the same sentence as the one above.
+    /// </summary>
+    private static BillSummary Handoff() => new()
+    {
+        TotalBilled = 6_108.50m,
+        PaidAmount = 4_419.52m,
+        OverdueAmount = 1_398.99m,
+        OverdueCount = 8,
+        DueSoonAmount = 289.99m,
+        Late = { new SummaryBill { DaysLate = 156 } },
+    };
+
     [Fact]
     public void The_headline_reads_as_the_design_wrote_it()
     {
         // The handoff's own figures, which are cross-checked against the app's
         // Reports screen — so this is the sentence a real account produces.
-        var summary = new BillSummary
-        {
-            TotalBilled = 6_108.50m,
-            PaidAmount = 4_419.52m,
-            OverdueAmount = 1_398.99m,
-            OverdueCount = 8,
-            DueSoonAmount = 289.99m,
-            Late = { new SummaryBill { DaysLate = 156 } },
-        };
-
         Assert.Equal(
             "$1,398.99 of it is already late, spread across 8 bills — the oldest by 156 days. "
             + "The rest, $289.99, falls due inside the next 30 days.",
-            Describe(summary));
+            Describe(Handoff()));
+    }
+
+    [Fact]
+    public void The_coloured_clause_is_the_figure_and_the_claim_about_it()
+    {
+        // Where the Overview stops colouring. The comma belongs to the remainder,
+        // so the highlight ends on the word rather than on punctuation.
+        Assert.Equal("$1,398.99 of it is already late", Parts(Handoff()).Late);
+    }
+
+    [Fact]
+    public void The_two_parts_join_back_into_the_sentence_with_nothing_between_them()
+    {
+        // The component concatenates these across a span boundary. A part that
+        // needed a separator would put a space in front of the comma.
+        var parts = Parts(Handoff());
+
+        Assert.Equal(Describe(Handoff()), parts.Late + parts.Rest);
+    }
+
+    [Fact]
+    public void A_settled_account_has_nothing_to_colour()
+    {
+        var summary = new BillSummary { TotalBilled = 900m, PaidAmount = 900m };
+
+        Assert.Empty(Parts(summary).Late);
+        Assert.Equal(Describe(summary), Parts(summary).Rest);
+    }
+
+    [Fact]
+    public void An_account_with_nothing_late_yet_has_nothing_to_colour_either()
+    {
+        // Money is outstanding, but all of it is still ahead of its due date, so
+        // the sentence never names a late figure.
+        var summary = new BillSummary { TotalBilled = 400m, DueSoonAmount = 400m };
+
+        Assert.Empty(Parts(summary).Late);
+        Assert.Equal(Describe(summary), Parts(summary).Rest);
     }
 
     [Fact]

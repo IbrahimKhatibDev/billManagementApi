@@ -27,11 +27,24 @@ public readonly record struct TimelineTick(double X, string Label);
 /// interop, which does not exist during a prerendered first render.
 /// </para>
 /// </summary>
+/// <param name="NowSlotX">
+/// The left edge of the week <see cref="NowX"/> falls in, or null on the same
+/// terms. The chart shades this week behind the bars, and the shading has to be
+/// on the week's boundaries — <see cref="NowX"/> is a point inside the week,
+/// proportional to the day, and a band centred on it would sit up to half a
+/// week out of true.
+/// </param>
+/// <param name="SlotWidth">
+/// One week's share of the axis: the bar plus the gap to its neighbour. The bars
+/// are a fraction of it; the shaded week is the whole of it.
+/// </param>
 public sealed record TimelineLayout(
     List<TimelineBar> Bars,
     List<TimelineTick> Ticks,
     double? NowX,
-    decimal AxisMax)
+    decimal AxisMax,
+    double? NowSlotX,
+    double SlotWidth)
 {
     public const double PlotLeft = 8;
     public const double PlotRight = 1192;
@@ -44,11 +57,18 @@ public sealed record TimelineLayout(
     /// the gap to its neighbour.</summary>
     private const double BarFill = 0.7;
 
+    /// <summary>
+    /// How much room a label on the axis needs to itself, in user units: half of
+    /// "Aug 26" plus half of "now" at the 11px the axis is set in, which is the
+    /// point where the two would start to touch.
+    /// </summary>
+    private const double LabelClearance = 30;
+
     public static TimelineLayout Build(IReadOnlyList<WeekTotals> weeks, DateTime today)
     {
         if (weeks.Count == 0)
         {
-            return new TimelineLayout(new(), new(), null, 0m);
+            return new TimelineLayout(new(), new(), null, 0m, null, 0);
         }
 
         var axisMax = NiceAxisMax(weeks.Max(w => w.Total));
@@ -105,27 +125,57 @@ public sealed record TimelineLayout(
             }
         }
 
-        return new TimelineLayout(bars, ticks, ComputeNowX(bars, slot, today), axisMax);
+        var nowWeek = FindNowWeek(bars, today);
+        var nowX = ComputeNowX(nowWeek, slot, today);
+
+        // "now" and the month labels share one row along the axis, and today is
+        // in the week that opens a month about one week in four — so the two sit
+        // in the same slot and print over each other. The month gives way: its
+        // neighbours still say where in the year the reader is, and "now" is the
+        // one label that cannot be inferred from the ones either side of it.
+        if (nowX is { } marker)
+        {
+            // Capped at half a slot, because the clearance is a fixed width and
+            // the axis is not. MaxWeeks is 260, which puts a slot at 4.5 units
+            // and the months 20 apart — a flat 30 would take out the three
+            // labels either side of the marker and leave a hole in the axis
+            // exactly where the reader is looking. Half a slot keeps this to
+            // what it is for: the label in the marker's own week.
+            var clearance = Math.Min(LabelClearance, slot / 2);
+            ticks.RemoveAll(t => Math.Abs(t.X - marker) < clearance);
+        }
+
+        return new TimelineLayout(
+            bars,
+            ticks,
+            nowX,
+            axisMax,
+            nowWeek < 0 ? null : PlotLeft + (slot * nowWeek),
+            slot);
     }
 
     private static double Scale(decimal amount, decimal axisMax) =>
         axisMax == 0 ? 0 : (double)(amount / axisMax) * PlotHeight;
 
     /// <summary>
-    /// Where "today" sits along the axis, or null when it is not on the plot at
-    /// all — an account of nothing but historic bills has no now to mark, and a
-    /// marker pinned to the last bar would claim otherwise.
+    /// Which bar holds today, or -1 when today is not on the plot at all — an
+    /// account of nothing but historic bills has no now to mark, and a marker
+    /// pinned to the last bar would claim otherwise.
+    /// </summary>
+    private static int FindNowWeek(List<TimelineBar> bars, DateTime today) =>
+        bars.FindIndex(b => b.WeekStart == WeekBuckets.StartOfWeek(today));
+
+    /// <summary>
+    /// Where "today" sits along the axis, or null when
+    /// <see cref="FindNowWeek"/> found no week to sit in.
     /// <para>
     /// Named <c>ComputeNowX</c> rather than <c>NowX</c>: the record's own
     /// <see cref="NowX"/> property already owns that identifier, and a method
     /// sharing it with a property is a compile error (CS0102), not an override.
     /// </para>
     /// </summary>
-    private static double? ComputeNowX(List<TimelineBar> bars, double slot, DateTime today)
+    private static double? ComputeNowX(int index, double slot, DateTime today)
     {
-        var thisWeek = WeekBuckets.StartOfWeek(today);
-        var index = bars.FindIndex(b => b.WeekStart == thisWeek);
-
         if (index < 0)
         {
             return null;
@@ -133,7 +183,7 @@ public sealed record TimelineLayout(
 
         // Proportional within the week, not on its boundary: a Friday marker on
         // Monday's line is up to four days of error on a chart about timing.
-        var dayOfWeek = (today.Date - thisWeek).TotalDays;
+        var dayOfWeek = (today.Date - WeekBuckets.StartOfWeek(today)).TotalDays;
 
         // Across the week's whole slot, measured from where the slot starts —
         // not across the bar. The bar is BarFill (0.7) of the slot and inset by

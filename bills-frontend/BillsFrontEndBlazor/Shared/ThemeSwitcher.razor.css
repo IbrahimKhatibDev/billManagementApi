@@ -1,20 +1,39 @@
+/* The track. Padding on the container rather than margins on the buttons is
+   what leaves the selected tab inset by an even 3px on all four sides. */
 .theme-switcher {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    padding: .5rem .75rem;
-}
-
-.theme-mode {
-    background: none;
+    background: var(--sunken);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius);
-    color: var(--muted);
-    cursor: pointer;
-    line-height: 1;
-    padding: .3rem .45rem;
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
 }
 
-.theme-mode:hover {
+.mode {
+    background: none;
+    border: none;
+    border-radius: calc(var(--radius) - 3px);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: .85rem;
+    line-height: 1.4;
+    padding: .3rem .85rem;
+}
+
+.mode:hover {
     color: var(--text);
+}
+
+/* The one filled accent in the design — see the note on --accent-fill. The
+   default cursor is deliberate: this tab has nothing to offer, it is already
+   the mode you are in. */
+.mode.is-on {
+    background: var(--accent-fill);
+    color: var(--on-accent-fill);
+    cursor: default;
+}
+
+.mode:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
 }

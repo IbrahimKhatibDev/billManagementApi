@@ -65,9 +65,15 @@
     --faint: #75798c;
     --border: #3f424d;
 
-    /* Outline only. Nothing in Nocturne is ever flooded with the accent. */
+    /* Outline, near enough. The accent is a border and a text colour everywhere
+       in Nocturne except one place: the selected tab of a segmented control,
+       which has to read as filled or it is not a tab. --accent itself is too
+       light to carry text at that size — white on it is 3.2:1 — so the fill is
+       its own token, dropped far enough into the background to clear 4.5:1. */
     --accent: #9184d9;
     --accent-text: #d2cefd;
+    --accent-fill: #55499a;
+    --on-accent-fill: #f1eeff;
 
     --late: #b5abfc;
     --ok: #75798c;
@@ -94,6 +100,13 @@
     --accent-text: #0a58ca;
 
     --accent: #0d6efd;
+
+    /* Bootstrap's own .btn-primary fills with #0d6efd and puts white on it at
+       3.7:1. The darker blue two steps down the same ramp is already the link
+       colour above, and reaches 6.4:1. */
+    --accent-fill: #0a58ca;
+    --on-accent-fill: #ffffff;
+
     --late: #dc3545;
     --ok: #198754;
 

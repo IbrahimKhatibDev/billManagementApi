@@ -13,10 +13,14 @@
             <p class="as-of">as of @Summary.AsOf.ToString("MMM d, yyyy")</p>
         </div>
 
-        <button class="refresh" @onclick="LoadStatsAsync" disabled="@_isLoading">
-            <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
-            Refresh
-        </button>
+        <div class="head-actions">
+            <button class="refresh" @onclick="RefreshAsync" disabled="@_isLoading">
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
+                Refresh
+            </button>
+
+            <ThemeSwitcher />
+        </div>
     </header>
 
     @if (_loadFailed)
@@ -30,9 +34,14 @@
         </div>
     }
 
-    <ObligationHeadline Summary="@Summary" />
-
-    <AgingStrip Buckets="@Summary.Aging" />
+    @* Side by side, not stacked. "What you owe" is the figure and "how late it
+       is" is the breakdown of the same figure, and putting the breakdown a
+       scroll below the total is what made the aging strip read as a separate
+       report about something else. *@
+    <div class="lead">
+        <ObligationHeadline Summary="@Summary" Generation="@_animationGeneration" />
+        <AgingStrip Buckets="@Summary.Aging" />
+    </div>
 
     <CashFlowTimeline Weeks="@Summary.Weeks" Today="@_today" />
 

@@ -93,6 +93,91 @@ public sealed class TimelineLayoutTests
     }
 
     [Fact]
+    public void The_shaded_week_sits_on_the_week_boundary_and_not_under_the_marker()
+    {
+        // The chart shades the current week behind the bars and draws the marker
+        // inside it. They answer different questions — which week, and which day
+        // of it — so the band is on the slot's edges however far into the week
+        // today is. Centring a slot-wide band on NowX would put it up to half a
+        // week out, and on Sunday it would be shading next week.
+        var weeks = new[] { Week(Monday, 100m, 0m), Week(Monday.AddDays(7), 100m, 0m) };
+        var slot = (TimelineLayout.PlotRight - TimelineLayout.PlotLeft) / 2;
+
+        foreach (var day in new[] { 0, 3, 6 })
+        {
+            var layout = TimelineLayout.Build(weeks, Monday.AddDays(7 + day));
+
+            Assert.Equal(slot, layout.SlotWidth, 6);
+            Assert.Equal(TimelineLayout.PlotLeft + slot, layout.NowSlotX!.Value, 6);
+        }
+    }
+
+    [Fact]
+    public void A_month_label_gives_way_to_now_rather_than_printing_over_it()
+    {
+        // Both labels are on the axis now, and today falls in the week that opens
+        // a month about one week in four. Twenty weeks is the sort of span the
+        // Overview actually draws, and at that width a slot is narrower than the
+        // two labels side by side — so "Sep" and "now" print as one smudge.
+        // Only the month is droppable, so the month drops; the months either
+        // side of it still say where in the year the reader is.
+        var weeks = Enumerable.Range(0, 20)
+            .Select(i => Week(Monday.AddDays(7 * i), 100m, 0m))
+            .ToArray();
+
+        // Sep 9: the Wednesday of the week starting Sep 7, which is the week
+        // that opens September on this axis.
+        var layout = TimelineLayout.Build(weeks, Monday.AddDays(23));
+
+        Assert.NotNull(layout.NowX);
+        Assert.DoesNotContain("Sep", layout.Ticks.Select(t => t.Label));
+        Assert.Contains("Aug", layout.Ticks.Select(t => t.Label));
+        Assert.Contains("Oct", layout.Ticks.Select(t => t.Label));
+    }
+
+    [Fact]
+    public void A_month_label_with_room_to_spare_is_left_alone()
+    {
+        // The other side of the rule. Four weeks make the slots wide, so August's
+        // label sits a long way from a marker in the same week — dropping it
+        // would cost the axis a label there was room for.
+        var layout = TimelineLayout.Build(
+            new[]
+            {
+                Week(Monday, 100m, 0m),
+                Week(Monday.AddDays(7), 100m, 0m),
+                Week(Monday.AddDays(14), 100m, 0m),
+                Week(Monday.AddDays(21), 100m, 0m),
+            },
+            Monday);
+
+        Assert.Equal(new[] { "Aug", "Sep" }, layout.Ticks.Select(t => t.Label));
+    }
+
+    [Fact]
+    public void A_crowded_axis_loses_one_month_to_the_marker_rather_than_a_run_of_them()
+    {
+        // The clearance is a fixed width; the slot is not. At MaxWeeks the slot
+        // is about 4.5 units and the months roughly 20 apart, so an uncapped
+        // clearance of 30 would clear the three labels either side of the marker
+        // and leave a gap in the axis where the reader is looking. Whatever else
+        // it drops, it must not drop the neighbours of the month it is standing
+        // in — here, today is in August and July and September have to survive.
+        // Centred on Monday, so today has 130 weeks of axis either side of it and
+        // the neighbouring months are really there to be dropped.
+        var weeks = Enumerable.Range(0, 260)
+            .Select(i => Week(Monday.AddDays(7 * (i - 130)), 100m, 0m))
+            .ToArray();
+
+        var layout = TimelineLayout.Build(weeks, Monday);
+        var labels = layout.Ticks.Select(t => t.Label).ToList();
+
+        Assert.NotNull(layout.NowX);
+        Assert.Contains("Jul 26", labels);
+        Assert.Contains("Sep 26", labels);
+    }
+
+    [Fact]
     public void A_today_outside_the_plotted_weeks_is_not_marked_at_the_edge()
     {
         // Reachable from the Overview: an account whose bills are all historic.
@@ -103,6 +188,10 @@ public sealed class TimelineLayoutTests
             Monday.AddDays(70));
 
         Assert.Null(layout.NowX);
+
+        // And nothing to shade either: a band with no marker in it would still
+        // be pointing at a week and calling it this one.
+        Assert.Null(layout.NowSlotX);
     }
 
     [Fact]

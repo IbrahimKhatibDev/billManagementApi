@@ -6,8 +6,10 @@
 }
 
 .head {
-    align-items: flex-start;
+    align-items: baseline;
     display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1.5rem;
     justify-content: space-between;
 }
 
@@ -25,13 +27,27 @@
     margin: .15rem 0 0;
 }
 
+/* The sentence rides at the far end of the head row, so it is right-aligned for
+   the same reason a figure in a table is: its near edge is the one the reader
+   is scanning from. When the row wraps on a narrow window it lands under the
+   title and reads left to right again. */
+.subtitle {
+    text-align: right;
+}
+
+@media (max-width: 640.98px) {
+    .subtitle {
+        text-align: left;
+    }
+}
+
 .legend {
     color: var(--muted);
     display: flex;
     font-size: .78rem;
     gap: 1rem;
     list-style: none;
-    margin: 0;
+    margin: .45rem 0 0;
     padding: 0;
 }
 
@@ -64,9 +80,18 @@ rect.unpaid { fill: var(--accent); }
 rect.paid { fill: var(--ok); }
 line.baseline { stroke: var(--border); stroke-width: 1; }
 
+/* The current week, shaded behind its bars. Deliberately weak: this is the
+   ground the reader is standing on, not a finding. A tenth turned out to be
+   below the threshold where it reads as a band at all against --surface, so it
+   is a little under a fifth — still quiet enough that the bars sitting on it
+   keep their own colour. */
+rect.now-week {
+    fill: var(--accent);
+    fill-opacity: .18;
+}
+
 line.now {
     stroke: var(--late);
-    stroke-dasharray: 3 3;
     stroke-width: 1.5;
 }
 

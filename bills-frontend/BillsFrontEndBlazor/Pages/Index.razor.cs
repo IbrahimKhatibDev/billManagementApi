@@ -50,6 +50,21 @@ namespace BillsFrontEndBlazor.Pages
         private long? _busyId;
 
         /// <summary>
+        /// Bumped only by the Refresh button, which replays the headline's
+        /// count-up from zero. See <c>AnimatedCounter.Generation</c>.
+        /// <para>
+        /// Deliberately not bumped by the other two callers of
+        /// <see cref="LoadStatsAsync"/>. A load driven by
+        /// <see cref="BillEventService"/> follows a bill actually changing, so
+        /// the total has moved and the counter eases from the old figure to the
+        /// new one on its own — which is the reading worth showing. Restarting
+        /// it at zero every time a bill is ticked off would throw that away, and
+        /// make the number jump about on a page the reader is working in.
+        /// </para>
+        /// </summary>
+        private int _animationGeneration;
+
+        /// <summary>
         /// Which load is the current one. Three callers put this page's load in
         /// flight — the first render, the <see cref="BillEventService"/> handler,
         /// and the resync after a refused write — and nothing serialises them, so
@@ -77,6 +92,15 @@ namespace BillsFrontEndBlazor.Pages
             // on the circuit's synchronization context, which StateHasChanged
             // requires.
             _ = InvokeAsync(LoadStatsAsync);
+        }
+
+        /// <summary>What the Refresh button does: the same load, plus a replay of
+        /// the count-up so pressing it is visibly answered even when every figure
+        /// comes back identical.</summary>
+        private async Task RefreshAsync()
+        {
+            _animationGeneration++;
+            await LoadStatsAsync();
         }
 
         private async Task LoadStatsAsync()

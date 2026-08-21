@@ -5,16 +5,21 @@
    Inline SVG rendered from C# — no interop, nothing fetched. *@
 <section class="timeline">
 
+    @* The legend sits under the title, where it reads as part of naming the
+       chart, and the sentence describing it moves to the far end of the same
+       row. Reversed from the arrangement this had, which put the key — the thing
+       you need before the bars mean anything — furthest from them. *@
     <div class="head">
         <div>
             <h2 class="title">Cash-flow timeline</h2>
-            <p class="subtitle">Every bill on the books, by the week it falls due.</p>
+
+            <ul class="legend">
+                <li><span class="swatch unpaid"></span>unpaid</li>
+                <li><span class="swatch paid"></span>paid</li>
+            </ul>
         </div>
 
-        <ul class="legend">
-            <li><span class="swatch unpaid"></span>unpaid</li>
-            <li><span class="swatch paid"></span>paid</li>
-        </ul>
+        <p class="subtitle">Every bill on the books, by the week it falls due.</p>
     </div>
 
     @if (_layout.Bars.Count == 0)
@@ -25,6 +30,15 @@
     {
         <svg class="plot" viewBox="0 0 1200 200" preserveAspectRatio="none"
              role="img" aria-label="Amount due each week, paid and unpaid">
+
+            @* Before the bars, so it is behind them. An SVG has no z-index; the
+               only thing that decides what covers what is document order. *@
+            @if (_layout.NowSlotX is { } slotX)
+            {
+                <rect class="now-week" x="@N(slotX)" y="@N(TimelineLayout.PlotTop)"
+                      width="@N(_layout.SlotWidth)"
+                      height="@N(TimelineLayout.Baseline - TimelineLayout.PlotTop)" />
+            }
 
             @foreach (var bar in _layout.Bars)
             {
@@ -47,10 +61,15 @@
 
             @if (_layout.NowX is { } nowX)
             {
+                @* Solid, not dashed, and no longer labelled at the top. The
+                   label belongs on the axis with the months — it is the same
+                   kind of thing they are, a position in time — and reading it
+                   there is what makes "now" a tick rather than an annotation
+                   floating over the bars. *@
                 <g>
                     <line class="now" x1="@N(nowX)" x2="@N(nowX)"
-                          y1="@N(TimelineLayout.PlotTop)" y2="@N(TimelineLayout.Baseline + 6)" />
-                    <text class="now-label" x="@N(nowX)" y="@N(TimelineLayout.PlotTop - 2)"
+                          y1="@N(TimelineLayout.PlotTop)" y2="@N(TimelineLayout.Baseline + 4)" />
+                    <text class="now-label" x="@N(nowX)" y="188"
                           text-anchor="middle">now</text>
                 </g>
             }

@@ -1,24 +1,42 @@
 @inject IJSRuntime JS
 
-@* One control. This was a palette group beside a mode button, which offered
-   four themes where the app only ever wanted two: dark is Nocturne, light is
-   the scheme the app wore before the redesign. *@
-<div class="theme-switcher">
+@* Two tabs, not a toggle. A single sun/moon button says what pressing it will
+   do but never what mode you are in, and the two readings of that icon are
+   exactly opposite — half of everyone reads the sun as "you are in light mode".
+   A segmented pair states the answer and offers the other one.
 
-    <button type="button" class="theme-mode" title="@ModeLabel" aria-label="@ModeLabel"
-            @onclick="ToggleModeAsync">
-        <i class="ph @(_mode == "dark" ? "ph-sun" : "ph-moon-stars")"></i>
-    </button>
+   role="group" rather than role="tablist": these are not tabs over panels, and
+   a tablist would promise arrow-key navigation between them that nothing here
+   implements. aria-pressed on each button is what conveys which is on. *@
+<div class="theme-switcher" role="group" aria-label="Colour mode">
+
+    @foreach (var mode in Modes)
+    {
+        @* The strings, not the bool. Blazor treats a bool attribute value as an
+           HTML boolean attribute: false omits it entirely and true emits it
+           empty. Either way aria-pressed loses its own value, and a pair where
+           one tab says nothing and the other says "" announces neither as
+           pressed. BillGroup's status pill spells it out the same way. *@
+        <button type="button" class="mode @(_mode == mode.Value ? "is-on" : null)"
+                aria-pressed="@(_mode == mode.Value ? "true" : "false")"
+                @onclick="@(() => SetModeAsync(mode.Value))">
+            @mode.Label
+        </button>
+    }
 
 </div>
 
 @code {
+    private static readonly (string Value, string Label)[] Modes =
+    {
+        ("light", "Light"),
+        ("dark", "Dark"),
+    };
+
     // Seeded with the same default the markup and the boot script use, so the
-    // prerendered button is not briefly wrong for a visitor who never changed
+    // prerendered pair is not briefly wrong for a visitor who never changed
     // anything.
     private string _mode = "dark";
-
-    private string ModeLabel => _mode == "dark" ? "Switch to light mode" : "Switch to dark mode";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -29,12 +47,12 @@
 
         // The first moment interop is available — the app prerenders on the
         // server, where IJSRuntime is not usable. The page is already wearing
-        // the right theme by now; this only catches the button up with it.
+        // the right theme by now; this only catches the tabs up with it.
         //
         // Guarded because the answer comes from a file the browser caches. The
         // script tag is fingerprinted so a stale copy should not be reachable,
         // but the failure if one ever is would be a dead circuit and a blank
-        // app — far too steep a price for a sun icon that points the wrong way.
+        // app — far too steep a price for a tab highlighted on the wrong side.
         try
         {
             _mode = await JS.InvokeAsync<string>("billsTheme.read");
@@ -47,12 +65,17 @@
         StateHasChanged();
     }
 
-    private async Task ToggleModeAsync()
+    private async Task SetModeAsync(string mode)
     {
-        _mode = _mode == "dark" ? "light" : "dark";
+        if (_mode == mode)
+        {
+            return;
+        }
+
+        _mode = mode;
 
         // The script persists and applies in one call, so the key stays in one
         // place and the two can never drift apart.
-        await JS.InvokeVoidAsync("billsTheme.save", _mode);
+        await JS.InvokeVoidAsync("billsTheme.save", mode);
     }
 }

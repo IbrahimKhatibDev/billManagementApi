@@ -1,14 +1,28 @@
 @using BillsMinimalApi.Contracts
 
 @* Idea 1: one sentence in place of three counter cards and a marketing hero.
-   The cards made the reader do the arithmetic; this does it for them. *@
+   The cards made the reader do the arithmetic; this does it for them.
+
+   No card of its own. The total is the page's first fact and the thing every
+   other section is a breakdown of, so it sits on the background rather than
+   inside a panel beside the panels that explain it. *@
 <section class="obligation">
 
     <p class="eyebrow">WHAT YOU OWE</p>
 
-    <p class="total">@Summary.OutstandingAmount.ToString("C")</p>
+    @* Counts up rather than appearing. See AnimatedCounter — Generation is what
+       replays it when a refresh returns the same figure. *@
+    <p class="total">
+        <AnimatedCounter Value="@Summary.OutstandingAmount" Format="C"
+                         Generation="@Generation" />
+    </p>
 
-    <p class="sentence">@ObligationSentence.Describe(Summary)</p>
+    @* One line, no break between the span and what follows it: the remainder
+       opens with a comma, and Razor would render the indentation of a second
+       line as a space in front of it. The span is empty whenever nothing is
+       late — see ObligationParts — and :empty is what keeps that from leaving a
+       stray inline box. *@
+    <p class="sentence"><span class="late-amount">@_parts.Late</span>@_parts.Rest</p>
 
     <div class="actions">
         @if (Summary.OverdueCount > 0)
@@ -33,4 +47,14 @@
 @code {
     [Parameter, EditorRequired]
     public BillSummary Summary { get; set; } = new();
+
+    /// <summary>Bump to replay the count-up. See
+    /// <c>AnimatedCounter.Generation</c>: without it a refresh that returns the
+    /// same total animates nothing and looks like it did nothing.</summary>
+    [Parameter]
+    public int Generation { get; set; }
+
+    private ObligationParts _parts;
+
+    protected override void OnParametersSet() => _parts = ObligationSentence.DescribeParts(Summary);
 }

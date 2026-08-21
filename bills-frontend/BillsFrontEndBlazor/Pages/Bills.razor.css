@@ -26,6 +26,15 @@
     margin: .1rem 0 0;
 }
 
+/* Same rule as the Overview's and the Reports'. Scoped CSS cannot be shared, and
+   a global class for three declarations would be worse than saying it thrice. */
+.head-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
 .ghost {
     align-items: center;
     background: none;

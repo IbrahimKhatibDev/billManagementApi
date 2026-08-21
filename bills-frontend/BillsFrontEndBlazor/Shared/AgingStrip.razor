@@ -32,13 +32,21 @@
             }
         </div>
 
+        @* One row per bucket, count and amount in their own columns rather than
+           run together as "5 · $826.81". The two are read differently — how many
+           bills are stuck against how much money is stuck — and a column each is
+           what lets the amounts line up down the right edge.
+
+           An empty bucket keeps its row and loses its emphasis: "nothing is
+           31–60 days late" is worth saying, and worth saying quietly. *@
         <ul class="legend">
             @foreach (var (segment, index) in _segments.Select((s, i) => (s, i)))
             {
-                <li>
+                <li class="@(segment.Count == 0 ? "is-empty" : null)">
                     <span class="swatch" style="background: var(--age-@(index + 1))"></span>
                     <span class="label">@segment.Label</span>
-                    <span class="figures">@segment.Count · @segment.Amount.ToString("C")</span>
+                    <span class="count">@Bills(segment.Count)</span>
+                    <span class="amount">@segment.Amount.ToString("C")</span>
                 </li>
             }
         </ul>
@@ -58,4 +66,8 @@
     // writes 12,5 would produce CSS the browser silently drops.
     private static string Grow(double percent) =>
         percent.ToString("0.####", CultureInfo.InvariantCulture);
+
+    // "0 bills" and not "no bills": these are five rows read as a column, and a
+    // word where the other four have a digit breaks the scan.
+    private static string Bills(int count) => count == 1 ? "1 bill" : $"{count} bills";
 }
