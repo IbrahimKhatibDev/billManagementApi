@@ -1,4 +1,5 @@
 .quick-add {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     gap: .6rem;
@@ -7,6 +8,20 @@
 .entry {
     display: flex;
     gap: .5rem;
+}
+
+/* The field is the whole point of this row, and beside the button it was down to
+   a couple of words of the placeholder — which is the instruction for how to use
+   it. Below this width the button moves under the field and takes the full span,
+   rather than the field paying for it. */
+@container (max-width: 28rem) {
+    .entry {
+        flex-direction: column;
+    }
+
+    .primary {
+        justify-content: center;
+    }
 }
 
 .text {

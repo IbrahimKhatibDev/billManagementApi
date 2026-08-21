@@ -1,4 +1,9 @@
+/* A query container so the head and the controls below it can answer to the
+   column they are in. Safe to contain: the create and delete modals are outside
+   this element, and a containing block for them here would have pinned a
+   viewport-centred dialog to the middle of this column instead. */
 .bills {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -151,4 +156,35 @@
     padding: 0;
     text-decoration: underline;
     text-underline-offset: 3px;
+}
+
+/* The narrow layout, last in the file so it wins on order — every rule below is
+   overriding one stated above it at the same specificity. */
+@container (max-width: 34rem) {
+
+    /* Title and actions stop sharing a line: side by side in a narrow column the
+       lede was wrapping to three words a line against a stack of two buttons. */
+    .page-head {
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    /* The search takes the row it was sharing with the chips — 16rem of input
+       plus a Clear button does not fit beside four filters. */
+    .search {
+        width: 100%;
+    }
+
+    /* Fills the row it now has to itself, less whatever Clear needs beside it. */
+    .search input {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+    }
+
+    /* It was pushed to the far right by its auto margin, which on a line of its
+       own reads as an orphan. */
+    .tally {
+        margin-left: 0;
+    }
 }

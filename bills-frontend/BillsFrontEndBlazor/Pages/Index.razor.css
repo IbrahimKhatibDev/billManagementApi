@@ -1,4 +1,5 @@
 .overview {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -39,10 +40,23 @@
 }
 
 /* One column below the width where the legend rows start wrapping. Its own
-   breakpoint, and not the 640.98px the sidebar becomes a drawer at: two columns
+   threshold, and not the 640.98px the sidebar becomes a drawer at: two columns
    of this content give up well before the sidebar does, and pinning them
-   together would leave a 700px-wide window showing a squeezed pair. */
-@media (max-width: 899.98px) {
+   together would leave a 700px-wide window showing a squeezed pair.
+
+   Asked of this row rather than the window, which was what the 900px media query
+   this replaces got wrong. The sidebar spends 16rem of the page and none of the
+   viewport, so a 900px window is 596px of row with the sidebar open and 780px
+   with it railed — the same question, two different answers, and a media query
+   can only give one.
+
+   56rem and not the 900px-shaped number the old rule used, because the old
+   number was measured from the wrong thing. The ratio above hands the aging card
+   a little under a third, and its widest legend row — "Over 90 days late   5
+   bills   $1,732.78" — needs 343px of that. 897px of row is where the card first
+   gets it; below 1200px of window with the sidebar open, the old rule was
+   showing two columns with every legend row wrapped to three and four lines. */
+@container (max-width: 56rem) {
     .lead {
         grid-template-columns: minmax(0, 1fr);
     }

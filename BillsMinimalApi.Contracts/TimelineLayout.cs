@@ -46,6 +46,20 @@ public sealed record TimelineLayout(
     double? NowSlotX,
     double SlotWidth)
 {
+    /// <summary>
+    /// The width of the coordinate space every X below is measured in. Public
+    /// because the axis labels are HTML rather than SVG — they are placed at
+    /// <c>X / ViewWidth</c> of the chart's width, which needs the divisor.
+    /// </summary>
+    public const double ViewWidth = 1200;
+
+    /// <summary>
+    /// The height of the same space, ending just below <see cref="Baseline"/>:
+    /// the plot stops at the axis line, and the labels under it are laid out by
+    /// the browser in their own row.
+    /// </summary>
+    public const double ViewHeight = 176;
+
     public const double PlotLeft = 8;
     public const double PlotRight = 1192;
     public const double PlotTop = 12;

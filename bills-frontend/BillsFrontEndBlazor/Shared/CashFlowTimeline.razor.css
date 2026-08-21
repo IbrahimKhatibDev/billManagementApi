@@ -2,6 +2,7 @@
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius-lg);
+    container-type: inline-size;
     padding: 1.25rem 1.5rem;
 }
 
@@ -35,7 +36,11 @@
     text-align: right;
 }
 
-@media (max-width: 640.98px) {
+/* Asked of the card rather than the window: what decides whether the sentence is
+   still at the far end of a row is whether the row wrapped, and that is a fact
+   about this card. 40rem is the 641px window the media query here used to name,
+   restated as the width of the thing it was really about. */
+@container (max-width: 40rem) {
     .subtitle {
         text-align: left;
     }
@@ -66,11 +71,30 @@
 .swatch.unpaid { background: var(--accent); }
 .swatch.paid { background: var(--ok); }
 
+/* 176 CSS pixels for 176 user units, so the bars keep the heights the layout
+   worked out for them. The axis row below makes the 200px this used to be. */
 .plot {
     display: block;
-    height: 200px;
+    height: 176px;
     margin-top: 1rem;
     width: 100%;
+}
+
+.axis {
+    height: 24px;
+    position: relative;
+}
+
+/* Positioned by the `left` percentage on each one, then pulled back by half its
+   own width so the label is centred on the week rather than starting at it.
+   Overflow past either end of the row is absorbed by the card's padding. */
+.axis span {
+    font-size: 11px;
+    line-height: 24px;
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
 }
 
 /* No ::deep here: these elements — including the ones inside the @foreach
@@ -95,12 +119,6 @@ line.now {
     stroke-width: 1.5;
 }
 
-text.now-label {
-    fill: var(--late);
-    font-size: 11px;
-}
+.now-label { color: var(--late); }
 
-text.tick {
-    fill: var(--faint);
-    font-size: 11px;
-}
+.tick { color: var(--faint); }

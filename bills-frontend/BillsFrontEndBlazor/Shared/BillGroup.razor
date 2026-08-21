@@ -29,13 +29,20 @@
                        checked="@SelectedIds.Contains(bill.Id)"
                        @onchange="@(() => OnToggleSelected.InvokeAsync(bill))" />
 
-                <InlineEdit Kind="InlineEditKind.Text"
-                            Display="@bill.PayeeName"
-                            Label="@($"payee for {bill.PayeeName}")"
-                            Payee="@bill.PayeeName"
-                            Disabled="@BusyIds.Contains(bill.Id)"
-                            PayeeCommitted="@(value => OnFieldEdited.InvokeAsync(
-                                new BillEdit(bill, b => b.PayeeName = value)))" />
+                @* Wrapped, unlike the two below it, which had a span already.
+                   InlineEdit renders a bare button as its own root, and a bare
+                   root cannot be given a grid area by a scoped rule — the scope
+                   attribute lands on this component's markup and not on what the
+                   child renders. The narrow layout needs to place this cell. *@
+                <span class="payee">
+                    <InlineEdit Kind="InlineEditKind.Text"
+                                Display="@bill.PayeeName"
+                                Label="@($"payee for {bill.PayeeName}")"
+                                Payee="@bill.PayeeName"
+                                Disabled="@BusyIds.Contains(bill.Id)"
+                                PayeeCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                    new BillEdit(bill, b => b.PayeeName = value)))" />
+                </span>
 
                 <span class="due">
                     <InlineEdit Kind="InlineEditKind.Date"

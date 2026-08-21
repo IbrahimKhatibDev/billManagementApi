@@ -330,16 +330,50 @@ would silently shift every later column of that row by one.
 
 ### 📱 Narrow widths
 
-The shell handles them. Below 641px the sidebar becomes an overlay drawer, the
-bulk action bar stacks, and the timeline drops to a shorter aspect; the Overview
-collapses to a single column below 900px.
+![The bills list on a phone: rows folded onto two lines, payee and amount above, due date, status and delete below](../../docs/screenshots/bills-phone.png)
 
-**The bills rows do not, and this is a known gap.** `BillGroup.razor.css` lays a
-row out as `grid-template-columns: 1.1rem 1fr 11rem 7rem 5.5rem auto`, and there
-is no media query for it. Below roughly 430px the fixed columns consume the whole
-row, the payee's `1fr` collapses to a sliver, and the status pill and delete
-button end up outside the card. The card layout the old Bootstrap table used at
-phone widths was not carried across when the table was replaced by this grid.
+Every screen works down to 320px — the narrowest phone still in use — and it is
+checked by measurement rather than by eye: at each width, nothing may stick out
+past the viewport, and no box may be wider than the box it sits in.
+
+**Container queries, not media queries**, everywhere the question is about a
+component rather than the window. The distinction is load-bearing here because
+the sidebar takes 16rem of the page and none of the viewport: a 900px window is
+596px of content with the sidebar open and 780px with it railed. A media query
+gives both the same answer, and one of the two answers is wrong. So the cards ask
+how much room *they* have — `.group`, `.reports`, `.bills`, `.overview` and the
+chart components are all `container-type: inline-size`, and their thresholds are
+in `rem`, so they move with a reader who has turned their text up.
+
+Three exceptions are deliberately media queries, because they genuinely are about
+the window: the sidebar becoming a drawer, the mobile top bar appearing, and the
+bulk bar's sticky offset clearing it. All three sit at 640.98px and have to
+agree.
+
+What actually changes:
+
+- **A bills row folds onto two lines** below 40rem of card — who and how much,
+  then when, what state it is in, and the way to be rid of it. Every cell keeps
+  its markup and its behaviour; the two lines are a placement, not a second row
+  component
+- **The bulk action bar folds** below 26rem, with the two buttons wrapped in one
+  element so they move as a pair and keep the right edge they sit against in the
+  wide bar. Auto margins do not participate in line-breaking, so a bare
+  `flex-wrap` would have dropped *Clear* onto the second line alone
+- **The Overview goes to one column** below 56rem of row — the width at which the
+  aging card stops being wide enough for "Over 90 days late · 5 bills ·
+  $1,732.78" on one line, which is the whole reason that card has a column
+- **The report figures** go four across, then two, then one; the range presets
+  become a two-column grid whose dividers are rewritten so a wrapped row's edges
+  do not double the control's own border
+- **The paid-rate strip shrinks its type twice** rather than wrapping. It is a
+  shape to read across, and wrapping it would make it two shapes
+- **The timeline's axis labels moved out of the SVG** into HTML, so they stay at
+  a readable size instead of scaling with the viewBox
+
+Since the thresholds are asked of the card and not the window, a wide window with
+the sidebar open gets the narrow layout exactly where it needs it — the same
+rules cover a phone and a cramped column on a desktop.
 
 ### 🧭 Sidebar navigation
 
@@ -449,12 +483,15 @@ pages. Toasts dismiss themselves after four seconds.
 - [x] Counting animation on the Overview figure, replayed on every refresh
 - [x] Toasts for every write, and loading indicators during API calls
 - [x] Collapsible sidebar rail, and an overlay drawer at narrow widths
+- [x] Every screen down to 320px, laid out against the width of the card rather
+      than the width of the window
 
 **Removed by the redesign**, so that a reader coming from an older revision is
-not looking for them: sortable table headers, the pager, the sort dropdown, the
-paid-vs-unpaid donut, and the phone card layout for the bills table. Sorting and
-paging still exist in the API — see `BillQuery` — the list page simply asks for
-one full page ordered by due date and groups it.
+not looking for them: sortable table headers, the pager, the sort dropdown, and
+the paid-vs-unpaid donut. Sorting and paging still exist in the API — see
+`BillQuery` — the list page simply asks for one full page ordered by due date and
+groups it.
 
-**Known gap**: the bills rows have no narrow-width handling. See
+The old Bootstrap table's phone card layout is gone too, but not unreplaced: a
+narrow bills row now folds onto two lines in the grid itself. See
 [Narrow widths](#-narrow-widths).

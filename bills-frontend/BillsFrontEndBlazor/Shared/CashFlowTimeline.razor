@@ -28,7 +28,14 @@
     }
     else
     {
-        <svg class="plot" viewBox="0 0 1200 200" preserveAspectRatio="none"
+        @* preserveAspectRatio="none" is what lets the bars stretch to whatever
+           width the card has — and it stretches the glyphs of any <text> in here
+           by the same factor. At 1100px that is unnoticeable; in a 340px card
+           the x-scale is under a third and the axis labels were unreadable
+           smears. So the plot stops at the axis line and the labels below it are
+           HTML, laid out by the browser at their own size. *@
+        <svg class="plot" viewBox="0 0 @N(TimelineLayout.ViewWidth) @N(TimelineLayout.ViewHeight)"
+             preserveAspectRatio="none"
              role="img" aria-label="Amount due each week, paid and unpaid">
 
             @* Before the bars, so it is behind them. An SVG has no z-index; the
@@ -66,22 +73,31 @@
                    kind of thing they are, a position in time — and reading it
                    there is what makes "now" a tick rather than an annotation
                    floating over the bars. *@
-                <g>
-                    <line class="now" x1="@N(nowX)" x2="@N(nowX)"
-                          y1="@N(TimelineLayout.PlotTop)" y2="@N(TimelineLayout.Baseline + 4)" />
-                    <text class="now-label" x="@N(nowX)" y="188"
-                          text-anchor="middle">now</text>
-                </g>
-            }
-
-            @foreach (var tick in _layout.Ticks)
-            {
-                <g>
-                    <text class="tick" x="@N(tick.X)" y="188" text-anchor="middle">@tick.Label</text>
-                </g>
+                <line class="now" x1="@N(nowX)" x2="@N(nowX)"
+                      y1="@N(TimelineLayout.PlotTop)" y2="@N(TimelineLayout.Baseline + 4)" />
             }
 
         </svg>
+
+        @* The same row of labels the SVG used to hold, in the same places: every
+           X is a position in the plot's coordinate space, so a percentage of the
+           chart's width puts each one exactly under the week it names.
+
+           aria-hidden because they were inside the <svg role="img"> before and
+           so were never announced separately. Out here they would read as a bare
+           run of words — "Mar Apr May now" — after the label that already
+           describes the chart. *@
+        <div class="axis" aria-hidden="true">
+            @foreach (var tick in _layout.Ticks)
+            {
+                <span class="tick" style="left: @Pct(tick.X)">@tick.Label</span>
+            }
+
+            @if (_layout.NowX is { } labelX)
+            {
+                <span class="now-label" style="left: @Pct(labelX)">now</span>
+            }
+        </div>
     }
 
 </section>
@@ -110,4 +126,8 @@
     // Invariant: these land in SVG coordinate attributes, which are not
     // culture-aware and would read "12,5" as two values.
     private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    // An X in the plot's coordinate space as a share of the chart's width. The
+    // SVG spans the card edge to edge, so the two agree at every size.
+    private static string Pct(double x) => $"{N(x / TimelineLayout.ViewWidth * 100)}%";
 }

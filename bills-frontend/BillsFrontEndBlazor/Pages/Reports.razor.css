@@ -1,4 +1,7 @@
+/* A query container for the same reason the Bills page is one: what this page
+   has to lay out against is the width of its own column, not the window's. */
 .reports {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
@@ -177,4 +180,88 @@
     color: var(--muted);
     font-size: .88rem;
     margin: -.75rem 0 0;
+}
+
+/* The narrow layout, last in the file so it wins on order — every rule below is
+   overriding one stated above it at the same specificity.
+
+   Two thresholds, because the two things give up at different widths: four
+   figure cards run out of room long before a heading and a row of buttons
+   do. */
+@container (max-width: 46rem) {
+
+    /* Two by two rather than four across. A quarter of a narrow column is under
+       70px, which is less than "$1,732.78" takes at any size worth reading — the
+       figures were running past the edges of their own cards. */
+    .figures {
+        gap: .75rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .figure {
+        padding: .9rem 1rem;
+    }
+
+    .figure .value {
+        font-size: 1.3rem;
+    }
+}
+
+@container (max-width: 34rem) {
+    .page-head {
+        flex-direction: column;
+        gap: .75rem;
+    }
+}
+
+/* And one across, on the narrowest phones still in use. Half of the 272px this
+   column has at 320px is 106px inside the card, which "$6,575.95" was running
+   four pixels past — the same failure the 46rem rule above fixes, one step
+   further down. A figure that does not fit is the one thing this page cannot
+   ship: every card here is a number. */
+@container (max-width: 18rem) {
+    .figures {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* The five presets in two columns instead of one line. "All time · This year ·
+   Last 6 months · Last 3 months · Next 3 months" is 334px of buttons, and a
+   360px phone gives this column 312 — the last preset was having its tail cut
+   off by the page, and a button you cannot see is a button you cannot press.
+
+   21rem and not 22 because a 390px phone leaves 342px here, which the one-line
+   control fits with a little to spare. It stops fitting if the reader has turned
+   their text up, and this threshold moves with them: the 21rem grows with the
+   font while the column it is measured against does not.
+
+   A grid rather than flex-wrap, because with the row breaks under this file's
+   control the dividers can be too. Which is the whole difficulty: the control
+   draws one border around the set and one between each pair, and a wrap turns
+   some of those betweens into edges. */
+@container (max-width: 21rem) {
+    .ranges {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    /* Ends the row, so its divider would be doubling the control's own border. */
+    .ranges .range:nth-child(even) {
+        border-right: 0;
+    }
+
+    /* Every row but the first. The vertical dividers separate a row's buttons
+       from each other; this is what separates the rows. */
+    .ranges .range:nth-child(n + 3) {
+        border-top: var(--border-width) solid var(--border);
+    }
+
+    /* An odd count leaves the last one without a neighbour, and a divider with
+       nothing on the other side of it reads as a mistake. Written to the parity
+       rather than to the five presets there are today, so a sixth needs nothing
+       here. */
+    .ranges .range:last-child:nth-child(odd) {
+        border-right: 0;
+        grid-column: 1 / -1;
+    }
 }

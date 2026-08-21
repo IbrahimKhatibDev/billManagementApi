@@ -2,6 +2,7 @@
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius-lg);
+    container-type: inline-size;
     padding: 1.25rem 1.5rem;
 }
 
@@ -62,6 +63,44 @@
     color: var(--faint);
     font-size: .72rem;
     font-variant-numeric: tabular-nums;
+}
+
+/* Twelve cells sharing a narrow card leaves each one about 20px, and "100%" set
+   at .92rem touches both edges of it. The strip stays twelve cells wide — it is
+   a shape to read across, and wrapping it would make it two shapes — so the
+   type shrinks with the cells instead. */
+@container (max-width: 34rem) {
+    .strip {
+        gap: 3px;
+    }
+
+    .cell {
+        font-size: .7rem;
+        height: 48px;
+    }
+
+    .label {
+        font-size: .62rem;
+    }
+
+    .billed {
+        font-size: .6rem;
+    }
+}
+
+/* One step further down, for the narrowest phones still in use: a 320px screen
+   leaves this card 224px, and "100%" was spilling out of its own cell onto the
+   two beside it. The gap goes to 2px so the shrinking is shared between the type
+   and the space around it — below about this size the strip is a row of colours
+   with a number in it, and the colour is the part that still reads. */
+@container (max-width: 16rem) {
+    .strip {
+        gap: 2px;
+    }
+
+    .cell {
+        font-size: .6rem;
+    }
 }
 
 .trimmed {

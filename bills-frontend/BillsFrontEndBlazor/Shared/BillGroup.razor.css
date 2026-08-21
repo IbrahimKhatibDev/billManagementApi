@@ -1,7 +1,13 @@
+/* The card is a query container, so the rows inside it can answer to the space
+   they actually have. The window is the wrong thing to ask: the sidebar takes
+   16rem of the page and none of the viewport, so a 1000px window is a roomy
+   card with the sidebar railed and a cramped one with it open, and a media
+   query would give both the same answer. */
 .group {
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius-lg);
+    container-type: inline-size;
     padding: 1rem 1.25rem;
 }
 
@@ -58,6 +64,15 @@ header {
 .rows li.selected {
     background: var(--sunken);
     box-shadow: -1.25rem 0 0 var(--sunken), 1.25rem 0 0 var(--sunken);
+}
+
+/* The payee is the cell that gives up the room, so it is the one that has to be
+   allowed to: without this the button inside it — nowrap, overflow hidden —
+   reports a minimum of nothing, the track collapses to a sliver, and the five
+   fixed columns push the pill and the delete button out of the card. That is
+   what this row did at every width under about 1000px. */
+.payee {
+    min-width: 0;
 }
 
 .pick {
@@ -161,4 +176,49 @@ header {
 .icon-button.danger:hover {
     border-color: var(--late);
     color: var(--late);
+}
+
+/* Below the width where six columns stop fitting, the row folds onto two lines
+   rather than squeezing: who and how much, then when, what state it is in, and
+   the way to be rid of it. Every cell keeps its markup and its behaviour — the
+   two lines are a placement, not a second row component.
+
+   Last in the file so it wins on order: .status below sets a width, and these
+   rules match at the same specificity. */
+@container (max-width: 40rem) {
+    .rows li {
+        column-gap: .6rem;
+        grid-template-areas:
+            "pick payee payee  amount"
+            "pick due   status actions";
+        grid-template-columns: 1.1rem minmax(0, 1fr) auto auto;
+        padding: .6rem 0;
+        row-gap: .15rem;
+    }
+
+    /* Named in both rows, so it spans them and sits beside the whole row rather
+       than centred against a box twice its height. */
+    .pick {
+        align-self: start;
+        grid-area: pick;
+        margin-top: .4rem;
+    }
+
+    .payee { grid-area: payee; }
+    .due { grid-area: due; }
+    .amount { grid-area: amount; }
+
+    /* Sized by its own text now. The 5.5rem column it used to fill is gone, and
+       a pill stretched to whatever the delete button beneath it needs would read
+       as a button rather than a label. */
+    .status {
+        grid-area: status;
+        justify-self: end;
+        width: auto;
+    }
+
+    .actions {
+        grid-area: actions;
+        justify-content: flex-end;
+    }
 }

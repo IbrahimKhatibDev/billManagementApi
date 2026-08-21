@@ -7,25 +7,33 @@
 
     <span class="total">@Total.ToString("C")</span>
 
-    <button type="button"
-            class="pay"
-            disabled="@(Busy || PayableCount == 0)"
-            title="@(PayableCount == 0 ? "Every selected bill is already paid" : null)"
-            @onclick="OnMarkPaid">
-        @if (Busy)
-        {
-            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-            <span>Marking…</span>
-        }
-        else
-        {
-            <span>Mark paid</span>
-        }
-    </button>
+    @* The two buttons are wrapped so they can move as a pair: in a narrow column
+       the bar folds onto two lines, and it is this span that takes the second
+       one. Side by side they are laid out exactly as they were loose in the bar
+       — same flex row, same gap — so the wide bar is unchanged. *@
+    <span class="actions">
 
-    @* Not disabled while the batch runs: abandoning a selection you no longer
-       want is always safe, and the writes already in flight are unaffected. *@
-    <button type="button" class="clear" @onclick="OnClear">Clear</button>
+        <button type="button"
+                class="pay"
+                disabled="@(Busy || PayableCount == 0)"
+                title="@(PayableCount == 0 ? "Every selected bill is already paid" : null)"
+                @onclick="OnMarkPaid">
+            @if (Busy)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <span>Marking…</span>
+            }
+            else
+            {
+                <span>Mark paid</span>
+            }
+        </button>
+
+        @* Not disabled while the batch runs: abandoning a selection you no longer
+           want is always safe, and the writes already in flight are unaffected. *@
+        <button type="button" class="clear" @onclick="OnClear">Clear</button>
+
+    </span>
 
 </div>
 

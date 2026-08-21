@@ -130,6 +130,16 @@ computed in `BillsMinimalApi.Contracts` and unit tested away from the renderer;
 the modals, toasts, counting animation and CSV download are component state, CSS
 and plain HTML.
 
+### On a phone
+
+<img src="docs/screenshots/bills-phone.png" width="300" alt="The bills list on a phone: rows folded onto two lines, payee and amount above, due date, status and delete below">
+
+Every screen works down to 320px. The layouts are driven by container queries
+rather than media queries, so a card lays itself out against the width it
+actually has — which is not the window's, since the sidebar spends 16rem of the
+page and none of the viewport. A cramped column on a desktop gets the same
+treatment as a phone. See the [frontend README](bills-frontend/BillsFrontEndBlazor/README.md#-narrow-widths).
+
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) — only needed for `dotnet run` / `dotnet test`

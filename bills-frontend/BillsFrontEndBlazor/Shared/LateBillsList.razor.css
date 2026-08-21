@@ -1,7 +1,11 @@
+/* A query container for the same reason BillGroup is one: what runs out is the
+   room inside this card, and the sidebar spends 16rem of the page that the
+   window knows nothing about. */
 .late {
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius-lg);
+    container-type: inline-size;
     padding: 1.25rem 1.5rem;
 }
 
@@ -91,4 +95,46 @@
 
 .capped {
     margin-top: .85rem;
+}
+
+/* Below the width where five columns stop fitting, the row folds onto two lines:
+   who and how much, then how late it is, when it was due, and the button that
+   ends the problem. "Mark paid" is the reason this card exists, so it is the one
+   cell that keeps its full size — at narrow widths it was being pushed off the
+   right edge entirely, along with the amount. */
+@container (max-width: 34rem) {
+    .rows li {
+        column-gap: .6rem;
+        grid-template-areas:
+            "payee payee amount"
+            "days  due   settle";
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        padding: .65rem 0;
+        row-gap: .2rem;
+    }
+
+    /* Truncates rather than wraps only here: on one line of its own the name has
+       the whole card, and a two-line name would leave the second line sitting
+       under a number it has nothing to do with. */
+    .payee {
+        grid-area: payee;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .days { grid-area: days; }
+    .due { grid-area: due; }
+    .amount { grid-area: amount; }
+    .settle { grid-area: settle; }
+}
+
+/* The count and the sum sit beside the heading while there is room for them, and
+   under it when there is not — side by side in a narrow card they run into the
+   subtitle rather than wrapping clear of it. */
+@container (max-width: 30rem) {
+    .head {
+        flex-direction: column;
+        gap: .35rem;
+    }
 }

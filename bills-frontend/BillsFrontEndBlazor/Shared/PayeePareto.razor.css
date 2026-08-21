@@ -2,6 +2,7 @@
     background: var(--surface);
     border: var(--border-width) solid var(--border);
     border-radius: var(--radius-lg);
+    container-type: inline-size;
     padding: 1.25rem 1.5rem;
 }
 
@@ -67,6 +68,24 @@
 
 .ranks th:nth-child(4),
 .ranks td:nth-child(4) { width: 4rem; }
+
+/* The bar column goes. Its 40% plus the two fixed columns left the payee about
+   four pixels in a narrow card — a column of ellipses, which is the one thing a
+   ranking by payee cannot afford to lose. The bar is the only redundant part of
+   the row: it draws the cumulative share that the last column states as a
+   number, and the rank order already says which payee is the larger. What does
+   not survive is each payee's own share of the total, which nothing else here
+   spells out. */
+@container (max-width: 30rem) {
+    .ranks th:nth-child(3),
+    .ranks td:nth-child(3) { display: none; }
+
+    .ranks th:nth-child(2),
+    .ranks td:nth-child(2) { width: 6.5rem; }
+
+    .ranks th:nth-child(4),
+    .ranks td:nth-child(4) { width: 3.2rem; }
+}
 
 .payee {
     color: var(--text);
