@@ -92,6 +92,7 @@
                        PayableCount="@PayableCount"
                        Busy="@_isBulkWriting"
                        OnMarkPaid="@MarkSelectedPaidAsync"
+                       OnDelete="@OpenBulkDeleteModal"
                        OnClear="@ClearSelection" />
     }
 
@@ -227,6 +228,65 @@
                         </button>
                     </div>
                 </EditForm>
+
+            </div>
+        </div>
+    </div>
+}
+
+
+@* BULK DELETE MODAL. The same dialog as the one below, asking about a set
+   rather than a row — and asking harder, because a batch of deletes is the
+   largest irreversible thing this page can do.
+
+   Guarded on the count as well as the flag: a background reload can prune the
+   selection to nothing while this is open, and a dialog offering to delete 0
+   bills is one that has lost track of what it is about. *@
+@if (_isConfirmingBulkDelete && SelectedCount > 0)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog"
+         style="background-color: var(--scrim);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="ph ph-warning me-2"></i>
+                        Delete @SelectedCount @(SelectedCount == 1 ? "bill" : "bills")
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close"
+                            @onclick="CloseBulkDelete"></button>
+                </div>
+
+                <div class="modal-body">
+                    @* The count and the sum, not a list of payees: the selection
+                       can run to hundreds of rows, and a dialog you have to
+                       scroll is one nobody reads to the end of. They are the two
+                       figures the bar is already showing, repeated here so the
+                       decision is made against the same numbers it was taken on. *@
+                    <p>
+                        Are you sure you want to delete
+                        <strong>@SelectedCount @(SelectedCount == 1 ? "bill" : "bills")</strong>
+                        totalling <strong>@SelectedTotal.ToString("C")</strong>?
+                    </p>
+
+                    <p class="text-danger fw-bold">This action cannot be undone.</p>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseBulkDelete"
+                            disabled="@_isBulkWriting">
+                        Cancel
+                    </button>
+                    <button class="btn btn-danger" @onclick="DeleteSelectedAsync"
+                            disabled="@_isBulkWriting">
+                        @if (_isBulkWriting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Delete @SelectedCount @(SelectedCount == 1 ? "bill" : "bills")
+                    </button>
+                </div>
 
             </div>
         </div>

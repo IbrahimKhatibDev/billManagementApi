@@ -50,6 +50,7 @@
 }
 
 .pay,
+.delete,
 .clear {
     align-items: center;
     background: none;
@@ -71,6 +72,26 @@
 }
 
 .pay:disabled {
+    border-color: var(--border);
+    color: var(--faint);
+    cursor: default;
+}
+
+/* Deliberately the same neutral as Clear, and not --late. That token is the
+   danger colour in light mode and the *brightest* step of the lavender ramp in
+   Nocturne (#b5abfc, lighter than --accent) — so painting the destructive
+   control with it makes it the loudest thing in the bar in one palette out of
+   two, which is the opposite of what it was reached for.
+
+   Nocturne signals consequence by position on a ramp rather than by hue, so
+   there is no token that means "danger" in both palettes, and a rule that
+   switched on the palette is the one thing this stylesheet never does. The row
+   delete already settles it either way: it is a muted trash icon, and the
+   dialog behind it is what turns red. Quiet affordance, loud confirmation. */
+
+/* Only while a batch is running. Nothing else disables it: unlike Mark paid,
+   there is no selection there is nothing to delete in. */
+.delete:disabled {
     border-color: var(--border);
     color: var(--faint);
     cursor: default;

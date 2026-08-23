@@ -128,7 +128,16 @@ namespace BillsFrontEndBlazor.Pages
         /// </summary>
         private readonly HashSet<long> _selectedIds = new();
 
+        /// <summary>
+        /// Guards both batches — mark-paid and delete — from running at once, and
+        /// from running twice. One flag rather than two because they write to the
+        /// same rows: a delete overlapping a mark-paid on the same selection is
+        /// two requests racing for one bill.
+        /// </summary>
         private bool _isBulkWriting;
+
+        /// <summary>Whether the bulk-delete confirmation is open.</summary>
+        private bool _isConfirmingBulkDelete;
 
         /// <summary>
         /// Which load is the current one. A debounced keystroke, a chip click and
@@ -359,6 +368,110 @@ namespace BillsFrontEndBlazor.Pages
             count == 1
                 ? "1 bill was still saving and was left selected — try it again in a moment."
                 : $"{count} bills were still saving and were left selected — try them again in a moment.";
+
+        /// <summary>
+        /// Opens the confirmation for a bulk delete. The button does not delete
+        /// anything: this is the one action on the page that cannot be undone by
+        /// clicking again, so it asks first — the same bargain the single-row
+        /// delete strikes with its own dialog, and the pill with its two clicks.
+        /// </summary>
+        private void OpenBulkDeleteModal() => _isConfirmingBulkDelete = true;
+
+        private void CloseBulkDelete() => _isConfirmingBulkDelete = false;
+
+        /// <summary>
+        /// Deletes every selected bill, once the dialog has been agreed to.
+        /// <para>
+        /// The shape of <see cref="MarkSelectedPaidAsync"/> with two differences.
+        /// There is no equivalent of the already-paid filter — every selected
+        /// bill is one there is something to do to — and the dialog closes
+        /// before the batch runs rather than after, because the count it is
+        /// quoting starts going out of date the moment the first delete lands.
+        /// </para>
+        /// </summary>
+        private async Task DeleteSelectedAsync()
+        {
+            if (_isBulkWriting)
+            {
+                return;
+            }
+
+            // Materialised before the awaits: SelectedBills is a live query over
+            // state the reload at the end of this method replaces.
+            var selected = SelectedBills.ToList();
+
+            // A row with a write already in flight is left alone, the same way
+            // the paid batch leaves it. Deleting underneath an inline edit would
+            // turn that edit into a 404 the reader never asked for and cannot
+            // make sense of — their own two actions colliding, reported as if
+            // the server had lost the row.
+            var deletable = selected.Where(b => !_busyIds.Contains(b.Id)).ToList();
+            var held = selected.Count - deletable.Count;
+
+            CloseBulkDelete();
+
+            if (deletable.Count == 0)
+            {
+                if (held > 0)
+                {
+                    Toasts.ShowInfo(Held(held));
+                }
+
+                return;
+            }
+
+            _isBulkWriting = true;
+
+            // Claimed for the length of the batch, so a pill click or an inline
+            // edit on one of these rows takes its own early return rather than
+            // racing a delete.
+            foreach (var bill in deletable)
+            {
+                _busyIds.Add(bill.Id);
+            }
+
+            try
+            {
+                var result = await BillService.DeleteManyAsync(
+                    deletable.Select(b => b.Id).ToList());
+
+                if (result.Success)
+                {
+                    Toasts.ShowSuccess(result.ToMessage());
+                }
+                else
+                {
+                    Toasts.ShowError(result.ToMessage());
+                }
+
+                if (held > 0)
+                {
+                    Toasts.ShowInfo(Held(held));
+                }
+
+                // The rows we sent, not the whole selection — a bill held back
+                // for being mid-write stays checked, so the second click the
+                // message asks for still has something to act on.
+                foreach (var bill in deletable)
+                {
+                    _selectedIds.Remove(bill.Id);
+                }
+
+                // The reload is what removes the rows from the page. Nothing is
+                // deleted optimistically here: unlike a paid toggle, there is no
+                // putting the row back if the write is refused.
+                AfterWrite();
+            }
+            finally
+            {
+                foreach (var bill in deletable)
+                {
+                    _busyIds.Remove(bill.Id);
+                }
+
+                _isBulkWriting = false;
+            }
+        }
 
         // -- Controls -----------------------------------------------------------
 
