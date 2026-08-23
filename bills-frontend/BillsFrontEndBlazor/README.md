@@ -253,7 +253,14 @@ disagree.
   it and the second commits
 - **Bulk actions** — select rows and a bar appears *above* the list, showing the
   count and total and marking the lot paid in one call. It sits above rather than
-  below because it acts on what is under it
+  below because it acts on what is under it, and it is `position: sticky`, so it
+  rides at the top of the viewport while the list is long and settles above it when
+  the list is short. That requires the viewport to be the scrollport: an
+  `overflow-x: hidden` on the content pane had quietly made every page its own
+  scroll container — CSS promotes the other axis from `visible` to `auto` the
+  moment one axis is `hidden` — and the bar was sticky against a box that could
+  never move, so it scrolled away with the rows. `overflow-x: clip` gives the same
+  horizontal clamp without creating a scroll container
 - **All / Unpaid / Overdue / Paid filters** with a live overdue count, plus
   free-text search on payee
 - **Toasts** for every write, **loading indicators** during every API call, and a
@@ -330,7 +337,14 @@ would silently shift every later column of that row by one.
 
 ### 📱 Narrow widths
 
-![The bills list on a phone: rows folded onto two lines, payee and amount above, due date, status and delete below](../../docs/screenshots/bills-phone.png)
+<p>
+  <img src="../../docs/screenshots/bills-phone.png" width="300" alt="The bills list on a phone: rows folded onto two lines, payee and amount above, due date, status and delete below">
+  <img src="../../docs/screenshots/reports-phone.png" width="300" alt="Reports on a phone: Refresh beside the Light/Dark switch with Export CSV on its own line, the range presets as a wrapped grid, and the four figures two across">
+</p>
+
+The bills list and Reports at 390px: rows folded onto two lines, the figures two
+across, the presets wrapped into a grid, and Refresh left beside the colour mode
+with Export CSV on the line below.
 
 Every screen works down to 320px — the narrowest phone still in use — and it is
 checked by measurement rather than by eye: at each width, nothing may stick out
@@ -370,6 +384,18 @@ What actually changes:
   shape to read across, and wrapping it would make it two shapes
 - **The timeline's axis labels moved out of the SVG** into HTML, so they stay at
   a readable size instead of scaling with the viewBox
+- **The Reports header drops Export CSV to its own line** below 24rem of column,
+  rather than the colour-mode switcher. Reports carries one control more than the
+  other two pages, and whatever is last in the markup is what wraps — which left a
+  two-tab segmented control sitting alone under the buttons, reading as something
+  that had come loose from the header. Sending the link down instead leaves Refresh
+  beside the colour mode, the same header shape the other two pages already show at
+  that width, and what wraps is a plain button that looks no different for being on
+  its own line. Between there and about 1070px the same control was orphaned for a
+  different reason — the head is a row at those widths and both sides were shrinking
+  in proportion — so the buttons now hold their width and the lede takes the
+  squeeze, since a sentence takes another line and reads the same while a row of
+  buttons breaks
 
 Since the thresholds are asked of the card and not the window, a wide window with
 the sidebar open gets the narrow layout exactly where it needs it — the same

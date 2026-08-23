@@ -63,8 +63,11 @@ with the same type the server parses it into.
 ## The UI
 
 The Blazor app: three pages behind a sidebar that collapses to an icon rail — and,
-in front of all three, a sign-in page. Every page carries the same header: the
-date it is reasoning from, a Refresh button, and a Light/Dark switch.
+in front of all three, a sign-in page. Every page's header carries a Refresh button
+and a Light/Dark switch. The Overview and Reports print the date they are reasoning
+from underneath the title, because every figure on those two pages is cut from it;
+the Bills list has no such date to print, so it says what the grouping is instead.
+Reports carries one control more than the other two, an Export CSV link.
 
 | Page | Route | What it does |
 |---|---|---|
@@ -132,7 +135,10 @@ and plain HTML.
 
 ### On a phone
 
-<img src="docs/screenshots/bills-phone.png" width="300" alt="The bills list on a phone: rows folded onto two lines, payee and amount above, due date, status and delete below">
+<p>
+  <img src="docs/screenshots/bills-phone.png" width="300" alt="The bills list on a phone: rows folded onto two lines, payee and amount above, due date, status and delete below">
+  <img src="docs/screenshots/reports-phone.png" width="300" alt="Reports on a phone: Refresh beside the Light/Dark switch with Export CSV on its own line, the range presets as a wrapped grid, and the four figures two across">
+</p>
 
 Every screen works down to 320px. The layouts are driven by container queries
 rather than media queries, so a card lays itself out against the width it
