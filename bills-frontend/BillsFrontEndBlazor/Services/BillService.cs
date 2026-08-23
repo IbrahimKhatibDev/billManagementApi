@@ -66,6 +66,35 @@ namespace BillsFrontEndBlazor.Services
     }
 
     /// <summary>
+    /// Outcome of a batch of deletes: the counts, plus the status of the first
+    /// one that failed.
+    /// </summary>
+    public sealed record BulkDeleteResult(BulkDeleteOutcome Outcome, HttpStatusCode? FirstFailure)
+    {
+        public bool Success => Outcome.AllSucceeded;
+
+        public string ToMessage() => Outcome.Describe(Reason);
+
+        // No Conflict arm, unlike BulkPaidResult: a delete carries no
+        // concurrency token, so the API has nothing to compare and never
+        // answers 409. A row someone else changed is deleted anyway; a row
+        // someone else deleted comes back 404.
+        private string? Reason => Outcome.AllSucceeded
+            ? null
+            : FirstFailure switch
+            {
+                // Not really a failure so much as an overlap: the row is gone,
+                // which is the state the click was asking for. Said plainly so
+                // it does not read as data left behind.
+                HttpStatusCode.NotFound =>
+                    "They were already gone — the list has been refreshed.",
+                HttpStatusCode.Unauthorized =>
+                    "Your session has expired. Reload the page to sign in again.",
+                _ => "Is the API running?",
+            };
+    }
+
+    /// <summary>
     /// Every bill matching a query — up to a cap — together with how many there
     /// really are.
     /// <para>
@@ -441,6 +470,51 @@ namespace BillsFrontEndBlazor.Services
             }
 
             return new BulkPaidResult(new BulkPaidOutcome(succeeded, failed), firstFailure);
+        }
+
+        /// <summary>
+        /// Deletes each of <paramref name="ids"/>, and reports how many went.
+        /// <para>
+        /// Ids rather than bills, which is the whole difference from
+        /// <see cref="MarkManyPaidAsync"/>: a delete sends no body and carries
+        /// no concurrency token, so the row being deleted is not something this
+        /// method needs to have seen. Sequential for the same reason that one is
+        /// — the API rate-limits per client, and fifty writes at once is how a
+        /// working batch becomes a wall of 429s.
+        /// </para>
+        /// <para>
+        /// Not a transaction, and less forgiving about it than the paid batch:
+        /// rows deleted before a failure stay deleted, and there is no undo.
+        /// That is why the result carries counts rather than a bool, and why
+        /// the caller confirms before getting here.
+        /// </para>
+        /// </summary>
+        public async Task<BulkDeleteResult> DeleteManyAsync(
+            IReadOnlyList<long> ids,
+            CancellationToken ct = default)
+        {
+            var succeeded = 0;
+            var failed = 0;
+            HttpStatusCode? firstFailure = null;
+
+            foreach (var id in ids)
+            {
+                var result = await DeleteBillAsync(id, ct);
+
+                if (result.Success)
+                {
+                    succeeded++;
+                    continue;
+                }
+
+                failed++;
+
+                // First, not last, for the same reason the paid batch keeps the
+                // first: one expired session explains every refusal after it.
+                firstFailure ??= result.Status;
+            }
+
+            return new BulkDeleteResult(new BulkDeleteOutcome(succeeded, failed), firstFailure);
         }
 
         /// <summary>

@@ -5,9 +5,9 @@ namespace BillsMinimalApi.Contracts;
 /// <para>
 /// In the contracts project rather than beside the service that produces it,
 /// because the sentence is the part worth testing and the service is not
-/// reachable from a unit test. Named for the one operation it describes: there
-/// is exactly one bulk action in this app, and a general "bulk outcome"
-/// abstraction for a single caller would be inventing a requirement.
+/// reachable from a unit test. Named for the operation it describes rather than
+/// for the shape it has — see <see cref="BulkDeleteOutcome"/>, which counts the
+/// same way and says something else entirely.
 /// </para>
 /// </summary>
 public readonly record struct BulkPaidOutcome(int Succeeded, int Failed)
