@@ -1,236 +1,54 @@
 @page "/"
 @attribute [Authorize]
 
-<PageTitle>Dashboard</PageTitle>
+<PageTitle>Overview</PageTitle>
 
-<div class="container-fluid p-0">
+<div class="overview">
 
-    <div class="hero-banner p-5 mb-4 text-white">
-        <div class="container py-3">
-            <h1 class="display-5 fw-bold">Welcome to Bills Manager</h1>
-            <p class="fs-5 opacity-75">
-                Manage bills, track payments, and keep your finances organized.
-            </p>
-            <a class="btn btn-light btn-lg me-2" href="bills">
-                <i class="bi bi-table me-1"></i> Go to Bills
-            </a>
-            <button class="btn btn-outline-light btn-lg" @onclick="LoadStatsAsync" disabled="@_isLoading">
-                <i class="bi bi-arrow-repeat me-1"></i> Refresh
+    <header class="page-head">
+        <div>
+            <h1>Overview</h1>
+            @* The server's date, not this machine's — every figure below was
+               computed against it. *@
+            <p class="as-of">as of @Summary.AsOf.ToString("MMM d, yyyy")</p>
+        </div>
+
+        <div class="head-actions">
+            <button class="refresh" @onclick="RefreshAsync" disabled="@_isLoading">
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
+                Refresh
+            </button>
+
+            <ThemeSwitcher />
+        </div>
+    </header>
+
+    @if (_loadFailed)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
+            <Icon Name="warning-octagon" Size="22" />
+            <div class="flex-grow-1">Could not reach the API.</div>
+            <button class="btn btn-sm btn-outline-danger" @onclick="LoadStatsAsync">
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" /> Retry
             </button>
         </div>
+    }
+
+    @* Side by side, not stacked. "What you owe" is the figure and "how late it
+       is" is the breakdown of the same figure, and putting the breakdown a
+       scroll below the total is what made the aging strip read as a separate
+       report about something else. *@
+    <div class="lead">
+        <ObligationHeadline Summary="@Summary" Generation="@_animationGeneration" />
+        <AgingStrip Buckets="@Summary.Aging" />
     </div>
 
-    <div class="container">
+    <CashFlowTimeline Weeks="@Summary.Weeks" Today="@_today" />
 
-        @if (_loadFailed)
-        {
-            <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
-                <i class="bi bi-exclamation-octagon-fill fs-4"></i>
-                <div class="flex-grow-1">Could not reach the API.</div>
-                <button class="btn btn-sm btn-outline-danger" @onclick="LoadStatsAsync">
-                    <i class="bi bi-arrow-repeat me-1"></i> Retry
-                </button>
-            </div>
-        }
+    <LateBillsList Bills="@Summary.Late"
+                   OverdueCount="@Summary.OverdueCount"
+                   OverdueAmount="@Summary.OverdueAmount"
+                   BusyId="@_busyId"
+                   OnMarkPaid="@MarkPaidAsync" />
 
-        @* h-100 on every card is what keeps the row even — without it each card
-           is only as tall as its own content and the row reads as ragged. *@
-        <div class="row g-4 mb-5">
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <h5 class="card-title text-primary fw-bold">
-                            <i class="bi bi-receipt me-1"></i> Total Bills
-                        </h5>
-                        <p class="display-6 fw-bold mb-1">
-                            <AnimatedCounter Value="@TotalBills" Format="N0"
-                                             Generation="@_animationGeneration" />
-                        </p>
-                        <p class="text-muted mb-0">All bills currently tracked.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        <h5 class="card-title text-success fw-bold">
-                            <i class="bi bi-check-circle me-1"></i> Paid
-                        </h5>
-                        <p class="display-6 fw-bold mb-1">
-                            <AnimatedCounter Value="@PaidBills" Format="N0"
-                                             Generation="@_animationGeneration" />
-                        </p>
-                        <p class="text-muted mb-0">@UnpaidBills still outstanding.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body">
-                        @* Renders "$1,234.56" only because Program.cs pins en-US —
-                           the container's default culture is invariant, which
-                           formats "C" as ¤. *@
-                        <h5 class="card-title text-danger fw-bold">
-                            <i class="bi bi-cash-coin me-1"></i> Outstanding
-                        </h5>
-                        <p class="display-6 fw-bold mb-1">
-                            <AnimatedCounter Value="@OutstandingAmount" Format="C"
-                                             Generation="@_animationGeneration" />
-                        </p>
-                        <p class="text-muted mb-0">Total still due across unpaid bills.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        @* Charts are hand-rolled inline SVG rendered from C#. No JS interop —
-           IJSRuntime is unusable during ServerPrerendered's first render — and
-           nothing fetched over the network. *@
-        @* Not "Reports" any more — that name now belongs to the /reports page,
-           and two different things called Reports is one too many. *@
-        <h3 class="fw-bold mb-3" id="charts">At a Glance</h3>
-
-        <div class="row g-4 mb-5">
-            <div class="col-md-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title fw-bold">Paid vs Unpaid</h5>
-
-                        @if (TotalBills == 0)
-                        {
-                            <div class="chart-frame text-muted">No bills to chart yet.</div>
-                        }
-                        else
-                        {
-                            @* The legend lives *inside* .chart-frame so the donut
-                               and its key are centred as one block. With the
-                               legend outside, .chart-frame's flex-grow ate all
-                               the spare height and drove the two apart — a gap
-                               under the title, the donut adrift in the middle,
-                               the legend welded to the bottom of the card. *@
-                            <div class="chart-frame flex-column gap-3">
-                                <svg viewBox="0 0 200 200" width="240" height="240"
-                                     role="img" aria-label="@($"{PaidPercent:0}% of bills paid")">
-                                    <circle class="donut-track" cx="100" cy="100" r="70"
-                                            fill="none" stroke-width="24" />
-                                    @* rotate(-90) starts the arc at 12 o'clock;
-                                       SVG's 0° is 3 o'clock. *@
-                                    <circle class="donut-value @ChartResetClass"
-                                            cx="100" cy="100" r="70"
-                                            fill="none" stroke-width="24"
-                                            stroke-dasharray="@PaidArcDashArray"
-                                            transform="rotate(-90 100 100)" />
-                                    @* Counted in C# rather than by an
-                                       AnimatedCounter: that renders a <span>,
-                                       which is not valid inside an svg. *@
-                                    <text x="100" y="96" text-anchor="middle"
-                                          font-size="38" font-weight="600" fill="#212529">
-                                        @_displayPercent.ToString("0")%
-                                    </text>
-                                    <text x="100" y="122" text-anchor="middle"
-                                          font-size="15" fill="#6c757d">paid</text>
-                                </svg>
-
-                                <div class="d-flex gap-4">
-                                    <span><span class="badge bg-success">&nbsp;</span> Paid @PaidBills</span>
-                                    <span><span class="badge bg-secondary">&nbsp;</span> Unpaid @UnpaidBills</span>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title fw-bold">Amount due by month</h5>
-
-                        @if (TotalBills == 0)
-                        {
-                            <div class="chart-frame text-muted">No bills to chart yet.</div>
-                        }
-                        else
-                        {
-                            <div class="chart-frame">
-                                <svg viewBox="0 0 480 300" width="480" height="300"
-                                     role="img" aria-label="Amount due by month over the last six months">
-                                    @* Each iteration is wrapped in an SVG <g>. Not
-                                       cosmetic: a bare <text> at the top level of a
-                                       razor code block is parsed as razor's own
-                                       <text> escape tag, which cannot take
-                                       attributes. Nesting it inside an element puts
-                                       the parser back in markup mode. *@
-                                    @foreach (var line in _gridLines)
-                                    {
-                                        <g>
-                                            <line class="chart-grid"
-                                                  x1="56" x2="464"
-                                                  y1="@Svg(line.Y)" y2="@Svg(line.Y)" />
-                                            <text class="chart-label" x="48" y="@Svg(line.Y + 4)"
-                                                  text-anchor="end">@line.Label</text>
-                                        </g>
-                                    }
-
-                                    @foreach (var bar in _bars)
-                                    {
-                                        <g>
-                                            <rect class="bar-fill @ChartResetClass"
-                                                  x="@Svg(bar.X)" y="@Svg(bar.Y)"
-                                                  width="@Svg(bar.Width)" height="@Svg(bar.Height)"
-                                                  rx="3">
-                                                <title>@bar.Label: @bar.Total.ToString("C")</title>
-                                            </rect>
-                                            <text class="chart-label" x="@Svg(bar.CenterX)" y="280"
-                                                  text-anchor="middle">@bar.Label</text>
-                                        </g>
-                                    }
-                                </svg>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <h3 class="fw-bold mb-3">Quick Actions</h3>
-
-        <div class="row g-4 mb-5">
-            <div class="col-md-4">
-                <a class="text-decoration-none d-block h-100" href="bills">
-                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-table display-4 text-primary"></i>
-                        <h5 class="mt-3 fw-bold">Manage Bills</h5>
-                        <p class="text-muted mb-0">Create, edit and delete bills.</p>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-md-4">
-                <a class="text-decoration-none d-block h-100" href="reports">
-                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-graph-up display-4 text-success"></i>
-                        <h5 class="mt-3 fw-bold">View Reports</h5>
-                        <p class="text-muted mb-0">Payees, aging and month-by-month detail.</p>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-md-4">
-                @* Was a second Refresh button, duplicating the one in the hero.
-                   ?new=true deep-links into the bills page with the create form
-                   already open — Bills reads the query string on navigation. *@
-                <a class="text-decoration-none d-block h-100" href="bills?new=true">
-                    <div class="card shadow-sm border-0 action-tile p-4 text-center h-100">
-                        <i class="bi bi-plus-circle display-4 text-info"></i>
-                        <h5 class="mt-3 fw-bold">Add a Bill</h5>
-                        <p class="text-muted mb-0">Record a new bill and its due date.</p>
-                    </div>
-                </a>
-            </div>
-        </div>
-
-    </div>
 </div>

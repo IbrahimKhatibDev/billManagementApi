@@ -13,7 +13,7 @@
     <div class="alert alert-danger py-2 px-3 mb-3" role="alert">
         @foreach (var error in Model.Errors)
         {
-            <div><i class="bi bi-exclamation-triangle-fill me-1"></i> @error</div>
+            <div><i class="ph ph-warning me-1"></i> @error</div>
         }
     </div>
 }
@@ -27,7 +27,7 @@
     <div class="mb-3">
         <label class="form-label" asp-for="Input.Email">Email</label>
         <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <span class="input-group-text"><i class="ph ph-envelope-simple"></i></span>
             <input class="form-control" asp-for="Input.Email" type="email"
                    autocomplete="username" autofocus placeholder="you@example.com" />
         </div>
@@ -37,7 +37,7 @@
     <div class="mb-3">
         <label class="form-label" asp-for="Input.Password">Password</label>
         <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <span class="input-group-text"><i class="ph ph-lock-simple"></i></span>
             <input class="form-control" asp-for="Input.Password" type="password"
                    autocomplete="current-password" placeholder="Your password" />
         </div>
@@ -45,7 +45,7 @@
     </div>
 
     <button type="submit" class="btn btn-primary w-100">
-        <i class="bi bi-box-arrow-in-right me-1"></i> Sign in
+        <i class="ph ph-sign-in me-1"></i> Sign in
     </button>
 </form>
 
@@ -57,7 +57,7 @@
    link has something to look at without signing up; its credentials are in the
    README as well, so printing them here reveals nothing that was secret. *@
 <div class="account-demo">
-    <i class="bi bi-info-circle me-1"></i>
+    <i class="ph ph-info me-1"></i>
     Just looking? Sign in as
     <code>@LoginModel.DemoEmail</code> / <code>@LoginModel.DemoPassword</code>.
 </div>

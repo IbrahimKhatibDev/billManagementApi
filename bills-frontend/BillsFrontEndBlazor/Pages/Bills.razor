@@ -3,305 +3,179 @@
 
 <PageTitle>Bills</PageTitle>
 
-<div class="container py-4">
+<div class="bills">
 
-    <!-- PAGE HEADER -->
-    <h2 class="fw-bold mb-4">
-        <i class="bi bi-receipt-cutoff me-2"></i> Bills Management
-    </h2>
+    <header class="page-head">
+        <div>
+            <h1>Bills</h1>
+            <p class="lede">Every bill on the books, grouped by when it falls due.</p>
+        </div>
+
+        @* "Add bill" now lives on the quick-add row below, where it commits a
+           reading. The modal is reached from the footnote at the foot of the
+           page, which is what that footnote is for. *@
+        <div class="head-actions">
+            <button type="button" class="ghost" @onclick="LoadBillsAsync" disabled="@_isLoading">
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" />
+                Refresh
+            </button>
+
+            <ThemeSwitcher />
+        </div>
+    </header>
 
     @if (_loadFailed)
     {
         <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
-            <i class="bi bi-exclamation-octagon-fill fs-4"></i>
+            <Icon Name="warning-octagon" Size="22" />
             <div class="flex-grow-1">Could not reach the API.</div>
             <button class="btn btn-sm btn-outline-danger" @onclick="LoadBillsAsync">
-                <i class="bi bi-arrow-repeat me-1"></i> Retry
+                <Icon Name="arrows-clockwise" Size="16" Class="me-1" /> Retry
             </button>
         </div>
     }
 
-    <!-- ACTION BAR -->
-    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <QuickAddBill OnAdd="AddQuickBillAsync" Busy="@_isBulkWriting" />
 
-        <button class="btn btn-primary" @onclick="LoadBillsAsync" disabled="@_isLoading">
-            <i class="bi bi-arrow-repeat me-1"></i> Refresh
-        </button>
+    <div class="controls">
 
-        <button class="btn btn-success" @onclick="OpenCreateModal">
-            <i class="bi bi-plus-lg me-1"></i> New Bill
-        </button>
-
-        <div class="btn-group filter-group" role="group" aria-label="Filter bills by status">
-            @foreach (var option in Enum.GetValues<BillStatus>())
+        <div class="chips" role="group" aria-label="Filter bills by status">
+            @foreach (var option in FilterOrder)
             {
                 <button type="button"
-                        class="btn btn-outline-secondary @(_filter == option ? "active" : null)"
-                        @onclick="() => SetFilterAsync(option)">
+                        class="chip @(_filter == option ? "active" : null)"
+                        @onclick="@(() => SetFilterAsync(option))">
                     @option
-                    @* Only on Overdue, and only when there are some: a "0"
-                       badge on every filter is noise, and the whole point of
-                       the count is to pull attention when it is not zero. *@
+                    @* Only on Overdue, and only when there are some: a "0" badge
+                       on every chip is noise, and the whole point of the count is
+                       to pull attention when it is not zero. *@
                     @if (option == BillStatus.Overdue && OverdueCount > 0)
                     {
-                        <span class="badge bg-danger ms-1">@OverdueCount</span>
+                        <span class="chip-badge">@OverdueCount</span>
                     }
                 </button>
             }
         </div>
 
-        @* Sorting lives in the table header, which the card layout hides below
-           768px — without this the mobile view would have no way to sort at
-           all. *@
-        <div class="d-flex d-md-none gap-2 align-items-center">
-            <label class="text-muted small mb-0" for="sort-column">Sort</label>
-            <select id="sort-column" class="form-select form-select-sm" style="width: auto;"
-                    value="@_sortColumn" @onchange="SetSortColumnAsync">
-                @foreach (var column in Enum.GetValues<BillSort>())
-                {
-                    <option value="@column">@column</option>
-                }
-            </select>
-            <button type="button" class="btn btn-sm btn-outline-secondary"
-                    title="@(_sortDescending ? "Sort ascending" : "Sort descending")"
-                    aria-label="@(_sortDescending ? "Sort ascending" : "Sort descending")"
-                    @onclick="ToggleSortDirectionAsync">
-                <i class="bi @(_sortDescending ? "bi-sort-down" : "bi-sort-up")"></i>
-            </button>
-        </div>
+        <div class="search">
+            <Icon Name="magnifying-glass" Size="16" Class="search-icon" />
+            @* One-way plus @oninput rather than @bind: the search goes to the
+               server, and two-way binding would send a request per keystroke.
+               OnSearchInputAsync debounces instead. *@
+            <input placeholder="Search by payee…"
+                   aria-label="Search by payee"
+                   value="@_searchText"
+                   @oninput="OnSearchInputAsync" />
 
-        <div class="ms-auto d-flex gap-2 flex-grow-1 flex-md-grow-0">
-            <div class="position-relative flex-grow-1" style="max-width: 250px;">
-                <i class="bi bi-search search-icon"></i>
-                @* One-way plus @oninput rather than @bind: the search now goes
-                   to the server, and two-way binding would send a request per
-                   keystroke. OnSearchInputAsync debounces instead. *@
-                <input class="form-control ps-5"
-                       placeholder="Search by ID or Payee..."
-                       aria-label="Search by ID or payee"
-                       value="@_searchText"
-                       @oninput="OnSearchInputAsync" />
-            </div>
-
-            @* Disabled when empty rather than hidden: a control that appears
-               and disappears as you type moves the search box sideways. *@
-            <button class="btn btn-outline-secondary" @onclick="ClearSearchAsync"
-                    disabled="@(!HasSearch)">
+            @* Disabled when empty rather than hidden: a control that appears and
+               disappears as you type moves the search box sideways. *@
+            <button type="button" class="ghost" @onclick="ClearSearchAsync" disabled="@(!HasSearch)">
                 Clear
             </button>
         </div>
 
+        <p class="tally">@MatchCount of @BillCount bills · @LoadedTotal.ToString("C")</p>
+
     </div>
 
-    <!-- TABLE CARD -->
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
+    @* Above the list, not below it. The bar acts on the rows you just ticked,
+       and a control that appears under a long list is a control you have to go
+       looking for — the checkboxes are at the top, so the verb is too.
 
-            @* Only when there is nothing to show yet. Blanking a table that
-               already has rows — which is what an unconditional spinner did —
-               made every Refresh and every inline paid toggle flash the whole
-               list away and back. With rows present the reload just dims. *@
-            @if (_isLoading && !HasRows)
+       Outside the groups block on purpose: the selection is pruned to loaded
+       rows on every load, so if this is showing anything there are rows behind
+       it to act on. *@
+    @if (SelectedCount > 0)
+    {
+        <BulkActionBar Count="@SelectedCount"
+                       Total="@SelectedTotal"
+                       PayableCount="@PayableCount"
+                       Busy="@_isBulkWriting"
+                       OnMarkPaid="@MarkSelectedPaidAsync"
+                       OnClear="@ClearSelection" />
+    }
+
+    @* Only when there is nothing to show yet. Blanking a list that already has
+       rows made every refresh and every paid toggle flash the whole page away
+       and back; with rows present the reload just dims. *@
+    @if (_isLoading && !HasRows)
+    {
+        <p class="state">Loading bills…</p>
+    }
+    else if (!HasRows)
+    {
+        <p class="state">
+            @if (HasNoBillsAtAll)
             {
-                <div class="d-flex justify-content-center align-items-center gap-2 text-muted py-5">
-                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                    Loading bills…
-                </div>
-            }
-            else if (FilteredCount == 0)
-            {
-                <div class="text-center text-muted py-5">
-                    <i class="bi bi-inbox display-6 d-block mb-2"></i>
-                    @if (HasNoBillsAtAll)
-                    {
-                        <span>No bills yet. Create one to get started.</span>
-                    }
-                    else
-                    {
-                        <span>No bills match the current filter.</span>
-                    }
-                </div>
+                <span>No bills yet. Add one to get started.</span>
             }
             else
             {
-                @* .table-responsive covers the tablet range, where six columns
-                   are wider than the viewport but still readable as a table.
-                   Below 768px site.css turns the rows into cards instead — the
-                   horizontal scroll used to leave Paid and Actions completely
-                   off-screen on a phone, with nothing to say they were there. *@
-                <div class="table-responsive @(_isLoading ? "is-refreshing" : null)">
-                    <table class="table table-hover table-striped align-middle mb-0 bills-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="col-id sortable @Sorted(BillSort.Id)" @onclick="() => SortByAsync(BillSort.Id)">
-                                    ID <i class="bi @SortCaret(BillSort.Id) sort-caret"></i>
-                                </th>
-                                <th class="sortable @Sorted(BillSort.Payee)" @onclick="() => SortByAsync(BillSort.Payee)">
-                                    Payee <i class="bi @SortCaret(BillSort.Payee) sort-caret"></i>
-                                </th>
-                                <th class="col-due sortable @Sorted(BillSort.DueDate)" @onclick="() => SortByAsync(BillSort.DueDate)">
-                                    Due Date <i class="bi @SortCaret(BillSort.DueDate) sort-caret"></i>
-                                </th>
-                                <th class="col-amount text-end sortable @Sorted(BillSort.Amount)" @onclick="() => SortByAsync(BillSort.Amount)">
-                                    Amount <i class="bi @SortCaret(BillSort.Amount) sort-caret"></i>
-                                </th>
-                                <th class="col-status sortable @Sorted(BillSort.Paid)" @onclick="() => SortByAsync(BillSort.Paid)">
-                                    Status <i class="bi @SortCaret(BillSort.Paid) sort-caret"></i>
-                                </th>
-                                <th class="col-actions text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var bill in PagedBills)
-                            {
-                                @* data-label feeds the card layout: below 768px
-                                   each cell renders its label from CSS, so the
-                                   table and the cards stay one block of markup
-                                   with one source of truth per row. *@
-                                <tr @key="bill.Id" class="@(IsOverdue(bill) ? "row-overdue" : null)">
-                                    <td class="col-id text-muted" data-label="ID">@bill.Id</td>
-
-                                    <td data-label="Payee" class="fw-medium">@bill.PayeeName</td>
-
-                                    <td class="col-due" data-label="Due Date">
-                                        <span class="due-value">
-                                            @DueDateText(bill)
-                                            @if (DueRelativeText(bill) is { } relative)
-                                            {
-                                                <span class="due-relative @(IsOverdue(bill) ? "text-danger" : "text-muted")">
-                                                    @relative
-                                                </span>
-                                            }
-                                        </span>
-                                    </td>
-
-                                    @* ToString("C") renders "$1,234.56" only because
-                                       Program.cs pins en-US; the container default is
-                                       the invariant culture, which formats "C" as ¤. *@
-                                    <td class="col-amount text-end amount" data-label="Amount">
-                                        @bill.PaymentDue.ToString("C")
-                                    </td>
-
-                                    <td class="col-status" data-label="Status">
-                                        @* A button, not a badge with a click
-                                           handler: this is the one control on
-                                           the row that changes data, so it has
-                                           to be reachable by keyboard and
-                                           announce its state.
-
-                                           aria-pressed is written out rather
-                                           than bound to the bool because
-                                           Blazor drops a false attribute
-                                           entirely, and the attribute needs
-                                           the literal "false" to read as an
-                                           unpressed toggle. *@
-                                        <button type="button"
-                                                class="badge status-toggle @StatusClass(bill)"
-                                                title="@(bill.Paid ? "Mark as unpaid" : "Mark as paid")"
-                                                aria-pressed="@(bill.Paid ? "true" : "false")"
-                                                disabled="@IsToggling(bill)"
-                                                @onclick="() => TogglePaidAsync(bill)">
-                                            @if (IsToggling(bill))
-                                            {
-                                                <span class="spinner-border spinner-border-sm" role="status"></span>
-                                            }
-                                            else
-                                            {
-                                                @StatusText(bill)
-                                            }
-                                        </button>
-                                    </td>
-
-                                    <td class="col-actions" data-label="">
-                                        <div class="d-flex gap-2 justify-content-end row-actions">
-                                            <button class="btn btn-sm btn-outline-secondary" title="Edit"
-                                                    @onclick="() => OpenEditModal(bill)">
-                                                <i class="bi bi-pencil"></i>
-                                                <span class="d-inline d-md-none ms-1">Edit</span>
-                                            </button>
-
-                                            <button class="btn btn-sm btn-outline-danger" title="Delete"
-                                                    @onclick="() => OpenDeleteModal(bill)">
-                                                <i class="bi bi-trash"></i>
-                                                <span class="d-inline d-md-none ms-1">Delete</span>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                <span>No bills match the current filter.</span>
+            }
+        </p>
+    }
+    else
+    {
+        <div class="groups @(_isLoading ? "is-refreshing" : null)">
+            @* Not `section`: `@section` is a reserved Razor directive, and
+               `@section.Title` parses as one rather than as a property. *@
+            @foreach (var group in Sections)
+            {
+                <BillGroup @key="group.Window"
+                           Title="@group.Title"
+                           Tone="@group.Tone"
+                           Bills="@group.Bills"
+                           Total="@group.Total"
+                           Today="@_today"
+                           BusyIds="@_busyIds"
+                           SelectedIds="@_selectedIds"
+                           ArmedId="@_armedPaidId"
+                           OnToggleSelected="@ToggleSelected"
+                           OnTogglePaid="@TogglePaidAsync"
+                           OnDisarmPaid="@DisarmPaid"
+                           OnFieldEdited="@SaveEditAsync"
+                           OnDelete="@OpenDeleteModal" />
             }
         </div>
 
-        @if (!_isLoading && FilteredCount > 0)
+        @if (_book.IsCapped)
         {
-            <div class="card-footer d-flex flex-wrap gap-3 align-items-center bg-white">
-                <span class="text-muted small">
-                    Showing @FirstRowNumber–@LastRowNumber of @FilteredCount
-                </span>
-
-                <div class="d-flex align-items-center gap-2">
-                    <label class="text-muted small mb-0" for="page-size">Rows</label>
-                    <select id="page-size" class="form-select form-select-sm" style="width: auto;"
-                            value="@PageSize"
-                            @onchange="OnPageSizeChangedAsync">
-                        @foreach (var size in PageSizeOptions)
-                        {
-                            <option value="@size">@size</option>
-                        }
-                    </select>
-                </div>
-
-                <nav class="ms-auto" aria-label="Bills pages">
-                    <ul class="pagination pagination-sm mb-0">
-                        <li class="page-item @(CurrentPage == 1 ? "disabled" : null)">
-                            <button class="page-link" @onclick="() => GoToPageAsync(CurrentPage - 1)">
-                                <i class="bi bi-chevron-left"></i>
-                            </button>
-                        </li>
-
-                        @* Not named "page": @page in markup is the routing
-                           directive, so the razor parser chokes on it. *@
-                        @foreach (var pageNumber in PageWindow)
-                        {
-                            <li class="page-item @(pageNumber == CurrentPage ? "active" : null)">
-                                <button class="page-link" @onclick="() => GoToPageAsync(pageNumber)">
-                                    @pageNumber
-                                </button>
-                            </li>
-                        }
-
-                        <li class="page-item @(CurrentPage == TotalPages ? "disabled" : null)">
-                            <button class="page-link" @onclick="() => GoToPageAsync(CurrentPage + 1)">
-                                <i class="bi bi-chevron-right"></i>
-                            </button>
-                        </li>
-                    </ul>
-                </nav>
-            </div>
+            @* A silent truncation would read as a complete book when it is not. *@
+            <p class="capped">
+                Showing the first @Rows.Count of @MatchCount matching bills — the
+                sum above covers those @Rows.Count.
+            </p>
         }
-    </div>
+    }
+
+    @* Copy verbatim from the design. It earns its place by answering the
+       question the redesign creates — "where did the edit button go?" — at the
+       moment someone looks for it. *@
+    <p class="footnote">
+        Dates and amounts are editable where they sit — click one. The modal
+        survives only for a bill you are creating from scratch.
+        <button type="button" class="link" @onclick="OpenCreateModal">Open the create form</button>
+    </p>
+
 </div>
 
 
-@* CREATE / EDIT MODAL — one block for both, because they are the same form.
+@* CREATE MODAL. Editing happens in the rows now, so this is the one job the
+   modal still has: a bill that does not exist yet has no row to click.
    "modal fade show d-block" plus a backdrop colour is what makes a Bootstrap
    modal work without bootstrap.bundle.js. *@
-@if (_formMode != FormMode.None)
+@if (_isCreating)
 {
-    var creating = _formMode == FormMode.Create;
-
     <div class="modal fade show d-block" tabindex="-1" role="dialog"
-         style="background-color: rgba(0,0,0,0.5);">
+         style="background-color: var(--scrim);">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
 
-                <div class="modal-header text-white @(creating ? "bg-success" : "bg-primary")">
+                <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="bi @(creating ? "bi-plus-lg" : "bi-pencil-square") me-2"></i>
-                        @(creating ? "Create Bill" : $"Edit Bill #{_formBill.Id}")
+                        <Icon Name="plus" Size="18" Class="me-2" />
+                        New bill
                     </h5>
                     <button type="button" class="btn-close" aria-label="Close" @onclick="CloseForm"></button>
                 </div>
@@ -311,29 +185,32 @@
 
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Payee Name</label>
-                            <input class="form-control" @bind="_formBill.PayeeName" />
+                            <label class="form-label" for="form-payee">Payee</label>
+                            <input id="form-payee" class="form-control" @bind="_formBill.PayeeName" />
                             <ValidationMessage For="@(() => _formBill.PayeeName)" class="text-danger small" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Due Date</label>
-                            <input type="date" class="form-control" @bind="_formBill.DueDate" />
+                            <label class="form-label" for="form-due">Due date</label>
+                            <input id="form-due" type="date" class="form-control" @bind="_formBill.DueDate" />
                             <ValidationMessage For="@(() => _formBill.DueDate)" class="text-danger small" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Amount</label>
+                            <label class="form-label" for="form-amount">Amount</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
-                                <input type="number" step="0.01" class="form-control" @bind="_formBill.PaymentDue" />
+                                <input id="form-amount" type="number" step="0.01" class="form-control"
+                                       @bind="_formBill.PaymentDue" />
                             </div>
                             <ValidationMessage For="@(() => _formBill.PaymentDue)" class="text-danger small" />
                         </div>
 
+                        @* Kept: a bill can be entered after it was settled, and
+                           the alternative is creating it and then toggling it. *@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="form-paid" @bind="_formBill.Paid" />
-                            <label class="form-check-label" for="form-paid">Paid</label>
+                            <label class="form-check-label" for="form-paid">Already paid</label>
                         </div>
                     </div>
 
@@ -341,12 +218,12 @@
                         <button type="button" class="btn btn-secondary" @onclick="CloseForm" disabled="@_isSaving">
                             Cancel
                         </button>
-                        <button type="submit" class="btn @(creating ? "btn-success" : "btn-primary")" disabled="@_isSaving">
+                        <button type="submit" class="btn btn-primary" disabled="@_isSaving">
                             @if (_isSaving)
                             {
                                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                             }
-                            @(creating ? "Save" : "Save Changes")
+                            Add bill
                         </button>
                     </div>
                 </EditForm>
@@ -361,13 +238,13 @@
 @if (_deleteTarget is { } target)
 {
     <div class="modal fade show d-block" tabindex="-1" role="dialog"
-         style="background-color: rgba(0,0,0,0.5);">
+         style="background-color: var(--scrim);">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
 
                 <div class="modal-header bg-danger text-white">
                     <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle me-2"></i> Delete Bill
+                        <i class="ph ph-warning me-2"></i> Delete Bill
                     </h5>
                     <button type="button" class="btn-close" aria-label="Close" @onclick="CloseDelete"></button>
                 </div>

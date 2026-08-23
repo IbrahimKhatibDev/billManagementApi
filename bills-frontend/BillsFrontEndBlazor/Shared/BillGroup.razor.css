@@ -1,0 +1,224 @@
+/* The card is a query container, so the rows inside it can answer to the space
+   they actually have. The window is the wrong thing to ask: the sidebar takes
+   16rem of the page and none of the viewport, so a 1000px window is a roomy
+   card with the sidebar railed and a cramped one with it open, and a media
+   query would give both the same answer. */
+.group {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    container-type: inline-size;
+    padding: 1rem 1.25rem;
+}
+
+header {
+    align-items: baseline;
+    display: flex;
+    gap: .6rem;
+}
+
+.dot {
+    align-self: center;
+    border-radius: 50%;
+    height: 8px;
+    width: 8px;
+}
+
+.title {
+    color: var(--text);
+    font-size: .95rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.count {
+    color: var(--muted);
+    font-size: .82rem;
+}
+
+.sum {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+}
+
+.rows {
+    list-style: none;
+    margin: .75rem 0 0;
+    padding: 0;
+}
+
+/* Checkbox, then five fixed columns and one flexible one, so the payee takes
+   the slack and every number below it stays in a line. */
+.rows li {
+    align-items: center;
+    border-top: var(--border-width) solid var(--border);
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1.1rem 1fr 11rem 7rem 5.5rem auto;
+    padding: .5rem 0;
+}
+
+/* Bleeds past the card's padding so a selected row reads as a band across the
+   whole section rather than an indented stripe. */
+.rows li.selected {
+    background: var(--sunken);
+    box-shadow: -1.25rem 0 0 var(--sunken), 1.25rem 0 0 var(--sunken);
+}
+
+/* The payee is the cell that gives up the room, so it is the one that has to be
+   allowed to: without this the button inside it — nowrap, overflow hidden —
+   reports a minimum of nothing, the track collapses to a sliver, and the five
+   fixed columns push the pill and the delete button out of the card. That is
+   what this row did at every width under about 1000px. */
+.payee {
+    min-width: 0;
+}
+
+.pick {
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin: 0;
+}
+
+.rows li:first-child {
+    border-top: 0;
+}
+
+/* The payee cell is now an InlineEdit, which handles its own truncation. The
+   -.3rem pulls the row back into line with the group header, which the editor's
+   own padding would otherwise push it out of.
+
+   ::deep is required: the scope attribute is stamped on this component's own
+   markup, not on the markup InlineEdit renders inside it. */
+::deep .reader {
+    margin-left: -.3rem;
+}
+
+.amount ::deep .reader,
+.amount ::deep .editor {
+    text-align: right;
+}
+
+.due {
+    color: var(--muted);
+    font-size: .85rem;
+}
+
+.relative {
+    color: var(--faint);
+    display: block;
+    font-size: .75rem;
+}
+
+.overdue .relative {
+    color: var(--late);
+}
+
+.amount {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.status {
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: .75rem;
+    padding: .15rem .6rem;
+    width: 100%;
+}
+
+/* Outline only, never a flood fill — the palette's accent rule, and it is what
+   keeps five sections of these from reading as a colour chart. */
+.status.is-paid { border-color: var(--ok); color: var(--ok); }
+.status.is-late { border-color: var(--late); color: var(--late); }
+.status.is-unpaid { color: var(--muted); }
+
+/* Armed. Last of the four so it wins on order rather than specificity — the
+   pill has stopped reporting a state and started asking a question, so it drops
+   the state colour entirely. --sunken is a surface, not a flood of the accent:
+   the outline rule still holds. */
+.status.is-armed {
+    background: var(--sunken);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 500;
+}
+
+.status:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.actions {
+    display: flex;
+    gap: .35rem;
+}
+
+.icon-button {
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    line-height: 1;
+    padding: .3rem .45rem;
+}
+
+.icon-button:hover {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.icon-button.danger:hover {
+    border-color: var(--late);
+    color: var(--late);
+}
+
+/* Below the width where six columns stop fitting, the row folds onto two lines
+   rather than squeezing: who and how much, then when, what state it is in, and
+   the way to be rid of it. Every cell keeps its markup and its behaviour — the
+   two lines are a placement, not a second row component.
+
+   Last in the file so it wins on order: .status below sets a width, and these
+   rules match at the same specificity. */
+@container (max-width: 40rem) {
+    .rows li {
+        column-gap: .6rem;
+        grid-template-areas:
+            "pick payee payee  amount"
+            "pick due   status actions";
+        grid-template-columns: 1.1rem minmax(0, 1fr) auto auto;
+        padding: .6rem 0;
+        row-gap: .15rem;
+    }
+
+    /* Named in both rows, so it spans them and sits beside the whole row rather
+       than centred against a box twice its height. */
+    .pick {
+        align-self: start;
+        grid-area: pick;
+        margin-top: .4rem;
+    }
+
+    .payee { grid-area: payee; }
+    .due { grid-area: due; }
+    .amount { grid-area: amount; }
+
+    /* Sized by its own text now. The 5.5rem column it used to fill is gone, and
+       a pill stretched to whatever the delete button beneath it needs would read
+       as a button rather than a label. */
+    .status {
+        grid-area: status;
+        justify-self: end;
+        width: auto;
+    }
+
+    .actions {
+        grid-area: actions;
+        justify-content: flex-end;
+    }
+}

@@ -1,0 +1,315 @@
+/* A query container for the same reason the Bills page is one: what this page
+   has to lay out against is the width of its own column, not the window's. */
+.reports {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin: 0 auto;
+    max-width: 1240px;
+    padding: 2rem 1.5rem 4rem;
+}
+
+.page-head {
+    align-items: flex-start;
+    display: flex;
+    /* Only ever seen when the two sides are shrinking against each other, which
+       is the state the flex-shrink below leaves them in: space-between hands out
+       free space, and by then there is none. It is what stops the lede from
+       running into the Refresh button. */
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.page-head h1 {
+    color: var(--text);
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.lede {
+    color: var(--muted);
+    font-size: .9rem;
+    margin: .2rem 0 0;
+}
+
+/* Same values as the Overview's rule. Two screens, one date line, one look —
+   duplicated rather than hoisted because scoped CSS cannot be shared between
+   components, and a global class for six declarations would be worse. */
+.as-of {
+    color: var(--faint);
+    font-size: .82rem;
+    margin: .1rem 0 0;
+}
+
+.head-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    /* The heading gives up its width first. Both sides of the head start at
+       their content width and neither fits, so by default they shrink in
+       proportion — and the actions, being the only side that cannot reflow, wrap
+       instead, dropping the colour mode onto a line of its own. That happened at
+       every width from where the head becomes a row up to about 1070px of
+       window, which is a laptop rather than an edge case.
+
+       Shrinking one prose block and shrinking a row of buttons are not the same
+       operation: the lede takes another line and reads the same, while the
+       buttons break their row. So the buttons keep their width and the sentence
+       takes the squeeze. Only this page needs it — the Overview and the Bills
+       page have one header control fewer and never run out of room. */
+    flex-shrink: 0;
+    gap: .5rem;
+}
+
+.ghost {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    padding: .4rem .8rem;
+    text-decoration: none;
+}
+
+.ghost:hover:not(:disabled) { color: var(--text); }
+
+.ghost:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+/* One control, one border: the presets read as a segmented switch rather than
+   five separate buttons that happen to be adjacent. */
+.ranges {
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    display: inline-flex;
+    overflow: hidden;
+}
+
+.range {
+    background: none;
+    border: 0;
+    border-right: var(--border-width) solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: .82rem;
+    padding: .4rem .85rem;
+}
+
+.range:last-child { border-right: 0; }
+
+.range:hover { color: var(--text); }
+
+.range.on {
+    background: var(--sunken);
+    color: var(--accent-text);
+}
+
+.caption,
+.loading,
+.empty {
+    color: var(--muted);
+    font-size: .82rem;
+    margin: .5rem 0 0;
+}
+
+.empty {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    margin: 0;
+    padding: 3rem 1.5rem;
+    text-align: center;
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* A refresh over data already on screen dims rather than blanks: the numbers
+   stay readable and stop being trusted, which is what is actually true. */
+.is-refreshing { opacity: .6; }
+
+.figures {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.figure {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: 1.1rem 1.25rem;
+}
+
+.figure .label {
+    color: var(--muted);
+    font-size: .72rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.figure .value {
+    color: var(--text);
+    font-size: 1.6rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.figure .value.ok { color: var(--ok); }
+
+.figure .value.late { color: var(--late); }
+
+.figure .note {
+    color: var(--faint);
+    font-size: .78rem;
+}
+
+/* The four stat cards that got cut, as prose. */
+.typical {
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: .88rem;
+    gap: .35rem 2rem;
+    margin: 0;
+}
+
+.typical strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.typical .who { color: var(--faint); }
+
+.bands {
+    color: var(--muted);
+    font-size: .88rem;
+    margin: -.75rem 0 0;
+}
+
+/* The narrow layout, last in the file so it wins on order — every rule below is
+   overriding one stated above it at the same specificity.
+
+   Two thresholds, because the two things give up at different widths: four
+   figure cards run out of room long before a heading and a row of buttons
+   do. */
+@container (max-width: 46rem) {
+
+    /* Two by two rather than four across. A quarter of a narrow column is under
+       70px, which is less than "$1,732.78" takes at any size worth reading — the
+       figures were running past the edges of their own cards. */
+    .figures {
+        gap: .75rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .figure {
+        padding: .9rem 1rem;
+    }
+
+    .figure .value {
+        font-size: 1.3rem;
+    }
+}
+
+@container (max-width: 34rem) {
+    .page-head {
+        flex-direction: column;
+        gap: .75rem;
+    }
+}
+
+/* Export CSV wraps, not the colour mode.
+
+   This is the only page with three header controls, and Refresh, Export CSV and
+   the Light/Dark pair come to 382px of buttons — more than the 342 a 390px phone
+   leaves this column. Something has to go to a second line, and left to itself it
+   is whatever is last in the markup: the two-tab switcher ended up alone under
+   the buttons, where it read as a stray control that had come loose rather than
+   as part of the header.
+
+   Sending the Export link down instead leaves Refresh beside the colour mode,
+   which is exactly what the Overview and the Bills page show at this width. One
+   header shape across all three, and the thing that wraps is a plain button that
+   looks no different for being on its own line.
+
+   24rem is where the three stop fitting side by side, in rem rather than pixels
+   so the threshold grows with the reader's text the same way the row it is
+   measuring does. Refresh and the switcher are 240px together, so they still
+   share a line at 320px — the narrowest width this page is built for.
+
+   The cost is that focus order stops matching the eye: tab visits Refresh,
+   Export CSV, Light, Dark, while the page reads Refresh, Light, Dark, Export
+   CSV. These are four independent controls that can be used in any order, so
+   there is no sequence here to lose the meaning of — what it costs a keyboard is
+   one focus ring that steps down a line and back up again. */
+@container (max-width: 24rem) {
+    .head-actions a.ghost {
+        order: 1;
+    }
+}
+
+/* And one across, on the narrowest phones still in use. Half of the 272px this
+   column has at 320px is 106px inside the card, which "$6,575.95" was running
+   four pixels past — the same failure the 46rem rule above fixes, one step
+   further down. A figure that does not fit is the one thing this page cannot
+   ship: every card here is a number. */
+@container (max-width: 18rem) {
+    .figures {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* The five presets in two columns instead of one line. "All time · This year ·
+   Last 6 months · Last 3 months · Next 3 months" is 334px of buttons, and a
+   360px phone gives this column 312 — the last preset was having its tail cut
+   off by the page, and a button you cannot see is a button you cannot press.
+
+   21rem and not 22 because a 390px phone leaves 342px here, which the one-line
+   control fits with a little to spare. It stops fitting if the reader has turned
+   their text up, and this threshold moves with them: the 21rem grows with the
+   font while the column it is measured against does not.
+
+   A grid rather than flex-wrap, because with the row breaks under this file's
+   control the dividers can be too. Which is the whole difficulty: the control
+   draws one border around the set and one between each pair, and a wrap turns
+   some of those betweens into edges. */
+@container (max-width: 21rem) {
+    .ranges {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    /* Ends the row, so its divider would be doubling the control's own border. */
+    .ranges .range:nth-child(even) {
+        border-right: 0;
+    }
+
+    /* Every row but the first. The vertical dividers separate a row's buttons
+       from each other; this is what separates the rows. */
+    .ranges .range:nth-child(n + 3) {
+        border-top: var(--border-width) solid var(--border);
+    }
+
+    /* An odd count leaves the last one without a neighbour, and a divider with
+       nothing on the other side of it reads as a mistake. Written to the parity
+       rather than to the five presets there are today, so a sixth needs nothing
+       here. */
+    .ranges .range:last-child:nth-child(odd) {
+        border-right: 0;
+        grid-column: 1 / -1;
+    }
+}

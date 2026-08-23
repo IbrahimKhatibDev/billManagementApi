@@ -1,0 +1,81 @@
+@inject IJSRuntime JS
+
+@* Two tabs, not a toggle. A single sun/moon button says what pressing it will
+   do but never what mode you are in, and the two readings of that icon are
+   exactly opposite — half of everyone reads the sun as "you are in light mode".
+   A segmented pair states the answer and offers the other one.
+
+   role="group" rather than role="tablist": these are not tabs over panels, and
+   a tablist would promise arrow-key navigation between them that nothing here
+   implements. aria-pressed on each button is what conveys which is on. *@
+<div class="theme-switcher" role="group" aria-label="Colour mode">
+
+    @foreach (var mode in Modes)
+    {
+        @* The strings, not the bool. Blazor treats a bool attribute value as an
+           HTML boolean attribute: false omits it entirely and true emits it
+           empty. Either way aria-pressed loses its own value, and a pair where
+           one tab says nothing and the other says "" announces neither as
+           pressed. BillGroup's status pill spells it out the same way. *@
+        <button type="button" class="mode @(_mode == mode.Value ? "is-on" : null)"
+                aria-pressed="@(_mode == mode.Value ? "true" : "false")"
+                @onclick="@(() => SetModeAsync(mode.Value))">
+            @mode.Label
+        </button>
+    }
+
+</div>
+
+@code {
+    private static readonly (string Value, string Label)[] Modes =
+    {
+        ("light", "Light"),
+        ("dark", "Dark"),
+    };
+
+    // Seeded with the same default the markup and the boot script use, so the
+    // prerendered pair is not briefly wrong for a visitor who never changed
+    // anything.
+    private string _mode = "dark";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // The first moment interop is available — the app prerenders on the
+        // server, where IJSRuntime is not usable. The page is already wearing
+        // the right theme by now; this only catches the tabs up with it.
+        //
+        // Guarded because the answer comes from a file the browser caches. The
+        // script tag is fingerprinted so a stale copy should not be reachable,
+        // but the failure if one ever is would be a dead circuit and a blank
+        // app — far too steep a price for a tab highlighted on the wrong side.
+        try
+        {
+            _mode = await JS.InvokeAsync<string>("billsTheme.read");
+        }
+        catch (JSException)
+        {
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SetModeAsync(string mode)
+    {
+        if (_mode == mode)
+        {
+            return;
+        }
+
+        _mode = mode;
+
+        // The script persists and applies in one call, so the key stays in one
+        // place and the two can never drift apart.
+        await JS.InvokeVoidAsync("billsTheme.save", mode);
+    }
+}

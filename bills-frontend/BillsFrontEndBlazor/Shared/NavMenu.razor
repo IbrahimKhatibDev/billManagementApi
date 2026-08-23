@@ -7,13 +7,13 @@
 
     <div class="nav-brand">
         <a class="nav-brand-link" href="" @onclick="HandleNavigate">
-            <i class="bi bi-receipt-cutoff"></i>
+            <i class="ph ph-receipt"></i>
             <span class="nav-label">Bills Manager</span>
         </a>
 
         <button type="button" class="nav-rail-toggle" @onclick="OnToggleRail"
                 title="@RailToggleLabel" aria-label="@RailToggleLabel">
-            <i class="bi @(Railed ? "bi-chevron-double-right" : "bi-chevron-double-left")"></i>
+            <i class="ph @(Railed ? "ph-caret-double-right" : "ph-caret-double-left")"></i>
         </button>
     </div>
 
@@ -22,20 +22,24 @@
            the icon alone has to identify the destination, so hovering names it. *@
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All"
                  title="Dashboard" @onclick="HandleNavigate">
-            <i class="bi bi-speedometer2"></i>
+            <i class="ph ph-gauge"></i>
             <span class="nav-label">Dashboard</span>
         </NavLink>
 
         <NavLink class="nav-link" href="bills" title="Bills" @onclick="HandleNavigate">
-            <i class="bi bi-receipt"></i>
+            <i class="ph ph-receipt"></i>
             <span class="nav-label">Bills</span>
         </NavLink>
 
         <NavLink class="nav-link" href="reports" title="Reports" @onclick="HandleNavigate">
-            <i class="bi bi-graph-up-arrow"></i>
+            <i class="ph ph-chart-line-up"></i>
             <span class="nav-label">Reports</span>
         </NavLink>
     </nav>
+
+    @* The mode tabs used to sit here as a single icon button. They are a pair of
+       labelled tabs now, which does not fit an icon rail — and the top of the
+       page is where the design puts them. See the page heads. *@
 
     @* No <NotAuthorized> half: nothing renders this menu unless you are signed
        in, so the only case worth handling is the signed-in one. *@
@@ -43,7 +47,7 @@
         <Authorized>
             <div class="nav-account">
                 <div class="nav-account-user" title="@context.User.Identity?.Name">
-                    <i class="bi bi-person-circle"></i>
+                    <i class="ph ph-user-circle"></i>
                     <span class="nav-label">@context.User.Identity?.Name</span>
                 </div>
 
@@ -55,7 +59,7 @@
                    navigation. *@
                 <button type="button" class="nav-signout" title="Sign out"
                         @onclick="@(() => Nav.NavigateTo("Account/Logout", forceLoad: true))">
-                    <i class="bi bi-box-arrow-right"></i>
+                    <i class="ph ph-sign-out"></i>
                     <span class="nav-label">Sign out</span>
                 </button>
             </div>

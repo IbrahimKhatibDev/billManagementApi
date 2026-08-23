@@ -1,0 +1,82 @@
+@using System.Globalization
+
+@* Idea 9: payees ranked by what is still owed, with the running share of the
+   total.
+
+   The bar is two layers rather than two bars — the cumulative share behind,
+   this payee's own share in front — so a single 8px strip answers both
+   questions a Pareto chart exists to answer: how much of the debt has been
+   accounted for by this row, and how much of it is this one payee. *@
+
+<section class="pareto">
+
+    <h2 class="title">Who you owe</h2>
+    <p class="subtitle">Ranked by outstanding, with the running share of the total.</p>
+
+    @if (_headline is not null)
+    {
+        <p class="headline">@_headline</p>
+    }
+
+    @if (_rows.Count == 0)
+    {
+        <p class="empty">Nothing outstanding — every bill in this range is paid.</p>
+    }
+    else
+    {
+        <table class="ranks">
+            <thead>
+                <tr>
+                    <th scope="col">Payee</th>
+                    <th scope="col" class="num">Outstanding</th>
+                    <th scope="col">Running share</th>
+                    <th scope="col" class="num">Cum. %</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr>
+                        <th scope="row" class="payee" title="@row.Payee">@row.Payee</th>
+                        <td class="num">@row.Outstanding.ToString("C")</td>
+                        <td>
+                            <span class="bar"
+                                  role="img"
+                                  aria-label="@AriaFor(row)">
+                                <span class="cum" style="width: @Grow(row.CumulativePercent)%"></span>
+                                <span class="own" style="width: @Grow(row.SharePercent)%"></span>
+                            </span>
+                        </td>
+                        <td class="num">@row.CumulativePercent.ToString("0")%</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<PayeeTotals> Payees { get; set; } = new();
+
+    private List<ParetoRow> _rows = new();
+
+    private string? _headline;
+
+    protected override void OnParametersSet()
+    {
+        _rows = ParetoRows.Build(Payees);
+        _headline = ParetoRows.Headline(_rows);
+    }
+
+    // The bar carries information no text nearby repeats — the payee's own
+    // share — so it gets a label rather than aria-hidden.
+    private static string AriaFor(ParetoRow row) =>
+        $"{row.SharePercent:0}% of what you owe, {row.CumulativePercent:0}% running";
+
+    // Invariant, because this ends up inside a style attribute. A culture that
+    // writes 12,5 would produce CSS the browser silently drops.
+    private static string Grow(double percent) =>
+        percent.ToString("0.####", CultureInfo.InvariantCulture);
+}

@@ -1,0 +1,78 @@
+/* No surface, no border. This section is the page's opening statement and sits
+   directly on the background; the cards beside and below it are the breakdowns.
+   The small top padding is what lines the eyebrow up with the title of the
+   aging card across the gap. */
+.obligation {
+    padding: .35rem .25rem 0;
+}
+
+.eyebrow {
+    color: var(--faint);
+    font-size: .7rem;
+    letter-spacing: .12em;
+    margin: 0 0 .5rem;
+}
+
+.total {
+    color: var(--text);
+    /* Fluid, because this is a five-to-nine character string at 60-odd pixels
+       and a fixed size either overflows a narrow window or wastes a wide one. */
+    font-size: clamp(2.5rem, 5.5vw, 3.75rem);
+    font-weight: 600;
+    line-height: 1.05;
+    margin: 0 0 1rem;
+
+    /* Tabular figures: the total is the largest thing on the page, and it counts
+       up on every load — proportional digits would make it shuffle sideways
+       twenty times before settling. */
+    font-variant-numeric: tabular-nums;
+}
+
+.sentence {
+    color: var(--muted);
+    font-size: 1.05rem;
+    line-height: 1.55;
+    margin: 0 0 1.5rem;
+    max-width: 46ch;
+}
+
+/* The one figure in the sentence worth reading on its own. --late rather than
+   --accent: this is money past its due date, and in light mode that is the red
+   the rest of the app already uses for it. */
+.late-amount {
+    color: var(--late);
+    font-weight: 500;
+}
+
+/* Nothing is late, so ObligationParts left this empty. Without this the empty
+   inline box still occupies the space of one word-break. */
+.late-amount:empty {
+    display: none;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.action {
+    align-items: center;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    display: inline-flex;
+    padding: .5rem .9rem;
+    text-decoration: none;
+}
+
+/* Outline, not fill. The selected mode tab is the only thing in this design
+   flooded with the accent; everything else wears it as a border. */
+.action-primary {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.action:hover {
+    color: var(--text);
+}

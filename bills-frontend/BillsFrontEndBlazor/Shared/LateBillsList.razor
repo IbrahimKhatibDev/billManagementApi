@@ -1,0 +1,77 @@
+@using BillsMinimalApi.Contracts
+
+@* Idea 3: the overdue list becomes triageable where it sits. The old flow was
+   read here, navigate to Bills, find the row, open a modal, tick a box, save. *@
+<section class="late">
+
+    <div class="head">
+        <div>
+            <h2 class="title">Late — oldest first</h2>
+            <p class="subtitle">The only thing on this page that needs doing today.</p>
+        </div>
+        <p class="total">@OverdueCount @(OverdueCount == 1 ? "bill" : "bills") · @OverdueAmount.ToString("C")</p>
+    </div>
+
+    @if (Bills.Count == 0)
+    {
+        <p class="empty">Nothing is late.</p>
+    }
+    else
+    {
+        <ul class="rows">
+            @foreach (var bill in Bills)
+            {
+                <li @key="bill.Id">
+                    <span class="payee">@bill.PayeeName</span>
+                    <span class="days">@bill.DaysLate @(bill.DaysLate == 1 ? "day" : "days") late</span>
+                    <span class="due">@bill.DueDate.ToString("MMM d")</span>
+                    <span class="amount">@bill.PaymentDue.ToString("C")</span>
+
+                    <button type="button" class="settle"
+                            disabled="@(BusyId is not null)"
+                            @onclick="@(() => OnMarkPaid.InvokeAsync(bill))">
+                        @if (BusyId == bill.Id)
+                        {
+                            <Icon Name="circle-notch" Size="16" />
+                        }
+                        else
+                        {
+                            <Icon Name="check" Size="16" />
+                        }
+                        Mark paid
+                    </button>
+                </li>
+            }
+        </ul>
+
+        @if (OverdueCount > Bills.Count)
+        {
+            @* The server caps the list. Saying so is the difference between a
+               shortlist and a list that quietly stops. *@
+            <p class="capped">Showing the first @Bills.Count of @OverdueCount late bills.</p>
+        }
+    }
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<SummaryBill> Bills { get; set; } = new();
+
+    /// <summary>Every late bill, not just the ones listed — the header counts the
+    /// whole problem even when the list is capped.</summary>
+    [Parameter, EditorRequired]
+    public int OverdueCount { get; set; }
+
+    [Parameter, EditorRequired]
+    public decimal OverdueAmount { get; set; }
+
+    /// <summary>The bill currently being written, if any. Every button disables
+    /// while one is in flight: two overlapping writes would both reload the page
+    /// underneath each other.</summary>
+    [Parameter]
+    public long? BusyId { get; set; }
+
+    [Parameter]
+    public EventCallback<SummaryBill> OnMarkPaid { get; set; }
+}

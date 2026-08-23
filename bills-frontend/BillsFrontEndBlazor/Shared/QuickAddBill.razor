@@ -1,0 +1,228 @@
+@using BillsFrontEndBlazor.Models
+@using BillsMinimalApi.Contracts
+@using Microsoft.AspNetCore.Components.Web
+@implements IDisposable
+@inject BillsFrontEndBlazor.Services.BillService BillService
+
+@* Idea 8. The line goes to the server, the server says what it made of it, and
+   the three chips are editable — so a misread date costs one click rather than
+   a retyped sentence. *@
+<section class="quick-add">
+
+    <div class="entry">
+        @* Curly quotes, verbatim from the design. *@
+        <input class="text"
+               aria-label="Add a bill in words"
+               placeholder="Add a bill in words — try “Verizon 89.20 fri”"
+               value="@_text"
+               @oninput="OnInputAsync"
+               @onkeydown="OnKeyDownAsync" />
+
+        <button type="button" class="primary" disabled="@(!CanAdd)" @onclick="CommitAsync">
+            <Icon Name="plus" Size="16" Class="me-1" />
+            Add bill
+        </button>
+    </div>
+
+    @if (_reading is not null)
+    {
+        <div class="reading">
+            <span class="label">Reads as</span>
+
+            <InlineEdit Kind="InlineEditKind.Text"
+                        Display="@ParsedBillReading.PayeeText(_reading)"
+                        Label="payee"
+                        Payee="@_reading.Payee"
+                        PayeeCommitted="SetPayee" />
+
+            <InlineEdit Kind="InlineEditKind.Amount"
+                        Display="@ParsedBillReading.AmountText(_reading)"
+                        Label="amount"
+                        Amount="@_reading.Amount"
+                        AmountCommitted="SetAmount" />
+
+            <InlineEdit Kind="InlineEditKind.Date"
+                        Display="@ParsedBillReading.DueText(_reading)"
+                        Label="due date"
+                        Date="@_reading.DueDate"
+                        DateCommitted="SetDueDate" />
+        </div>
+    }
+
+</section>
+
+@code {
+    /// <summary>
+    /// Saves the bill and reports whether it stuck.
+    /// <para>
+    /// A <see cref="Func{T, TResult}"/> rather than an <c>EventCallback</c>
+    /// because this component needs the answer: the box empties on a save and
+    /// keeps the typed line on a refusal, and an <c>EventCallback</c> returns
+    /// nothing to decide that with.
+    /// </para>
+    /// </summary>
+    [Parameter, EditorRequired]
+    public Func<Bill, Task<bool>> OnAdd { get; set; } = _ => Task.FromResult(false);
+
+    /// <summary>Set while the page has another write in flight.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>
+    /// Longer than the payee search's 300ms: that filters a list already on
+    /// screen, this spends a round trip reading a sentence that is still being
+    /// written.
+    /// </summary>
+    private static readonly TimeSpan ParseDebounce = TimeSpan.FromMilliseconds(400);
+
+    private string _text = string.Empty;
+    private ParsedBill? _reading;
+    private bool _parsing;
+    private bool _committing;
+    private CancellationTokenSource? _parseCts;
+
+    /// <summary>
+    /// <c>_parsing</c> is in here so the button cannot post the previous
+    /// sentence's reading while the current one is still being read.
+    /// </summary>
+    private bool CanAdd =>
+        !Busy && !_committing && !_parsing && ParsedBillReading.IsComplete(_reading);
+
+    private async Task OnInputAsync(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? string.Empty;
+
+        _parseCts?.Cancel();
+        _parseCts?.Dispose();
+        _parseCts = null;
+
+        if (string.IsNullOrWhiteSpace(_text))
+        {
+            _parsing = false;
+            _reading = null;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _parseCts = cts;
+        _parsing = true;
+
+        try
+        {
+            await Task.Delay(ParseDebounce, cts.Token);
+
+            var reading = await BillService.ParseBillAsync(_text, cts.Token);
+
+            // A newer keystroke cancelled us while the request was in flight.
+            // Its answer describes what is on screen; ours describes text that
+            // has already been typed over.
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // Null means the server could not be asked. Clearing is the honest
+            // reading — the alternative is leaving a stale one on screen beside
+            // a live "Add bill" button.
+            _reading = reading;
+            _parsing = false;
+
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded. The keystroke that cancelled this owns the state now,
+            // including _parsing, which it has already set back to true.
+        }
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Reset();
+            return;
+        }
+
+        if (e.Key == "Enter" && CanAdd)
+        {
+            await CommitAsync();
+        }
+    }
+
+    private void SetPayee(string value)
+    {
+        if (_reading is not null)
+        {
+            _reading.Payee = value;
+        }
+    }
+
+    private void SetAmount(decimal value)
+    {
+        if (_reading is not null)
+        {
+            _reading.Amount = value;
+        }
+    }
+
+    private void SetDueDate(DateTime value)
+    {
+        if (_reading is not null)
+        {
+            _reading.DueDate = value;
+        }
+    }
+
+    private async Task CommitAsync()
+    {
+        if (!CanAdd || _reading is null)
+        {
+            return;
+        }
+
+        _committing = true;
+
+        try
+        {
+            var bill = new Bill
+            {
+                PayeeName = _reading.Payee!.Trim(),
+
+                // Stamped again on the way out. This date has crossed JSON twice
+                // since the parser set it, and Npgsql refuses a DateTime that is
+                // not UTC.
+                DueDate = DateTime.SpecifyKind(_reading.DueDate!.Value.Date, DateTimeKind.Utc),
+
+                PaymentDue = _reading.Amount!.Value,
+                Paid = false,
+            };
+
+            if (await OnAdd(bill))
+            {
+                Reset();
+            }
+        }
+        finally
+        {
+            _committing = false;
+        }
+    }
+
+    private void Reset()
+    {
+        _parseCts?.Cancel();
+        _parseCts?.Dispose();
+        _parseCts = null;
+
+        _text = string.Empty;
+        _reading = null;
+        _parsing = false;
+    }
+
+    public void Dispose()
+    {
+        _parseCts?.Cancel();
+        _parseCts?.Dispose();
+    }
+}

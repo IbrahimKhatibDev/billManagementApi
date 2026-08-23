@@ -1,0 +1,96 @@
+.overview {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin: 0 auto;
+    max-width: 1200px;
+    padding: 1.5rem;
+}
+
+.page-head {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    justify-content: space-between;
+}
+
+/* Same rule as the Bills' and the Reports'. Scoped CSS cannot be shared, and a
+   global class for three declarations would be worse than saying it thrice. */
+.head-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+/* The total and its breakdown, side by side. The ratio is what keeps the
+   sentence to a readable measure while leaving the aging card wide enough for
+   its widest legend row — "Over 90 days late   5 bills   $1,732.78" — on one
+   line.
+
+   align-items: start, so the aging card keeps its own height instead of
+   stretching to match a headline that is taller than it. */
+.lead {
+    align-items: start;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+}
+
+/* One column below the width where the legend rows start wrapping. Its own
+   threshold, and not the 640.98px the sidebar becomes a drawer at: two columns
+   of this content give up well before the sidebar does, and pinning them
+   together would leave a 700px-wide window showing a squeezed pair.
+
+   Asked of this row rather than the window, which was what the 900px media query
+   this replaces got wrong. The sidebar spends 16rem of the page and none of the
+   viewport, so a 900px window is 596px of row with the sidebar open and 780px
+   with it railed — the same question, two different answers, and a media query
+   can only give one.
+
+   56rem and not the 900px-shaped number the old rule used, because the old
+   number was measured from the wrong thing. The ratio above hands the aging card
+   a little under a third, and its widest legend row — "Over 90 days late   5
+   bills   $1,732.78" — needs 343px of that. 897px of row is where the card first
+   gets it; below 1200px of window with the sidebar open, the old rule was
+   showing two columns with every legend row wrapped to three and four lines. */
+@container (max-width: 56rem) {
+    .lead {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.page-head h1 {
+    color: var(--text);
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.as-of {
+    color: var(--faint);
+    font-size: .82rem;
+    margin: .1rem 0 0;
+}
+
+.refresh {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    padding: .4rem .8rem;
+}
+
+.refresh:hover:not(:disabled) {
+    color: var(--text);
+}
+
+.refresh:disabled {
+    cursor: default;
+    opacity: .5;
+}

@@ -1,0 +1,190 @@
+/* A query container so the head and the controls below it can answer to the
+   column they are in. Safe to contain: the create and delete modals are outside
+   this element, and a containing block for them here would have pinned a
+   viewport-centred dialog to the middle of this column instead. */
+.bills {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 0 auto;
+    max-width: 1200px;
+    padding: 1.5rem;
+}
+
+.page-head {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+}
+
+.page-head h1 {
+    color: var(--text);
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.lede {
+    color: var(--faint);
+    font-size: .82rem;
+    margin: .1rem 0 0;
+}
+
+/* Same rule as the Overview's and the Reports'. Scoped CSS cannot be shared, and
+   a global class for three declarations would be worse than saying it thrice. */
+.head-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.ghost {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    padding: .4rem .8rem;
+}
+
+.ghost:hover:not(:disabled) { color: var(--text); }
+
+.ghost:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.controls {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.chips {
+    display: flex;
+    gap: .35rem;
+}
+
+.chip {
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: .82rem;
+    padding: .25rem .75rem;
+}
+
+.chip.active {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.chip-badge {
+    color: var(--late);
+    margin-left: .3rem;
+}
+
+.search {
+    align-items: center;
+    display: flex;
+    gap: .5rem;
+    position: relative;
+}
+
+.search input {
+    background: var(--sunken);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: .4rem .7rem .4rem 2rem;
+    width: 16rem;
+}
+
+::deep .search-icon {
+    color: var(--faint);
+    left: .6rem;
+    pointer-events: none;
+    position: absolute;
+}
+
+.tally {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin: 0 0 0 auto;
+}
+
+.state,
+.capped {
+    color: var(--muted);
+    margin: 0;
+    padding: 1rem 0;
+}
+
+.groups {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: opacity .15s ease;
+}
+
+/* Dim rather than blank: the rows on screen are still the right rows, they are
+   just about to be replaced by fresher copies of themselves. */
+.groups.is-refreshing {
+    opacity: .55;
+}
+
+.footnote {
+    color: var(--muted);
+    font-size: .78rem;
+    margin: 0;
+    max-width: 62ch;
+    text-wrap: pretty;
+}
+
+.link {
+    background: none;
+    border: 0;
+    color: var(--accent-text);
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+/* The narrow layout, last in the file so it wins on order — every rule below is
+   overriding one stated above it at the same specificity. */
+@container (max-width: 34rem) {
+
+    /* Title and actions stop sharing a line: side by side in a narrow column the
+       lede was wrapping to three words a line against a stack of two buttons. */
+    .page-head {
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    /* The search takes the row it was sharing with the chips — 16rem of input
+       plus a Clear button does not fit beside four filters. */
+    .search {
+        width: 100%;
+    }
+
+    /* Fills the row it now has to itself, less whatever Clear needs beside it. */
+    .search input {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+    }
+
+    /* It was pushed to the far right by its auto margin, which on a line of its
+       own reads as an orphan. */
+    .tally {
+        margin-left: 0;
+    }
+}

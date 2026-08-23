@@ -1,5 +1,31 @@
+/* Global styles: the framework's own furniture, plus the account pages.
+   Everything else the app draws is scoped to the component that draws it.
+
+   tokens.css declares the values for the four palette × mode combinations; this
+   file applies them. That split is the whole reason there are no literal
+   colours below — a hex here would be right in one of the four themes and
+   wrong in the other three.
+
+   Three sections used to live here and no longer do:
+
+   - Dashboard — the hero banner, action tiles, donut and bar chart. Overview is
+     an obligation sentence, a weekly timeline, a late list and an aging strip
+     now, and each of those carries its own scoped stylesheet.
+   - Bills table — the six-column table, its phone card layout, the sortable
+     headers and the filter group. Bills is due-window sections now; see
+     Bills.razor.css and BillGroup.razor.css.
+   - Reports — the eight stat cards, the four report tables, the aging ramp and
+     the sticky first column. Reports is four figures, two sentences and two
+     charts now; see Reports.razor.css, PaidRateStrip.razor.css and
+     PayeePareto.razor.css. */
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: var(--font-sans);
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
 }
 
 h1:focus {
@@ -7,35 +33,51 @@ h1:focus {
 }
 
 a, .btn-link {
-    color: #0071c1;
+    color: var(--accent-text);
 }
 
+/* Outline, never a flood fill — the accent is a line colour in this design.
+   Bootstrap's .btn-primary still renders in two places, the new-bill modal and
+   the account pages, and a solid accent block in either one is the exact thing
+   the Nocturne palette rules out. */
 .btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: transparent;
+    border-color: var(--accent);
+    color: var(--accent-text);
 }
 
-.content {
-    padding-top: 1.1rem;
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: var(--sunken);
+    border-color: var(--accent);
+    color: var(--accent-text);
 }
 
 .valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+    outline: var(--border-width) solid var(--ok);
 }
 
 .invalid {
-    outline: 1px solid red;
+    outline: var(--border-width) solid var(--late);
 }
 
 .validation-message {
-    color: red;
+    color: var(--late);
 }
 
+/* ---------------------------------------------------------------------------
+   Framework error surfaces
+   --------------------------------------------------------------------------- */
+
+/* Blazor shows this itself when the circuit drops; the markup is in _Host.cshtml
+   and is not ours to change. Restyled from lightyellow to the app's own surface
+   so a dropped connection does not also look like a rendering bug. */
 #blazor-error-ui {
-    background: lightyellow;
+    background: var(--surface);
+    border-top: var(--border-width) solid var(--late);
     bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    color: var(--text);
     display: none;
     left: 0;
     padding: 0.6rem 1.25rem 0.7rem 1.25rem;
@@ -51,506 +93,20 @@ a, .btn-link {
         top: 0.5rem;
     }
 
+/* The template ships this as white-on-#b32121 with an inline base64 warning
+   triangle. Both go: the fill is a flood of a colour that is not in any of the
+   four palettes, and the icon is a second icon set for the sake of one glyph. */
 .blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
-    color: white;
+    background: var(--surface);
+    border: var(--border-width) solid var(--late);
+    border-radius: var(--radius);
+    color: var(--late);
+    padding: 1rem;
 }
 
     .blazor-error-boundary::after {
         content: "An error has occurred."
     }
-
-/* ---------------------------------------------------------------------------
-   Dashboard
-   --------------------------------------------------------------------------- */
-
-/* The gradient and the rounded bottom corners were inline styles on the hero
-   div; they live here so the markup stays readable. */
-.hero-banner {
-    background: linear-gradient(135deg, #0d6efd, #6f42c1);
-    border-radius: 0 0 .75rem .75rem;
-}
-
-.action-tile {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    cursor: pointer;
-    border-radius: .75rem;
-}
-
-    .action-tile:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 10px 25px rgba(0,0,0,.15);
-    }
-
-/* Both chart cards are h-100 inside their grid row, so the SVG has to be the
-   thing that flexes — otherwise the taller chart sets the row height and the
-   shorter card renders with dead space under it. That mismatch (a 260px donut
-   next to a 300px bar chart) is what made the row look ragged. */
-.chart-frame {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1 1 auto;
-    min-height: 260px;
-}
-
-    .chart-frame svg {
-        max-width: 100%;
-        height: auto;
-    }
-
-.donut-track {
-    stroke: #e9ecef;
-}
-
-.donut-value {
-    stroke: #198754;
-    transition: stroke-dasharray .6s ease;
-}
-
-.bar-fill {
-    fill: #0d6efd;
-    transition: y .4s ease, height .4s ease;
-}
-
-/* Carried for the single frame that redraws the charts at zero, so the reset
-   itself is instant. Without it the collapse transitions too, the real values
-   interrupt it ~60ms in, and the arc and the bars twitch by a few percent
-   instead of growing from nothing. Declared after the two rules above so it
-   wins on source order — same specificity, no !important needed. */
-.chart-reset {
-    transition: none;
-}
-
-.chart-grid {
-    stroke: #dee2e6;
-    stroke-width: 1;
-}
-
-.chart-label {
-    fill: #6c757d;
-    font-size: 13px;
-}
-
-/* ---------------------------------------------------------------------------
-   Bills table
-   --------------------------------------------------------------------------- */
-
-/* Bootstrap styles :hover and .active on an outline button identically — both
-   are a solid #6c757d fill — so hovering any filter made it look selected, and
-   with the group's borders collapsing into one block you could not tell which
-   filter was actually applied while the cursor was anywhere near it. Hovering
-   the selected one, meanwhile, did nothing at all.
-
-   These are toggles, so the solid fill has to mean one thing: this filter is
-   on. Hover is demoted to a tint. Scoped to .filter-group rather than fixed
-   globally because the other outline buttons on the page — Clear, the mobile
-   sort direction — have no selected state to be confused with, and solid-on-
-   hover is right for them. */
-.filter-group .btn:hover:not(.active) {
-    background-color: rgba(108, 117, 125, .12);
-    color: #495057;
-}
-
-/* The selected filter still has to answer the cursor or it reads as dead;
-   #5c636a is Bootstrap's own darkened secondary, so this stays in palette. */
-.filter-group .btn.active:hover {
-    background-color: #5c636a;
-    border-color: #565e64;
-}
-
-/* Bootstrap 5.1 predates :focus-visible and rings on plain :focus, so clicking
-   a filter left a grey glow stuck on it after the mouse had gone — which read
-   as the hover being broken. Keyboard focus keeps its ring. */
-.filter-group .btn:focus:not(:focus-visible) {
-    box-shadow: none;
-}
-
-/* Sorting is hand-rolled here rather than delegated to a table component, so
-   the header has to advertise itself as clickable. */
-th.sortable {
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-}
-
-    th.sortable:hover {
-        background-color: rgba(13, 110, 253, .08);
-    }
-
-    /* Keep the caret's width reserved on every sortable header — without this
-       the columns jump sideways as the sort moves between them. */
-    th.sortable .sort-caret {
-        display: inline-block;
-        width: 1em;
-        opacity: .25;
-    }
-
-    th.sortable.sorted .sort-caret {
-        opacity: 1;
-        color: #0d6efd;
-    }
-
-/* The magnifier sits inside the input rather than in an input-group addon, so
-   the search box stays one rounded rectangle instead of two welded boxes. */
-.search-icon {
-    position: absolute;
-    top: 50%;
-    left: .9rem;
-    transform: translateY(-50%);
-    color: #6c757d;
-    pointer-events: none;
-}
-
-/* Column widths. The ID and Actions columns were sizing themselves off their
-   headers and taking room from Payee, which is the column anyone actually
-   reads. Gated to the table layout — in the card layout below the cells are
-   rows of a stack and a fixed width would squeeze the values into two and
-   three lines. */
-@media (min-width: 768px) {
-    .bills-table .col-id {
-        width: 5rem;
-    }
-
-    .bills-table .col-due {
-        width: 11rem;
-    }
-
-    .bills-table .col-amount {
-        width: 8rem;
-    }
-
-    .bills-table .col-status {
-        width: 7rem;
-    }
-
-    .bills-table .col-actions {
-        width: 7.5rem;
-    }
-}
-
-/* Proportional digits give every figure a different width, so a column of
-   money reads as ragged even when it is right-aligned. */
-.bills-table .amount {
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-/* The date and how far off it is are one value, so they are wrapped in one
-   element — in the card layout the cell is a flex row and two loose children
-   would be pushed to opposite ends of the card. */
-.bills-table .due-value {
-    display: inline-block;
-}
-
-.bills-table .due-relative {
-    display: block;
-    font-size: .8125rem;
-}
-
-/* Overdue rows are findable while scanning, rather than only once you read
-   the status column. Gated to the table layout — the card layout below draws
-   the same accent on the card's own border. */
-@media (min-width: 768px) {
-    /* Recolouring Bootstrap's own striping variable rather than setting a
-       background: .table-striped paints an inset shadow over the full cell,
-       so a background underneath it would never be visible. Leaving the
-       variable in place is also what keeps :hover, which sets it at a higher
-       specificity, still working on these rows. */
-    .bills-table .row-overdue > * {
-        --bs-table-accent-bg: rgba(220, 53, 69, .07);
-    }
-
-    .bills-table .row-overdue > td:first-child {
-        /* .5rem is the cell padding Bootstrap sets; taking the border out of
-           it keeps the ID column aligned with the rows above and below. */
-        border-left: 3px solid #dc3545;
-        padding-left: calc(.5rem - 3px);
-    }
-}
-
-/* .badge is a <span> style; on a <button> it has to give back the border and
-   padding Bootstrap's button reset assumes. */
-.status-toggle {
-    border: 0;
-    cursor: pointer;
-    min-width: 4.75rem;
-    transition: filter .15s ease, opacity .15s ease;
-}
-
-    .status-toggle:hover:not(:disabled) {
-        filter: brightness(1.12);
-    }
-
-    /* Mid-write. Kept at full opacity so the row does not appear to be
-       disabled for good — only the pointer changes. */
-    .status-toggle:disabled {
-        cursor: progress;
-        opacity: 1;
-    }
-
-/* A reload with rows already on screen dims the table instead of replacing it
-   with a spinner. Blanking it made every inline paid toggle — which reloads to
-   pick up the new Version — flash the whole list away and back. */
-.is-refreshing {
-    opacity: .55;
-    transition: opacity .15s ease;
-    pointer-events: none;
-}
-
-/* ---------------------------------------------------------------------------
-   Bills table — phone layout
-
-   Below this width the six columns are wider than the viewport, and inside
-   .table-responsive that meant Status and Actions sat off-screen with nothing
-   to say they were there. Each row becomes a card instead, with every cell
-   labelled from its data-label attribute — one markup source for both layouts,
-   so the two cannot drift apart.
-   --------------------------------------------------------------------------- */
-
-@media (max-width: 767.98px) {
-    .bills-table thead {
-        display: none;
-    }
-
-    .bills-table,
-    .bills-table tbody,
-    .bills-table tr,
-    .bills-table td {
-        display: block;
-        width: auto;
-    }
-
-    /* .table-striped shades alternate rows, which reads as stripes on a table
-       and as arbitrary on a stack of cards. */
-    .bills-table > tbody > tr > td {
-        background: transparent;
-        box-shadow: none;
-    }
-
-    .bills-table tr {
-        margin: 0 .75rem .75rem;
-        padding: .25rem 0;
-        border: 1px solid #dee2e6;
-        border-radius: .5rem;
-        background: #fff;
-    }
-
-    .bills-table tr:first-child {
-        margin-top: .75rem;
-    }
-
-    .bills-table .row-overdue {
-        border-left: 3px solid #dc3545;
-    }
-
-    .bills-table td {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        border: 0;
-        padding: .4rem .9rem;
-        text-align: left;
-    }
-
-    /* The label the hidden <th> would have provided. */
-    .bills-table td[data-label]:not([data-label=""])::before {
-        content: attr(data-label);
-        flex: 0 0 auto;
-        color: #6c757d;
-        font-size: .8125rem;
-        font-weight: 500;
-    }
-
-    /* Right-alignment is a table convention for lining up decimals; in a card
-       the value already sits against the right edge. */
-    .bills-table .col-amount {
-        font-size: 1.05rem;
-        font-weight: 600;
-    }
-
-    .bills-table .due-value {
-        text-align: right;
-    }
-
-    .bills-table .due-relative {
-        display: inline;
-        margin-left: .35rem;
-    }
-
-    /* Full-width buttons with visible labels: an icon-only 31px target is
-       under the 44px everyone recommends for a finger. */
-    .bills-table .col-actions {
-        padding-top: .25rem;
-        padding-bottom: .6rem;
-    }
-
-    .bills-table .row-actions {
-        flex: 1 1 auto;
-    }
-
-        .bills-table .row-actions .btn {
-            flex: 1 1 0;
-            padding-top: .4rem;
-            padding-bottom: .4rem;
-        }
-}
-
-/* ---------------------------------------------------------------------------
-   Reports
-   --------------------------------------------------------------------------- */
-
-/* Deliberately not the dashboard's .display-6 stat cards: there are eight of
-   these rather than three, and at that count a headline figure has to be small
-   enough that the row of them still reads as one block. */
-.stat-label {
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    font-size: .75rem;
-    font-weight: 600;
-    color: #6c757d;
-}
-
-.stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1.25;
-    font-variant-numeric: tabular-nums;
-}
-
-.stat-note {
-    font-size: .8125rem;
-    color: #6c757d;
-}
-
-/* Same reasoning as the bills table: proportional digits make a column of
-   money look ragged even when it is right-aligned. */
-.report-table .amount {
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-/* Reserve the numeric columns so the label column — the one you actually read
-   — gets the rest, instead of the headings deciding the layout. */
-@media (min-width: 768px) {
-    .report-table .col-count {
-        width: 5rem;
-    }
-
-    .report-table .col-money {
-        width: 9rem;
-    }
-
-    .report-table .col-bar {
-        width: 34%;
-    }
-
-    .report-table .col-rate {
-        width: 12rem;
-    }
-}
-
-.report-bar {
-    height: .5rem;
-    min-width: 3rem;
-    border-radius: .25rem;
-    background: #e9ecef;
-    overflow: hidden;
-}
-
-.report-bar-fill {
-    height: 100%;
-    border-radius: inherit;
-    transition: width .4s ease;
-}
-
-/* A ramp rather than five arbitrary colours: the bars are ordered by how late
-   the money is, so the colour has to carry that order too. Every value is from
-   Bootstrap's own palette. */
-.aging-bar-0 {
-    background: #adb5bd;
-}
-
-.aging-bar-1 {
-    background: #ffc107;
-}
-
-.aging-bar-2 {
-    background: #fd7e14;
-}
-
-.aging-bar-3 {
-    background: #dc3545;
-}
-
-.aging-bar-4 {
-    background: #842029;
-}
-
-.rate-bar {
-    background: #198754;
-}
-
-.band-bar {
-    background: #0d6efd;
-}
-
-/* Fixed width so the percentages line up under each other rather than tracking
-   the end of each bar. */
-.rate-value {
-    flex: 0 0 2.75rem;
-    text-align: right;
-    font-size: .8125rem;
-    font-variant-numeric: tabular-nums;
-    color: #6c757d;
-}
-
-.priority-list li {
-    padding: .5rem 0;
-}
-
-    .priority-list li + li {
-        border-top: 1px solid #f1f3f5;
-    }
-
-.priority-list .priority-note {
-    display: block;
-    font-size: .8125rem;
-}
-
-/* Below 768px the wider report tables are still wider than the viewport, so
-   .table-responsive scrolls them. Pinning the first column is what keeps that
-   readable — without it you scroll to the Outstanding column and lose track of
-   whose row you are on. The tables here are all numbers, so unlike the bills
-   table there are no controls to be stranded off-screen. */
-@media (max-width: 767.98px) {
-    .report-table th:first-child {
-        position: sticky;
-        left: 0;
-        z-index: 1;
-
-        /* Both shadows, not just the separator. Bootstrap 5.1 paints striping
-           and row hover as `inset 0 0 0 9999px var(--bs-table-accent-bg)` on
-           every cell, so a lone `1px 0 0` here overrides it and the pinned cell
-           stays white while the rest of its row is grey — a row cut in two. On
-           unstriped rows the variable is transparent and the inset is a no-op. */
-        box-shadow: inset 0 0 0 9999px var(--bs-table-accent-bg), 1px 0 0 #dee2e6;
-    }
-
-    .report-table tbody th:first-child {
-        /* The stripe rides on top of this via the inset shadow above; it is
-           only here so the column is opaque as rows scroll underneath it. */
-        background: #fff;
-    }
-
-    .report-table thead th:first-child {
-        /* Matches .table-light, which the sticky cell would otherwise show
-           through as transparent while the row beneath it scrolls past. */
-        background: #f8f9fa;
-    }
-}
 
 /* ---------------------------------------------------------------------------
    Toasts
@@ -567,37 +123,41 @@ th.sortable {
    --------------------------------------------------------------------------- */
 
 /* These render under _AccountLayout, which has none of the app chrome — no nav
-   rail, no .content padding — so the centring has to happen here. The gradient
-   is the dashboard hero's, reused so the first screen a visitor sees belongs to
-   the same product as the one behind it. */
+   rail, no content gutter — so the centring has to happen here.
+
+   The gradient that used to fill .account-body was the dashboard hero's, and the
+   hero is gone. What replaces it is what the rest of the app does: the page
+   background, with a bordered card on it. _AccountLayout carries the same
+   data-mode attribute as _Host, so the sign-in screen is already in whichever
+   theme the visitor last chose. */
 .account-body {
+    background: var(--bg);
     min-height: 100vh;
-    background: linear-gradient(135deg, #0d6efd, #6f42c1);
 }
 
 .account-shell {
-    min-height: 100vh;
-    display: flex;
     align-items: center;
+    display: flex;
     justify-content: center;
+    min-height: 100vh;
     padding: 2rem 1rem;
 }
 
 .account-card {
-    width: 100%;
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
     max-width: 26rem;
-    background: #fff;
-    border-radius: .75rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,.2);
     padding: 2rem;
+    width: 100%;
 }
 
 .account-brand {
-    display: flex;
     align-items: center;
-    gap: .5rem;
+    color: var(--accent-text);
+    display: flex;
     font-weight: 600;
-    color: #6f42c1;
+    gap: .5rem;
     margin-bottom: 1.5rem;
 }
 
@@ -612,28 +172,28 @@ th.sortable {
 }
 
 .account-subtitle {
-    color: #6c757d;
+    color: var(--muted);
     font-size: .9375rem;
     margin-bottom: 1.5rem;
 }
 
 .account-alt {
-    text-align: center;
+    color: var(--muted);
     font-size: .9375rem;
-    color: #6c757d;
     margin: 1.25rem 0 0;
+    text-align: center;
 }
 
 /* Set apart from the form rather than styled as another alert: it is a hint for
    someone browsing, not something that went wrong. */
 .account-demo {
+    border-top: var(--border-width) solid var(--border);
+    color: var(--muted);
+    font-size: .8125rem;
     margin-top: 1.25rem;
     padding-top: 1rem;
-    border-top: 1px solid #f1f3f5;
-    font-size: .8125rem;
-    color: #6c757d;
 }
 
     .account-demo code {
-        color: #6f42c1;
+        color: var(--accent-text);
     }

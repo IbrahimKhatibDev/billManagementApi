@@ -1,0 +1,232 @@
+@using System.Globalization
+@using BillsMinimalApi.Contracts
+@using Microsoft.AspNetCore.Components.Web
+
+@* Idea 7. Reads as text until you click it, then becomes the right input for
+   its kind. One component for all three kinds rather than three, because the
+   behaviour — begin, draft, commit, cancel, restore focus — is the whole
+   component and only the input tag differs. *@
+@if (_editing)
+{
+    <input @ref="_input"
+           class="editor @(_invalid ? "invalid" : null)"
+           type="@InputType"
+           step="@(Kind == InlineEditKind.Amount ? "0.01" : null)"
+           min="@(Kind == InlineEditKind.Amount ? "0.01" : null)"
+           aria-label="@Label"
+           aria-invalid="@(_invalid ? "true" : null)"
+           value="@_draft"
+           @oninput="OnInput"
+           @onkeydown="OnKeyDownAsync"
+           @onfocusout="OnFocusOutAsync" />
+}
+else
+{
+    @* A button, not a span with a click handler. This is the only way to reach
+       the value from a keyboard, and a span is not in the tab order and does not
+       announce itself as anything you can activate. *@
+    <button @ref="_reader"
+            type="button"
+            class="reader"
+            title="Edit @Label"
+            disabled="@Disabled"
+            @onclick="BeginEditing">
+        @Display
+    </button>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public InlineEditKind Kind { get; set; }
+
+    /// <summary>What the cell reads as when it is not being edited — already
+    /// formatted, because only the caller knows how.</summary>
+    [Parameter, EditorRequired]
+    public string Display { get; set; } = string.Empty;
+
+    /// <summary>Names the field for a screen reader and for the tooltip: "amount
+    /// for Verizon", not "amount".</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Payee { get; set; }
+
+    [Parameter]
+    public DateTime? Date { get; set; }
+
+    /// <summary>
+    /// Nullable so a caller with no amount yet — the quick-add reading in
+    /// Task 12 — opens an empty field rather than one seeded with "0.00" that
+    /// the user has to clear before typing.
+    /// </summary>
+    [Parameter]
+    public decimal? Amount { get; set; }
+
+    /// <summary>Set while the row has a write in flight, so a second edit cannot
+    /// be started against a value that is about to be replaced.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public EventCallback<string> PayeeCommitted { get; set; }
+
+    [Parameter]
+    public EventCallback<DateTime> DateCommitted { get; set; }
+
+    [Parameter]
+    public EventCallback<decimal> AmountCommitted { get; set; }
+
+    private ElementReference _input;
+    private ElementReference _reader;
+
+    private bool _editing;
+    private bool _invalid;
+    private string? _draft;
+
+    private bool _focusEditor;
+    private bool _focusReader;
+
+    private string InputType => Kind switch
+    {
+        InlineEditKind.Date => "date",
+        InlineEditKind.Amount => "number",
+        _ => "text",
+    };
+
+    private void BeginEditing()
+    {
+        // Seeded from the value rather than from Display: Display is "$89.20"
+        // and "Aug 21, 2026", neither of which an input of this type accepts.
+        _draft = Kind switch
+        {
+            InlineEditKind.Date => Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            InlineEditKind.Amount => Amount?.ToString("0.00", CultureInfo.InvariantCulture),
+            _ => Payee,
+        };
+
+        _invalid = false;
+        _editing = true;
+        _focusEditor = true;
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _draft = e.Value?.ToString();
+
+        // Clears the moment the value changes, so the red edge marks what is
+        // wrong now rather than what was wrong when Enter was last pressed.
+        _invalid = false;
+    }
+
+    private Task OnFocusOutAsync() => TryCommitAsync(fromKeyboard: false);
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Close(returnFocus: true);
+            return;
+        }
+
+        if (e.Key == "Enter")
+        {
+            await TryCommitAsync(fromKeyboard: true);
+        }
+    }
+
+    /// <summary>
+    /// Commits the draft, or refuses it.
+    /// </summary>
+    /// <param name="fromKeyboard">
+    /// True for Enter, false for clicking away. It decides what an invalid value
+    /// does: Enter is a request to save, so the field stays open and marks
+    /// itself; clicking away is a request to be somewhere else, so the edit is
+    /// dropped rather than trapping focus in a field you have left.
+    /// </param>
+    private async Task TryCommitAsync(bool fromKeyboard)
+    {
+        // Escape closes the field, and removing an element can still raise
+        // focusout on the way out. Without this guard that stray event would
+        // commit the value Escape just discarded.
+        if (!_editing)
+        {
+            return;
+        }
+
+        switch (Kind)
+        {
+            case InlineEditKind.Date
+                when InlineEditValues.TryParseDate(_draft, out var date):
+
+                Close(returnFocus: fromKeyboard);
+
+                // Nothing changed, nothing to write. Otherwise clicking a date
+                // and clicking away would spend a PUT and bump the version.
+                if (date != Date)
+                {
+                    await DateCommitted.InvokeAsync(date);
+                }
+
+                return;
+
+            case InlineEditKind.Amount
+                when InlineEditValues.TryParseAmount(_draft, out var amount):
+
+                Close(returnFocus: fromKeyboard);
+
+                if (amount != Amount)
+                {
+                    await AmountCommitted.InvokeAsync(amount);
+                }
+
+                return;
+
+            case InlineEditKind.Text
+                when InlineEditValues.TryParsePayee(_draft, out var payee):
+
+                Close(returnFocus: fromKeyboard);
+
+                if (!string.Equals(payee, Payee, StringComparison.Ordinal))
+                {
+                    await PayeeCommitted.InvokeAsync(payee);
+                }
+
+                return;
+        }
+
+        if (fromKeyboard)
+        {
+            _invalid = true;
+            return;
+        }
+
+        Close(returnFocus: false);
+    }
+
+    private void Close(bool returnFocus)
+    {
+        _editing = false;
+        _invalid = false;
+        _focusReader = returnFocus;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // FocusAsync is JS interop, so this belongs nowhere else: OnAfterRender
+        // does not run during the prerender pass, which is the one place in a
+        // ServerPrerendered circuit where IJSRuntime is unusable.
+        if (_focusEditor)
+        {
+            _focusEditor = false;
+            await _input.FocusAsync();
+        }
+        else if (_focusReader)
+        {
+            // Only after Enter or Escape. A commit by clicking away must not drag
+            // focus back — the user has already chosen where it should go.
+            _focusReader = false;
+            await _reader.FocusAsync();
+        }
+    }
+}

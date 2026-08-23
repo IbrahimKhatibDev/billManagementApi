@@ -85,30 +85,5 @@ services:
       api:
         condition: service_healthy
 
-  react:
-    build:
-      context: ./bills-frontend/FrontEndReact
-      args:
-        # Baked into the bundle at build time, not read at runtime. Unlike the
-        # blazor service above, this one is a static SPA served by nginx: the
-        # request comes from the browser, so it needs the API's published host
-        # port rather than the compose-network name. Change this and the port
-        # mapping on api together.
-        #
-        # The API root, not one endpoint: the client reaches /restapi/BillDtos
-        # and /auth/* and builds both from this.
-        VITE_API_BASE_URL: "http://localhost:5131"
-    # Matches the Vite dev-server port, so the URL is the same whether you run
-    # this in Docker or with `npm run dev`.
-    ports:
-      - "5173:80"
-    # Ordering only, deliberately not `condition: service_healthy` like the
-    # blazor service above. This one is nginx serving a static bundle: it has
-    # nothing to fetch at startup, and the browser does not ask the API for
-    # anything until someone signs in. Waiting would delay the login page for
-    # no reason.
-    depends_on:
-      - api
-
 volumes:
   pgdata:

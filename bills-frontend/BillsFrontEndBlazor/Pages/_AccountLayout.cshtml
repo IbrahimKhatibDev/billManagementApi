@@ -5,7 +5,7 @@
    screen, doing nothing. Everything else here is the same stylesheet set, so the
    account pages and the app proper look like one product. *@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-mode="dark" data-bs-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,16 +13,24 @@
 
     <title>@ViewData["Title"] · Bills Manager</title>
 
+    @* The same boot script as _Layout. Without it the login screen is the one
+       page in the app that ignores the visitor's theme — and it is the first
+       page most of them see. There is no ThemeSwitcher here because there is no
+       Blazor here; the choice is made inside the app and read back out. *@
+    @* Fingerprinted for the same reason as _Layout — see the note there. *@
+    <script src="js/theme.js" asp-append-version="true"></script>
+
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/bootstrap-icons/bootstrap-icons.min.css" />
-    <link href="css/site.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/phosphor/style.css" />
+    <link href="css/tokens.css" rel="stylesheet" asp-append-version="true" />
+    <link href="css/site.css" rel="stylesheet" asp-append-version="true" />
 </head>
 <body class="account-body">
     <main class="account-shell">
         <div class="account-card">
 
             <div class="account-brand">
-                <i class="bi bi-receipt-cutoff"></i>
+                <i class="ph ph-receipt"></i>
                 <span>Bills Manager</span>
             </div>
 

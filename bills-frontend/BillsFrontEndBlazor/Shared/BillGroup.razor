@@ -1,0 +1,251 @@
+@using BillsFrontEndBlazor.Models
+
+@* Idea 5: one due-window section, with its own count and sum. The row markup
+   lives here rather than in Bills.razor so all five sections stay one source of
+   truth — the alternative was the same six cells written five times. *@
+<section class="group">
+
+    <header>
+        <span class="dot" style="background: @Tone"></span>
+        <h2 class="title">@Title</h2>
+        <span class="count">@Bills.Count @(Bills.Count == 1 ? "bill" : "bills")</span>
+        <span class="sum">@Total.ToString("C")</span>
+    </header>
+
+    <ul class="rows">
+        @foreach (var bill in Bills)
+        {
+            <li @key="bill.Id"
+                class="@(IsOverdue(bill, Today) ? "overdue" : null) @(SelectedIds.Contains(bill.Id) ? "selected" : null)">
+
+                @* One-way `checked` with @onchange rather than @bind, because
+                   the selection lives on the page and not here. Safe only
+                   because the handler always changes the set: were it ever a
+                   no-op, the browser would keep the box the user clicked and
+                   Blazor would see no state change to correct it with. *@
+                <input type="checkbox"
+                       class="pick"
+                       aria-label="Select @bill.PayeeName"
+                       checked="@SelectedIds.Contains(bill.Id)"
+                       @onchange="@(() => OnToggleSelected.InvokeAsync(bill))" />
+
+                @* Wrapped, unlike the two below it, which had a span already.
+                   InlineEdit renders a bare button as its own root, and a bare
+                   root cannot be given a grid area by a scoped rule — the scope
+                   attribute lands on this component's markup and not on what the
+                   child renders. The narrow layout needs to place this cell. *@
+                <span class="payee">
+                    <InlineEdit Kind="InlineEditKind.Text"
+                                Display="@bill.PayeeName"
+                                Label="@($"payee for {bill.PayeeName}")"
+                                Payee="@bill.PayeeName"
+                                Disabled="@BusyIds.Contains(bill.Id)"
+                                PayeeCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                    new BillEdit(bill, b => b.PayeeName = value)))" />
+                </span>
+
+                <span class="due">
+                    <InlineEdit Kind="InlineEditKind.Date"
+                                Display="@DueDateText(bill)"
+                                Label="@($"due date for {bill.PayeeName}")"
+                                Date="@bill.DueDate"
+                                Disabled="@BusyIds.Contains(bill.Id)"
+                                DateCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                    new BillEdit(bill, b => b.DueDate = value)))" />
+
+                    @if (DueRelativeText(bill, Today) is { } relative)
+                    {
+                        <span class="relative">@relative</span>
+                    }
+                </span>
+
+                @* ToString("C") renders "$1,234.56" only because Program.cs pins
+                   en-US; the container default is the invariant culture, which
+                   formats "C" as ¤. *@
+                <span class="amount">
+                    <InlineEdit Kind="InlineEditKind.Amount"
+                                Display="@bill.PaymentDue.ToString("C")"
+                                Label="@($"amount for {bill.PayeeName}")"
+                                Amount="@bill.PaymentDue"
+                                Disabled="@BusyIds.Contains(bill.Id)"
+                                AmountCommitted="@(value => OnFieldEdited.InvokeAsync(
+                                    new BillEdit(bill, b => b.PaymentDue = value)))" />
+                </span>
+
+                @* A button rather than a badge with a click handler: this is the
+                   one control on the row that changes data, so it has to be
+                   reachable by keyboard and announce its state. aria-pressed is
+                   written out rather than bound to the bool because Blazor drops
+                   a false attribute entirely, and it needs the literal "false"
+                   to read as an unpressed toggle.
+
+                   It takes two clicks. The pill sits in a row of cells that are
+                   editable in place, so it reads as one more label — and a
+                   single click on a label that quietly changed whether a bill
+                   was paid was far too easy to fire by accident. The first click
+                   turns the label into a question; the second answers it.
+
+                   Escape and moving focus away both withdraw the question. In
+                   Safari a click does not focus a button, so blur cannot be the
+                   only way out — which is why the armed row is tracked by the
+                   page: arming any other pill disarms this one. *@
+                <button type="button"
+                        class="status @StatusClass(bill, Today) @(ArmedId == bill.Id ? "is-armed" : null)"
+                        title="@PillTitle(bill)"
+                        aria-pressed="@(bill.Paid ? "true" : "false")"
+                        disabled="@BusyIds.Contains(bill.Id)"
+                        @onclick="@(() => OnTogglePaid.InvokeAsync(bill))"
+                        @onblur="@(() => OnDisarmPaid.InvokeAsync())"
+                        @onkeydown="@DisarmOnEscapeAsync">
+                    @if (BusyIds.Contains(bill.Id))
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    }
+                    else if (ArmedId == bill.Id)
+                    {
+                        @(bill.Paid ? "Unpaid?" : "Paid?")
+                    }
+                    else
+                    {
+                        @StatusText(bill, Today)
+                    }
+                </button>
+
+                <span class="actions">
+                    <button type="button" class="icon-button danger" title="Delete"
+                            aria-label="Delete @bill.PayeeName"
+                            @onclick="@(() => OnDelete.InvokeAsync(bill))">
+                        <Icon Name="trash" Size="16" />
+                    </button>
+                </span>
+
+            </li>
+        }
+    </ul>
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>A CSS colour for the section's dot — a `var(--token)` from the
+    /// caller, so this component never names a palette.</summary>
+    [Parameter]
+    public string Tone { get; set; } = "var(--text)";
+
+    [Parameter, EditorRequired]
+    public List<Bill> Bills { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public decimal Total { get; set; }
+
+    [Parameter, EditorRequired]
+    public DateTime Today { get; set; }
+
+    /// <summary>Bills with a write in flight. A set rather than one flag so a
+    /// slow row cannot freeze the whole section.</summary>
+    [Parameter]
+    public IReadOnlySet<long> BusyIds { get; set; } = new HashSet<long>();
+
+    /// <summary>Ids of the checked rows. Owned by the page, because the action
+    /// bar it feeds is outside this component.</summary>
+    [Parameter]
+    public IReadOnlySet<long> SelectedIds { get; set; } = new HashSet<long>();
+
+    /// <summary>The one row whose status pill is armed, page-wide, or null.
+    /// Owned by the page for the same reason the selection is: only the page can
+    /// see the other four sections, and arming a pill has to disarm any
+    /// other.</summary>
+    [Parameter]
+    public long? ArmedId { get; set; }
+
+    [Parameter]
+    public EventCallback<Bill> OnToggleSelected { get; set; }
+
+    /// <summary>Raised on every click of a status pill. The page decides whether
+    /// that click arms the pill or commits the write.</summary>
+    [Parameter]
+    public EventCallback<Bill> OnTogglePaid { get; set; }
+
+    /// <summary>Raised when the armed pill should be withdrawn without
+    /// writing.</summary>
+    [Parameter]
+    public EventCallback OnDisarmPaid { get; set; }
+
+    /// <summary>Raised when a cell commits a new value. The page owns the write,
+    /// because it owns the reload and the toast that follow it.</summary>
+    [Parameter]
+    public EventCallback<BillEdit> OnFieldEdited { get; set; }
+
+    [Parameter]
+    public EventCallback<Bill> OnDelete { get; set; }
+
+    /// <summary>
+    /// Past its due date and still unpaid. A section can contain an overdue bill
+    /// even when it is not the Late section: toggling a paid bill back to unpaid
+    /// leaves it here until the reload lands.
+    /// </summary>
+    private static bool IsOverdue(Bill bill, DateTime today) =>
+        !bill.Paid && bill.DueDate is { } due && due.Date < today.Date;
+
+    /// <summary>Three states from two booleans: an unpaid bill that is not due
+    /// yet is not a problem, so the alarm colour is saved for the ones that
+    /// are.</summary>
+    private static string StatusClass(Bill bill, DateTime today) => bill switch
+    {
+        { Paid: true } => "is-paid",
+        _ when IsOverdue(bill, today) => "is-late",
+        _ => "is-unpaid",
+    };
+
+    private static string StatusText(Bill bill, DateTime today) => bill switch
+    {
+        { Paid: true } => "Paid",
+        _ when IsOverdue(bill, today) => "Overdue",
+        _ => "Unpaid",
+    };
+
+    /// <summary>The tooltip carries the sentence the pill has no room for — the
+    /// column is 5.5rem, which fits "Overdue" and not "Mark as paid".</summary>
+    private string PillTitle(Bill bill) => (ArmedId == bill.Id, bill.Paid) switch
+    {
+        (true, true) => "Click again to mark as unpaid",
+        (true, false) => "Click again to mark as paid",
+        (false, true) => "Mark as unpaid",
+        (false, false) => "Mark as paid",
+    };
+
+    /// <summary>Escape withdraws the question. Every other key falls through —
+    /// Enter and Space are the keyboard's click, and the two-step is the point.
+    /// </summary>
+    private Task DisarmOnEscapeAsync(KeyboardEventArgs e) =>
+        e.Key == "Escape" ? OnDisarmPaid.InvokeAsync() : Task.CompletedTask;
+
+    /// <summary>The date itself. Spelled out rather than "6/2/2026", which reads
+    /// as either 6 February or June 2 depending on where you are from.</summary>
+    private static string DueDateText(Bill bill) =>
+        bill.DueDate?.ToString("MMM d, yyyy") ?? "—";
+
+    /// <summary>How far off the due date is, in plain words. Only for unpaid
+    /// bills — once something is paid, how late it was is history.</summary>
+    private static string? DueRelativeText(Bill bill, DateTime today)
+    {
+        if (bill.Paid || bill.DueDate is not { } due)
+        {
+            return null;
+        }
+
+        var days = (due.Date - today.Date).Days;
+
+        return days switch
+        {
+            0 => "due today",
+            1 => "due tomorrow",
+            < 0 and > -2 => "1 day late",
+            < 0 => $"{-days} days late",
+            <= 7 => $"in {days} days",
+            _ => null,
+        };
+    }
+}

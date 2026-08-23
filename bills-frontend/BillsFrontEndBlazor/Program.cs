@@ -143,7 +143,13 @@ app.MapGet("/reports/bills.csv", async (
     CancellationToken ct) =>
 {
     var reportRange = ReportRanges.Parse(range);
-    var today = DateTime.Today;
+
+    // UTC, not DateTime.Today, and for two reasons. The window has to be cut
+    // from the same day the Reports page cuts it from, or the download and the
+    // figures on screen disagree; and the "days late" column is reckoned
+    // against the API's UtcDateTime.Today, so a local date would put a bill due
+    // today a day into the past for anyone west of Greenwich in the evening.
+    var today = DateTime.UtcNow.Date;
     var (from, to) = reportRange.Window(today);
 
     List<Bill> rows;

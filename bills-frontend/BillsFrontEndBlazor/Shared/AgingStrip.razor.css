@@ -1,0 +1,96 @@
+.aging {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 1rem;
+}
+
+.strip {
+    border-radius: var(--radius);
+    display: flex;
+    height: 14px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.band {
+    min-width: 2px;
+}
+
+/* A column of rows, not a wrapping grid of them. The five buckets are an ordered
+   scale — not yet due through over ninety days — and reflowing them into two or
+   three columns reads that order in the wrong direction. */
+.legend {
+    display: grid;
+    gap: .55rem;
+    list-style: none;
+    margin: 1.1rem 0 0;
+    padding: 0;
+}
+
+/* swatch | label | count | amount. The last two are sized to their content and
+   right-aligned, so the money lines up down the edge of the card whatever the
+   labels beside it are doing. */
+.legend li {
+    align-items: baseline;
+    display: grid;
+    font-size: .85rem;
+    gap: .6rem;
+    grid-template-columns: 10px minmax(0, 1fr) auto auto;
+}
+
+.swatch {
+    border-radius: 3px;
+    height: 10px;
+
+    /* Baseline-aligned row, and a swatch has no baseline of its own — without
+       this it hangs a little low against the text beside it. */
+    align-self: center;
+}
+
+.label {
+    color: var(--text);
+}
+
+.count {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.amount {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+
+    /* Wide enough for four figures and a comma, so the column does not shift
+       under the amounts as bills are settled. */
+    min-width: 6.5rem;
+    text-align: right;
+}
+
+/* Nothing in this bucket. The row stays — see the note in the markup — but drops
+   to the quietest colour in the palette, and the swatch stops competing with the
+   four bands that do hold money. */
+.is-empty .label,
+.is-empty .count,
+.is-empty .amount {
+    color: var(--faint);
+}
+
+.is-empty .swatch {
+    opacity: .4;
+}

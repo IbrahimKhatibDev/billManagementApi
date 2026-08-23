@@ -114,4 +114,36 @@ public sealed class SummaryFiguresTests
 
         Assert.Equal(new DateTime(2026, 3, 1), month.FirstDay);
     }
+
+    [Fact]
+    public void Oldest_days_late_is_the_first_bill_in_the_late_list()
+    {
+        // Late is ordered by due date, so its first element is the oldest one.
+        // This figure is derived rather than queried to keep it in sync with the
+        // list it is printed next to.
+        var summary = new BillSummary
+        {
+            Late = new()
+            {
+                new SummaryBill { PayeeName = "Acme", DaysLate = 45 },
+                new SummaryBill { PayeeName = "Widget Inc", DaysLate = 28 },
+                new SummaryBill { PayeeName = "Gadget Co", DaysLate = 10 },
+            }
+        };
+
+        Assert.Equal(45, summary.OldestDaysLate);
+    }
+
+    [Fact]
+    public void No_late_bills_means_oldest_days_late_is_zero_not_null()
+    {
+        // The overview reports this figure alongside the count of overdue bills.
+        // An empty late list is reachable from the UI: any combination of date
+        // range and status filters can empty it. Zero rather than null because
+        // the timeline does not ask whether it should draw anything; it just
+        // draws a zero.
+        var summary = new BillSummary { Late = new() };
+
+        Assert.Equal(0, summary.OldestDaysLate);
+    }
 }

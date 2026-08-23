@@ -5,8 +5,8 @@ concurrency, DataAnnotations validation, JWT bearer authentication with per-user
 data isolation, Swagger/OpenAPI docs, and Bogus-based seeding.
 
 The backend is lightweight and framework-agnostic. The Blazor Server UI is the
-frontend it ships with; an earlier React client lives in the repo too and talks
-to the same endpoints.
+frontend it ships with, but nothing here is written for it: every endpoint is
+plain HTTP and JSON, reachable from Swagger, `curl`, or a client of your own.
 
 ## Framework choice
 
@@ -459,13 +459,14 @@ accept its own output back.
 
 ### CORS
 
-`Program.cs` registers an `AllowAll` policy — any origin, header and method. The
-Blazor UI does not need it (being Blazor **Server**, its requests originate
-server-side, not from the browser), but a browser-based client such as the React
-frontend does. `AllowAnyHeader` is what lets its `Authorization` header through;
-a policy naming its allowed headers would have to list that one explicitly. It is
-a development-time default: narrow it to known origins before this is exposed
-anywhere real.
+`Program.cs` registers an `AllowAll` policy — any origin, header and method.
+Nothing in this repo exercises it: the Blazor UI is Blazor **Server**, so its
+requests originate server-side and never meet a preflight. It is here for the
+browser clients that are not in this repo — a page on another host, a `fetch`
+from a notebook, a Swagger UI running somewhere else. `AllowAnyHeader` is what
+lets their `Authorization` header through; a policy naming its allowed headers
+would have to list that one explicitly. It is a development-time default: narrow
+it to known origins before this is exposed anywhere real.
 
 `AllowAnyHeader` governs the *request*, though, and the response has a rule of
 its own: a browser hands script only a short safelist of response headers unless
@@ -473,7 +474,7 @@ the server names the rest. So the policy also carries
 `WithExposedHeaders("Retry-After", "X-Correlation-ID")` — the two headers this
 API adds. Without it both are on the wire and visible in DevTools but unreachable
 from `fetch`, which is the worst version of the bug: `curl` says it works. That
-would leave the React client unable to read how long to wait after a 429, or to
+would leave a browser client unable to read how long to wait after a 429, or to
 quote a correlation id into a bug report.
 
 `UseCors` runs before `UseAuthentication`, because a preflight `OPTIONS` carries
@@ -769,12 +770,12 @@ service.
 dotnet test BillsMinimalApi.sln
 ```
 
-207 tests across two projects, split by what they need to run:
+398 tests across two projects, split by what they need to run:
 
 | Project | Tests | Needs Docker | Covers |
 |---|---|---|---|
-| `../tests/BillsMinimalApi.UnitTests/` | 65 | no | Arithmetic and parsing with no I/O in it |
-| `../tests/BillsMinimalApi.Tests/` | 142 | **yes** | The API end to end, against a real PostgreSQL |
+| `../tests/BillsMinimalApi.UnitTests/` | 242 | no | Arithmetic, parsing and chart geometry, with no I/O in it |
+| `../tests/BillsMinimalApi.Tests/` | 156 | **yes** | The API end to end, against a real PostgreSQL |
 
 The split is about feedback rather than about taxonomy. Everything in the second
 project boots a host and a container, so the fastest it can be is seconds and
@@ -793,9 +794,15 @@ filtering all read from, and `UtcDateTime.Normalize`, whose two branches agree
 with each other on a machine set to UTC and therefore cannot be told apart by a
 test running in the container.
 
+The Blazor UI's charts are in there too, for the same reason. Their geometry is
+computed in `BillsMinimalApi.Contracts` — the only assembly the UI and this test
+project share — precisely so it can be tested away from the renderer: a bar drawn
+past its baseline or a "now" marker in the wrong week reads as a rendering quirk
+rather than a bug, and would otherwise ship.
+
 #### Integration tests
 
-142 tests in `../tests/BillsMinimalApi.Tests/`, running against a
+156 tests in `../tests/BillsMinimalApi.Tests/`, running against a
 throwaway PostgreSQL container. Most of them cover the list endpoint's paging,
 filtering, searching and sorting, and the summary aggregates, because that is
 where the behaviour a caller depends on now lives. The rest cover the auth

@@ -68,7 +68,9 @@ public static class BillSummaryBuilder
         summary.SizeBands = await SizeBandsAsync(scoped, cancellationToken);
         summary.Payees = await PayeesAsync(scoped, cancellationToken);
         summary.Months = await MonthsAsync(scoped, cancellationToken);
+        summary.Weeks = await WeeksAsync(scoped, cancellationToken);
         summary.Priority = await PriorityAsync(scoped, today, cancellationToken);
+        summary.Late = await LateAsync(scoped, today, cancellationToken);
 
         return summary;
     }
@@ -357,6 +359,45 @@ public static class BillSummaryBuilder
     }
 
     /// <summary>
+    /// One row per week, paid and unpaid apart.
+    /// <para>
+    /// Grouped by due date in Postgres and folded into weeks in memory.
+    /// <c>date_trunc('week', …)</c> has no dependable Npgsql translation, and
+    /// grouping on the raw column needs none: due dates are stored at midnight
+    /// UTC, so one group is one day. The fold that follows is pure arithmetic
+    /// with a unit test of its own.
+    /// </para>
+    /// </summary>
+    private static async Task<List<WeekTotals>> WeeksAsync(
+        IQueryable<Bill> scoped,
+        CancellationToken cancellationToken)
+    {
+        var rows = await scoped
+            .GroupBy(b => b.DueDate)
+            .Select(g => new
+            {
+                Day = g.Key,
+                Bills = g.Count(),
+                Paid = g.Sum(b => b.Paid ? b.PaymentDue : 0m),
+                Unpaid = g.Sum(b => b.Paid ? 0m : b.PaymentDue),
+            })
+            // Bounded, like Priority and Late either side of it. One row per
+            // distinct due date is not one row per bill, but it is not bounded by
+            // anything either: a book spanning decades streams every one of them
+            // back to be folded in memory, on a summary that is rebuilt on every
+            // mark-paid. MaxWeeks * 7 is the widest run of consecutive days the
+            // timeline can draw, so within the horizon the chart documents this
+            // drops nothing; past it the earliest dates are the ones kept.
+            .OrderBy(g => g.Day)
+            .Take(BillSummary.MaxWeeks * 7)
+            .ToListAsync(cancellationToken);
+
+        return WeekBuckets.FromDays(
+            rows.Select(r => new WeekBuckets.DayTotals(r.Day, r.Bills, r.Paid, r.Unpaid)),
+            BillSummary.MaxWeeks);
+    }
+
+    /// <summary>
     /// The unpaid bills to deal with first.
     /// <para>
     /// The page expressed this as "most days late first, then soonest due",
@@ -378,6 +419,30 @@ public static class BillSummaryBuilder
             .ThenBy(b => b.DueDate)
             .ThenBy(b => b.Id)
             .Take(BillSummary.PriorityCount)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(b => ToSummaryBill(b, today)).ToList();
+    }
+
+    /// <summary>
+    /// Every unpaid bill already past due, oldest first.
+    /// <para>
+    /// The predicate is character for character the one
+    /// <see cref="AddHeadlineAsync"/> counts with, because the Overview prints
+    /// the count and the list side by side and a bill in one but not the other
+    /// reads as a bug in both.
+    /// </para>
+    /// </summary>
+    private static async Task<List<SummaryBill>> LateAsync(
+        IQueryable<Bill> scoped,
+        DateTime today,
+        CancellationToken cancellationToken)
+    {
+        var rows = await scoped
+            .Where(b => !b.Paid && b.DueDate < today)
+            .OrderBy(b => b.DueDate)
+            .ThenBy(b => b.Id)
+            .Take(BillSummary.LateCount)
             .ToListAsync(cancellationToken);
 
         return rows.Select(b => ToSummaryBill(b, today)).ToList();

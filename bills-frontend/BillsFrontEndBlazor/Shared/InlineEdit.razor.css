@@ -1,0 +1,46 @@
+/* Reads as the text it replaced. The affordance is the hover underline and the
+   cursor — a cell that looked like a button five times a row would turn the
+   list into a toolbar. */
+.reader {
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: inherit;
+    cursor: text;
+    display: block;
+    font: inherit;
+    margin: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: .15rem .3rem;
+    text-align: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reader:hover:not(:disabled) {
+    background: var(--sunken);
+}
+
+.reader:focus-visible {
+    outline: var(--border-width) solid var(--accent);
+    outline-offset: 1px;
+}
+
+.reader:disabled {
+    cursor: default;
+}
+
+.editor {
+    background: var(--sunken);
+    border: var(--border-width) solid var(--accent);
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    padding: .1rem .25rem;
+    width: 100%;
+}
+
+.editor.invalid {
+    border-color: var(--late);
+}

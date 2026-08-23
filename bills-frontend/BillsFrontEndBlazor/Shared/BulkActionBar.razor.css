@@ -1,0 +1,100 @@
+.bar {
+    align-items: center;
+    background: var(--surface);
+    border: var(--border-width) solid var(--accent);
+    border-radius: var(--radius-lg);
+    display: flex;
+    gap: .85rem;
+    margin-bottom: 1rem;
+    padding: .7rem 1rem;
+
+    /* Sticks to the top of the viewport, because that is the edge the bar sits
+       against in the list. An opaque --surface is doing real work here: rows
+       scroll underneath it. */
+    position: sticky;
+    top: 0;
+
+    /* Above the rows, below the mobile bar at 1020 and Bootstrap's .modal at
+       1055 — the delete dialog has to cover this. */
+    z-index: 5;
+}
+
+/* The mobile bar is sticky at top: 0 and taller than nothing, so a bar that
+   also stopped at 0 would park underneath it and be unreachable. Same
+   breakpoint and same height as MainLayout's .mobile-bar. */
+@media (max-width: 640.98px) {
+    .bar {
+        top: 3.25rem;
+    }
+}
+
+.label {
+    color: var(--text);
+    font-size: .85rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Pushes the pair of buttons to the right edge. */
+.total {
+    color: var(--muted);
+    font-size: .85rem;
+    font-variant-numeric: tabular-nums;
+    margin-right: auto;
+}
+
+/* The same row the two buttons made when they were loose in the bar. */
+.actions {
+    display: flex;
+    gap: .85rem;
+}
+
+.pay,
+.clear {
+    align-items: center;
+    background: none;
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    flex: none;
+    font-size: .8rem;
+    padding: .35rem .75rem;
+    white-space: nowrap;
+}
+
+/* Outline only, in this palette as in every other. */
+.pay {
+    border-color: var(--accent);
+    color: var(--accent-text);
+}
+
+.pay:disabled {
+    border-color: var(--border);
+    color: var(--faint);
+    cursor: default;
+}
+
+/* Two lines, below the width where the count, the sum and both buttons stop
+   fitting on one — at 390px they ran about 20px past the bar's own border, with
+   Clear the half of it that was cut off. What is being described and what can be
+   done about it split across the fold, and the buttons keep the right edge they
+   sit against in the wide bar.
+
+   A container query and not the 640.98px media query above it, because those two
+   rules are about different things: that one is about the mobile bar this has to
+   sit below, which is a fact about the window, and this one is about how much
+   room the bar itself has, which is a fact about the column. */
+@container (max-width: 26rem) {
+    .bar {
+        flex-wrap: wrap;
+    }
+
+    /* A whole line to itself, which is also what pushes it onto the second one:
+       a basis of 100% cannot share a line with the label and the sum. */
+    .actions {
+        flex: 0 0 100%;
+        justify-content: flex-end;
+    }
+}

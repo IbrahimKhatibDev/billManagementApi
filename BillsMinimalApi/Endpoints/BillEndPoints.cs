@@ -3,6 +3,7 @@ using BillsMinimalApi.Data;
 using BillsMinimalApi.Dtos;
 using BillsMinimalApi.Mappers;
 using BillsMinimalApi.Models;
+using BillsMinimalApi.Parsing;
 using BillsMinimalApi.Queries;
 using Microsoft.EntityFrameworkCore;
 
@@ -90,6 +91,19 @@ namespace BillsMinimalApi.Endpoints
 
                 return Results.Ok(summary);
             });
+
+            // PARSE A LINE OF TEXT
+            //
+            // Reads and returns; it never touches the DbContext. The client
+            // renders the reading, the user corrects it, and the bill is created
+            // through POST "/" like any other — so a misread costs a keystroke
+            // rather than a row that has to be found and fixed.
+            //
+            // Today is read here rather than in the parser so that "fri" is
+            // resolved against the server's clock, which is the same clock every
+            // other date comparison in this API uses.
+            group.MapPost("/parse", (ParseBillRequest request) =>
+                Results.Ok(BillTextParser.Parse(request.Text, UtcDateTime.Today)));
 
             // GET BY ID
             group.MapGet("/{id:long}", async (long id, AppDbContext db) =>

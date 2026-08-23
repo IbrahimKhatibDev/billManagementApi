@@ -1,0 +1,133 @@
+@using System.Globalization
+@using BillsMinimalApi.Contracts
+
+@* Idea 2: the six-month history bar chart becomes the whole book, by week.
+   Inline SVG rendered from C# — no interop, nothing fetched. *@
+<section class="timeline">
+
+    @* The legend sits under the title, where it reads as part of naming the
+       chart, and the sentence describing it moves to the far end of the same
+       row. Reversed from the arrangement this had, which put the key — the thing
+       you need before the bars mean anything — furthest from them. *@
+    <div class="head">
+        <div>
+            <h2 class="title">Cash-flow timeline</h2>
+
+            <ul class="legend">
+                <li><span class="swatch unpaid"></span>unpaid</li>
+                <li><span class="swatch paid"></span>paid</li>
+            </ul>
+        </div>
+
+        <p class="subtitle">Every bill on the books, by the week it falls due.</p>
+    </div>
+
+    @if (_layout.Bars.Count == 0)
+    {
+        <p class="empty">No bills to plot yet.</p>
+    }
+    else
+    {
+        @* preserveAspectRatio="none" is what lets the bars stretch to whatever
+           width the card has — and it stretches the glyphs of any <text> in here
+           by the same factor. At 1100px that is unnoticeable; in a 340px card
+           the x-scale is under a third and the axis labels were unreadable
+           smears. So the plot stops at the axis line and the labels below it are
+           HTML, laid out by the browser at their own size. *@
+        <svg class="plot" viewBox="0 0 @N(TimelineLayout.ViewWidth) @N(TimelineLayout.ViewHeight)"
+             preserveAspectRatio="none"
+             role="img" aria-label="Amount due each week, paid and unpaid">
+
+            @* Before the bars, so it is behind them. An SVG has no z-index; the
+               only thing that decides what covers what is document order. *@
+            @if (_layout.NowSlotX is { } slotX)
+            {
+                <rect class="now-week" x="@N(slotX)" y="@N(TimelineLayout.PlotTop)"
+                      width="@N(_layout.SlotWidth)"
+                      height="@N(TimelineLayout.Baseline - TimelineLayout.PlotTop)" />
+            }
+
+            @foreach (var bar in _layout.Bars)
+            {
+                @* Wrapped in a <g> because a bare <text> at the top of a razor
+                   loop is parsed as razor's own <text> escape tag. *@
+                <g>
+                    <rect class="paid" x="@N(bar.X)" y="@N(bar.PaidY)"
+                          width="@N(bar.Width)" height="@N(bar.PaidHeight)">
+                        <title>@Tooltip(bar)</title>
+                    </rect>
+                    <rect class="unpaid" x="@N(bar.X)" y="@N(bar.UnpaidY)"
+                          width="@N(bar.Width)" height="@N(bar.UnpaidHeight)">
+                        <title>@Tooltip(bar)</title>
+                    </rect>
+                </g>
+            }
+
+            <line class="baseline" x1="@N(TimelineLayout.PlotLeft)" x2="@N(TimelineLayout.PlotRight)"
+                  y1="@N(TimelineLayout.Baseline)" y2="@N(TimelineLayout.Baseline)" />
+
+            @if (_layout.NowX is { } nowX)
+            {
+                @* Solid, not dashed, and no longer labelled at the top. The
+                   label belongs on the axis with the months — it is the same
+                   kind of thing they are, a position in time — and reading it
+                   there is what makes "now" a tick rather than an annotation
+                   floating over the bars. *@
+                <line class="now" x1="@N(nowX)" x2="@N(nowX)"
+                      y1="@N(TimelineLayout.PlotTop)" y2="@N(TimelineLayout.Baseline + 4)" />
+            }
+
+        </svg>
+
+        @* The same row of labels the SVG used to hold, in the same places: every
+           X is a position in the plot's coordinate space, so a percentage of the
+           chart's width puts each one exactly under the week it names.
+
+           aria-hidden because they were inside the <svg role="img"> before and
+           so were never announced separately. Out here they would read as a bare
+           run of words — "Mar Apr May now" — after the label that already
+           describes the chart. *@
+        <div class="axis" aria-hidden="true">
+            @foreach (var tick in _layout.Ticks)
+            {
+                <span class="tick" style="left: @Pct(tick.X)">@tick.Label</span>
+            }
+
+            @if (_layout.NowX is { } labelX)
+            {
+                <span class="now-label" style="left: @Pct(labelX)">now</span>
+            }
+        </div>
+    }
+
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<WeekTotals> Weeks { get; set; } = new();
+
+    /// <summary>The server's date, from <c>BillSummary.AsOf</c> — never this
+    /// machine's, or the marker could disagree with the bars beside it.</summary>
+    [Parameter, EditorRequired]
+    public DateTime Today { get; set; }
+
+    private TimelineLayout _layout = TimelineLayout.Build(Array.Empty<WeekTotals>(), DateTime.Today);
+
+    protected override void OnParametersSet() => _layout = TimelineLayout.Build(Weeks, Today);
+
+    // The year is always spelled out here, unlike the axis, which only adds it
+    // when the book spans one. The axis is a row of labels reading left to right
+    // and can afford to say "Mar" once the year is established; a tooltip is read
+    // on its own, and "Week of Mar 16" on a chart holding five years of bills
+    // does not say which March.
+    private static string Tooltip(TimelineBar bar) =>
+        $"Week of {bar.WeekStart:MMM d, yyyy}: {bar.Unpaid:C} unpaid, {bar.Paid:C} paid";
+
+    // Invariant: these land in SVG coordinate attributes, which are not
+    // culture-aware and would read "12,5" as two values.
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    // An X in the plot's coordinate space as a share of the chart's width. The
+    // SVG spans the card edge to edge, so the two agree at every size.
+    private static string Pct(double x) => $"{N(x / TimelineLayout.ViewWidth * 100)}%";
+}

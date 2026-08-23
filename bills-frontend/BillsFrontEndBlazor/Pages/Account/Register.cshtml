@@ -13,7 +13,7 @@
     <div class="alert alert-danger py-2 px-3 mb-3" role="alert">
         @foreach (var error in Model.Errors)
         {
-            <div><i class="bi bi-exclamation-triangle-fill me-1"></i> @error</div>
+            <div><i class="ph ph-warning me-1"></i> @error</div>
         }
     </div>
 }
@@ -24,7 +24,7 @@
     <div class="mb-3">
         <label class="form-label" asp-for="Input.Email">Email</label>
         <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+            <span class="input-group-text"><i class="ph ph-envelope-simple"></i></span>
             <input class="form-control" asp-for="Input.Email" type="email"
                    autocomplete="username" autofocus placeholder="you@example.com" />
         </div>
@@ -34,7 +34,7 @@
     <div class="mb-3">
         <label class="form-label" asp-for="Input.Password">Password</label>
         <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+            <span class="input-group-text"><i class="ph ph-lock-simple"></i></span>
             <input class="form-control" asp-for="Input.Password" type="password"
                    autocomplete="new-password" placeholder="At least 8 characters" />
         </div>
@@ -44,7 +44,7 @@
     <div class="mb-3">
         <label class="form-label" asp-for="Input.ConfirmPassword">Confirm password</label>
         <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+            <span class="input-group-text"><i class="ph ph-lock-key"></i></span>
             <input class="form-control" asp-for="Input.ConfirmPassword" type="password"
                    autocomplete="new-password" placeholder="Type it again" />
         </div>
@@ -52,7 +52,7 @@
     </div>
 
     <button type="submit" class="btn btn-primary w-100">
-        <i class="bi bi-person-plus me-1"></i> Create account
+        <i class="ph ph-user-plus me-1"></i> Create account
     </button>
 </form>
 

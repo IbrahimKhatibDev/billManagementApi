@@ -1,0 +1,124 @@
+.timeline {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    container-type: inline-size;
+    padding: 1.25rem 1.5rem;
+}
+
+.head {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1.5rem;
+    justify-content: space-between;
+}
+
+.title {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.subtitle,
+.empty {
+    color: var(--muted);
+    font-size: .85rem;
+    margin: .15rem 0 0;
+}
+
+/* The sentence rides at the far end of the head row, so it is right-aligned for
+   the same reason a figure in a table is: its near edge is the one the reader
+   is scanning from. When the row wraps on a narrow window it lands under the
+   title and reads left to right again. */
+.subtitle {
+    text-align: right;
+}
+
+/* Asked of the card rather than the window: what decides whether the sentence is
+   still at the far end of a row is whether the row wrapped, and that is a fact
+   about this card. 40rem is the 641px window the media query here used to name,
+   restated as the width of the thing it was really about. */
+@container (max-width: 40rem) {
+    .subtitle {
+        text-align: left;
+    }
+}
+
+.legend {
+    color: var(--muted);
+    display: flex;
+    font-size: .78rem;
+    gap: 1rem;
+    list-style: none;
+    margin: .45rem 0 0;
+    padding: 0;
+}
+
+.legend li {
+    align-items: center;
+    display: flex;
+    gap: .35rem;
+}
+
+.swatch {
+    border-radius: 2px;
+    height: 9px;
+    width: 9px;
+}
+
+.swatch.unpaid { background: var(--accent); }
+.swatch.paid { background: var(--ok); }
+
+/* 176 CSS pixels for 176 user units, so the bars keep the heights the layout
+   worked out for them. The axis row below makes the 200px this used to be. */
+.plot {
+    display: block;
+    height: 176px;
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.axis {
+    height: 24px;
+    position: relative;
+}
+
+/* Positioned by the `left` percentage on each one, then pulled back by half its
+   own width so the label is centred on the week rather than starting at it.
+   Overflow past either end of the row is absorbed by the card's padding. */
+.axis span {
+    font-size: 11px;
+    line-height: 24px;
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+/* No ::deep here: these elements — including the ones inside the @foreach
+   loops — are rendered directly by this component's own markup, so Blazor
+   stamps the scoped-CSS attribute on them same as everything else above. */
+rect.unpaid { fill: var(--accent); }
+rect.paid { fill: var(--ok); }
+line.baseline { stroke: var(--border); stroke-width: 1; }
+
+/* The current week, shaded behind its bars. Deliberately weak: this is the
+   ground the reader is standing on, not a finding. A tenth turned out to be
+   below the threshold where it reads as a band at all against --surface, so it
+   is a little under a fifth — still quiet enough that the bars sitting on it
+   keep their own colour. */
+rect.now-week {
+    fill: var(--accent);
+    fill-opacity: .18;
+}
+
+line.now {
+    stroke: var(--late);
+    stroke-width: 1.5;
+}
+
+.now-label { color: var(--late); }
+
+.tick { color: var(--faint); }
